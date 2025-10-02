@@ -73,6 +73,14 @@ An intelligent customer support automation system for dropshipping companies. Th
 └─────────────────────────────────────┘
 ```
 
+## Version Information
+
+**Current Version**: 1.0.1
+
+### Recent Updates
+- **v1.0.1** (Oct 2, 2025): Fixed Pydantic configuration type conversion for environment variables. See [BUGFIXES.md](BUGFIXES.md) for details.
+- **v1.0.0** (Oct 2, 2025): Initial release
+
 ## Installation
 
 ### Prerequisites

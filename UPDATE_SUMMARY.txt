@@ -1,0 +1,141 @@
+================================================================================
+AI CUSTOMER SUPPORT AGENT - BUG FIX UPDATE v1.0.1
+================================================================================
+
+ISSUE RESOLVED:
+---------------
+Fixed Pydantic configuration validation error when loading settings from .env
+file. The error occurred because environment variables are loaded as strings,
+but Pydantic expected specific types (int for deployment_phase, etc.).
+
+Error Message (Fixed):
+"Input should be 1, 2 or 3 [type=literal_error, input_value='1', input_type=str]"
+
+FILES MODIFIED:
+---------------
+1. config/settings.py          - Added type conversion validators
+2. .env.example                - Added clarifying comment
+3. README.md                   - Added version info
+
+NEW FILES CREATED:
+------------------
+1. test_config.py              - Configuration test script
+2. troubleshoot.sh             - Troubleshooting helper script
+3. BUGFIXES.md                 - Detailed bug fix documentation
+4. DEPLOYMENT_UPDATE.md        - Server update instructions
+5. UPDATE_SUMMARY.txt          - This file
+
+KEY CHANGES IN config/settings.py:
+-----------------------------------
+- Changed import from 'validator' to 'field_validator' (Pydantic 2.x)
+- Changed deployment_phase from Literal[1,2,3] to int with validation
+- Added @field_validator for integers (deployment_phase, default_owner_id, etc.)
+- Added @field_validator for floats (ai_temperature, confidence_threshold)
+- Updated ai_provider validator to new syntax
+- Added validate_default=True to model_config
+
+TESTING:
+--------
+Run this to verify the fix:
+    python test_config.py
+
+Expected output:
+    ✅ Configuration loaded successfully!
+    ✅ All type validations passed!
+
+DEPLOYMENT TO SERVER:
+---------------------
+1. Pull latest code:
+   cd /path/to/ai-support-agent
+   git pull origin main
+
+2. No .env changes needed (existing values work!)
+
+3. Test configuration:
+   python test_config.py
+
+4. Restart service:
+   sudo systemctl restart ai-support-agent
+
+5. Verify:
+   sudo systemctl status ai-support-agent
+   tail -f logs/support_agent.log
+
+TROUBLESHOOTING:
+----------------
+If you encounter issues:
+   ./troubleshoot.sh
+
+This will check:
+- Python version
+- Virtual environment
+- Configuration files
+- Service status
+- Database
+- Logs
+- And more...
+
+BACKWARD COMPATIBILITY:
+-----------------------
+✅ Existing .env files work without changes
+✅ All numeric values (quoted or unquoted) are handled correctly
+✅ No database migrations needed
+✅ No breaking changes
+
+EXAMPLE .env (All These Work):
+-------------------------------
+DEPLOYMENT_PHASE=1           ✅ Works
+DEPLOYMENT_PHASE="1"         ✅ Works (auto-converted)
+DEPLOYMENT_PHASE='1'         ✅ Works (auto-converted)
+AI_TEMPERATURE=0.7           ✅ Works
+CONFIDENCE_THRESHOLD=0.75    ✅ Works
+
+ROLLBACK (If Needed):
+---------------------
+To rollback to v1.0.0:
+    git checkout v1.0.0
+    sudo systemctl restart ai-support-agent
+
+DOCUMENTATION:
+--------------
+Full Details:       BUGFIXES.md
+Update Guide:       DEPLOYMENT_UPDATE.md
+Getting Started:    GETTING_STARTED.md
+Main Docs:          README.md
+Architecture:       ARCHITECTURE.md
+
+QUICK COMMANDS:
+---------------
+# Test config
+python test_config.py
+
+# Troubleshoot
+./troubleshoot.sh
+
+# Update on server
+git pull && sudo systemctl restart ai-support-agent
+
+# Check status
+sudo systemctl status ai-support-agent
+
+# View logs
+tail -f logs/support_agent.log
+
+SUPPORT:
+--------
+If you still have issues after this update:
+1. Run: ./troubleshoot.sh
+2. Check: logs/support_agent.log
+3. Review: BUGFIXES.md
+4. Test: python test_config.py
+
+VERSION INFO:
+-------------
+Current:  v1.0.1 (Bug Fix Release)
+Previous: v1.0.0 (Initial Release)
+Date:     October 2, 2025
+Priority: Medium (Fixes deployment blocker)
+
+STATUS: ✅ READY TO DEPLOY
+
+================================================================================

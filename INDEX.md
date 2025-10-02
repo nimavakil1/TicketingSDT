@@ -5,8 +5,12 @@
 **AI Customer Support Agent** is a production-ready automation system for dropshipping companies. It monitors support emails, analyzes customer inquiries using AI, and handles communications with customers and suppliers automatically through a phased deployment approach.
 
 **Status**: ✅ Complete and Ready for Deployment
-**Version**: 1.0.0
-**Completion Date**: October 2, 2025
+**Version**: 1.0.1 (Bug Fix Release)
+**Last Updated**: October 2, 2025
+
+### Version History
+- **v1.0.1** (Oct 2, 2025): Fixed Pydantic configuration type conversion bug. See [BUGFIXES.md](BUGFIXES.md)
+- **v1.0.0** (Oct 2, 2025): Initial release
 
 ---
 
@@ -65,6 +69,8 @@ ai-support-agent/
 │   ├── SETUP_GUIDE.md          ← Production setup
 │   ├── ARCHITECTURE.md         ← Technical details
 │   ├── PROJECT_SUMMARY.md      ← Overview
+│   ├── BUGFIXES.md             ← Bug fix history (NEW)
+│   ├── DEPLOYMENT_UPDATE.md    ← Update instructions (NEW)
 │   └── INDEX.md                ← This file
 │
 ├── 🔧 Configuration
@@ -98,6 +104,9 @@ ai-support-agent/
 │
 ├── 🛠️ Utilities
 │   ├── manage_suppliers.py     ← Supplier CLI tool
+│   ├── test_config.py          ← Configuration test (NEW)
+│   ├── troubleshoot.sh         ← Troubleshooting tool (NEW)
+│   ├── verify_setup.py         ← Setup verification
 │   └── quickstart.sh           ← Setup automation
 │
 ├── 🐳 Deployment
@@ -203,9 +212,9 @@ python -m pytest tests/ -v
 
 ## 📊 Project Statistics
 
-- **Total Files**: 32
-- **Python Code**: 3,448 lines
-- **Documentation**: 17,548 words (5 markdown files)
+- **Total Files**: 37
+- **Python Code**: 3,550+ lines
+- **Documentation**: 20,000+ words (8 markdown files)
 - **Modules**: 12 Python modules
 - **Tests**: Basic test suite included
 - **Database Tables**: 5
