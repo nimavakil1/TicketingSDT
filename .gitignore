@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+
+# Environment
+.env
+.env.local
+
+# Credentials
+config/gmail_credentials.json
+config/gmail_token.json
+
+# Database
+data/*.db
+data/*.db-journal
+
+# Logs
+logs/*.log
+logs/*.log.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Deployment
+*.pid

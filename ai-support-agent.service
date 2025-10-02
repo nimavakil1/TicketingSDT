@@ -1,0 +1,21 @@
+# SystemD service file for AI Support Agent
+# Copy to /etc/systemd/system/ai-support-agent.service
+# Then run: sudo systemctl daemon-reload && sudo systemctl enable ai-support-agent && sudo systemctl start ai-support-agent
+
+[Unit]
+Description=AI Customer Support Agent
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/path/to/ai-support-agent
+Environment="PATH=/path/to/ai-support-agent/venv/bin"
+ExecStart=/path/to/ai-support-agent/venv/bin/python main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/path/to/ai-support-agent/logs/service.log
+StandardError=append:/path/to/ai-support-agent/logs/service-error.log
+
+[Install]
+WantedBy=multi-user.target
