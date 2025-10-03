@@ -119,17 +119,7 @@ class SupportAgentOrchestrator:
                 logger.info("Email already processed, skipping", gmail_id=gmail_message_id)
                 return False
 
-            # Optional preparation mode: label only, skip AI + ticketing
-            if getattr(settings, 'preparation_mode', False):
-                self._mark_email_processed(session, email_data, None, None)
-                self.gmail_monitor.mark_as_processed(gmail_message_id)
-                session.commit()
-                logger.info(
-                    "Preparation mode: labeled message only",
-                    gmail_id=gmail_message_id,
-                    subject=subject[:100]
-                )
-                return True
+            # Preparation analysis of historical tickets is handled by a separate tool.
 
             # Extract order number from email
             order_number = self._extract_order_number(email_data)
