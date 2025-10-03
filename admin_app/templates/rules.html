@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Domain Rules</h2>
+<p class="note">These rules are injected into the agent's prompt.</p>
+<form method="post" action="/rules">
+  <textarea name="content">{{ content }}</textarea>
+  <br/>
+  <button type="submit">Save</button>
+  <span class="note">File: config/policies/rules.md</span>
+</form>
+{% endblock %}
