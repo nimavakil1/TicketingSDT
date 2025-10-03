@@ -49,6 +49,20 @@ class Settings(BaseSettings):
         default="AI_Agent_Processed",
         description="Gmail label for processed emails"
     )
+    gmail_start_at: str | None = Field(
+        default=None,
+        description="ISO8601 or epoch seconds to start processing from"
+    )
+    gmail_max_results: int = Field(
+        default=25,
+        ge=1,
+        le=500,
+        description="Max messages to fetch per poll"
+    )
+    gmail_read_only: bool = Field(
+        default=True,
+        description="Phase 1: only label emails; no ticketing calls"
+    )
 
     # AI Configuration
     ai_provider: Literal["openai", "anthropic", "gemini"] = Field(
@@ -133,7 +147,7 @@ class Settings(BaseSettings):
         description="Email polling interval"
     )
 
-    @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', mode='before')
+    @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:
         """Convert string integers from env vars to int"""

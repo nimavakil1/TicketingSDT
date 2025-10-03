@@ -119,6 +119,18 @@ class SupportAgentOrchestrator:
                 logger.info("Email already processed, skipping", gmail_id=gmail_message_id)
                 return False
 
+            # Phase 1 / Read-only mode: label only, no ticketing or AI
+            if settings.gmail_read_only or settings.deployment_phase == 1:
+                self._mark_email_processed(session, email_data, None, None)
+                self.gmail_monitor.mark_as_processed(gmail_message_id)
+                session.commit()
+                logger.info(
+                    "Read-only mode: labeled message only",
+                    gmail_id=gmail_message_id,
+                    subject=subject[:100]
+                )
+                return True
+
             # Extract order number from email
             order_number = self._extract_order_number(email_data)
 
