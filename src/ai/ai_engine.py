@@ -142,7 +142,8 @@ class AIEngine:
         self,
         email_data: Dict[str, Any],
         ticket_data: Optional[Dict[str, Any]] = None,
-        ticket_history: Optional[str] = None
+        ticket_history: Optional[str] = None,
+        supplier_language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Analyze an email and determine the appropriate action
@@ -184,8 +185,9 @@ class AIEngine:
             from_address=from_address,
             language=language_name,
             ticket_data=ticket_data,
-            ticket_history=ticket_history
-        )
+            ticket_history=ticket_history,
+                supplier_language=supplier_language
+            )
 
         # Get AI analysis
         try:
@@ -231,7 +233,8 @@ class AIEngine:
         from_address: str,
         language: str,
         ticket_data: Optional[Dict[str, Any]],
-        ticket_history: Optional[str]
+        ticket_history: Optional[str],
+        supplier_language: Optional[str]
     ) -> str:
         """Build the analysis prompt for the AI"""
 
@@ -244,7 +247,10 @@ Email Details:
 - Body:
 {body}
 
-"""
+Supplier communication language: {supplier_language or settings.supplier_default_language}
+Customer communication language: {language}
+
+        """
 
         if ticket_data:
             prompt += f"""

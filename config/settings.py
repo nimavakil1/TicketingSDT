@@ -135,6 +135,14 @@ class Settings(BaseSettings):
         ...,
         description="Email for internal alerts"
     )
+    supplier_default_language: str = Field(
+        default="de-DE",
+        description="Default language for supplier communications"
+    )
+    supplier_language_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of supplier name -> language code (JSON or 'Name:code;Name2:code2')"
+    )
 
     # Logging Configuration
     log_level: str = Field(default="INFO")
@@ -164,6 +172,34 @@ class Settings(BaseSettings):
             return float(v)
         except (ValueError, TypeError):
             raise ValueError(f"Must be a valid number")
+
+    @field_validator('supplier_language_overrides', mode='before')
+    @classmethod
+    def parse_supplier_lang_overrides(cls, v):
+        """Allow JSON or 'Name:code;Name2:code2' mapping in env."""
+        if isinstance(v, dict) or v is None:
+            return v or {}
+        s = str(v).strip()
+        if not s:
+            return {}
+        # Try JSON first
+        try:
+            import json
+            m = json.loads(s)
+            if isinstance(m, dict):
+                return m
+        except Exception:
+            pass
+        # Fallback: semi-colon separated pairs
+        result = {}
+        for part in s.split(';'):
+            part = part.strip()
+            if not part:
+                continue
+            if ':' in part:
+                name, code = part.split(':', 1)
+                result[name.strip()] = code.strip()
+        return result
 
     @field_validator('ai_provider', mode='after')
     @classmethod

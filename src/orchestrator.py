@@ -154,11 +154,13 @@ class SupportAgentOrchestrator:
             # Build ticket history for AI context
             ticket_history = self._build_ticket_history(ticket_data)
 
-            # AI analysis
+            # AI analysis (respect supplier language for supplier actions)
+            supplier_language = self._resolve_supplier_language(ticket_data)
             analysis = self.ai_engine.analyze_email(
                 email_data=email_data,
                 ticket_data=ticket_data,
-                ticket_history=ticket_history
+                ticket_history=ticket_history,
+                supplier_language=supplier_language
             )
 
             logger.info(
@@ -345,6 +347,21 @@ class SupportAgentOrchestrator:
                 history_parts.append(f"[{sender}]: {comment[:200]}")
 
         return "\n".join(history_parts) if history_parts else "No previous history"
+
+
+    def _resolve_supplier_language(self, ticket_data: dict) -> str:
+        """Determine supplier communication language using overrides or default."""
+        try:
+            sales_order = ticket_data.get('salesOrder', {}) if ticket_data else {}
+            pos = sales_order.get('purchaseOrders') or []
+            supplier_name = pos[0].get('supplierName', '') if pos else ''
+        except Exception:
+            supplier_name = ''
+
+        overrides = getattr(settings, 'supplier_language_overrides', {}) or {}
+        if supplier_name and supplier_name in overrides:
+            return overrides[supplier_name]
+        return getattr(settings, 'supplier_default_language', 'en-US')
 
     def _update_ticket_state(
         self,
