@@ -59,9 +59,9 @@ class Settings(BaseSettings):
         le=500,
         description="Max messages to fetch per poll"
     )
-    gmail_read_only: bool = Field(
-        default=True,
-        description="Phase 1: only label emails; no ticketing calls"
+    preparation_mode: bool = Field(
+        default=False,
+        description="Preparation mode: only label emails; skip AI and ticketing"
     )
 
     # AI Configuration
