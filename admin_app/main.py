@@ -6,6 +6,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from typing import Optional
 import os
+import subprocess
+import threading
 
 from config.settings import settings
 from src.database.models import init_database, AIDecisionLog
@@ -31,7 +33,7 @@ def basic_auth_dependency(request: Request):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="AI Support Admin", root_path=os.getenv("ADMIN_ROOT_PATH", "/TicketingSDT"))
+    app = FastAPI(title="AI Support Admin", root_path=os.getenv("ADMIN_ROOT_PATH", ""))
 
     templates_dir = os.path.join(os.path.dirname(__file__), "templates")
     os.makedirs(templates_dir, exist_ok=True)
@@ -83,6 +85,52 @@ def create_app() -> FastAPI:
         with open(os.path.join(rules_dir, "rules.md"), "w", encoding="utf-8") as f:
             f.write(content)
         return RedirectResponse(url="/rules", status_code=303)
+
+    # Preparation UI
+    @app.get("/prep", response_class=HTMLResponse, dependencies=[Depends(basic_auth_dependency)])
+    def prep_get(request: Request):
+        return templates.TemplateResponse("prep.html", {"request": request})
+
+    def _run_prep(ids_text: str, limit: int, model: str, no_ai: bool):
+        outdir = os.path.join("config", "preparation")
+        os.makedirs(outdir, exist_ok=True)
+        ids_path = os.path.join(outdir, "ids.txt")
+        with open(ids_path, "w", encoding="utf-8") as f:
+            f.write(ids_text.strip() + "\n")
+        cmd = [
+            "python", "-m", "tools.prepare_ticket_prompt",
+            "--input", ids_path,
+            "--outdir", outdir,
+        ]
+        if limit and limit > 0:
+            cmd += ["--limit", str(limit)]
+        if model:
+            cmd += ["--model", model]
+        if no_ai:
+            cmd += ["--no-ai"]
+        log_path = os.path.join(outdir, "last_run.log")
+        with open(log_path, "w", encoding="utf-8") as log:
+            try:
+                subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+            except Exception as e:
+                log.write(f"Failed to start job: {e}\n")
+
+    @app.post("/prep", response_class=HTMLResponse, dependencies=[Depends(basic_auth_dependency)])
+    def prep_post(request: Request, ids: str = Form(""), limit: int = Form(0), model: str = Form(""), no_ai: Optional[bool] = Form(False)):
+        if not ids.strip():
+            return templates.TemplateResponse("prep.html", {"request": request, "message": "Please paste at least one ID."})
+        threading.Thread(target=_run_prep, args=(ids, limit, model, bool(no_ai)), daemon=True).start()
+        return templates.TemplateResponse("prep.html", {"request": request, "message": "Preparation started. See logs at config/preparation/last_run.log"})
+
+    @app.get("/prep/log", response_class=HTMLResponse, dependencies=[Depends(basic_auth_dependency)])
+    def prep_log(request: Request):
+        log_path = os.path.join("config", "preparation", "last_run.log")
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                content = f.read()[-20000:]
+        except FileNotFoundError:
+            content = "No log yet. Start a preparation job."
+        return templates.TemplateResponse("prep_log.html", {"request": request, "content": content})
 
     return app
 
