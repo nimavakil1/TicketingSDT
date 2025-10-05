@@ -29,6 +29,7 @@ import structlog
 from config.settings import settings
 from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
 from src.ai.language_detector import LanguageDetector
+from src.ai.ai_engine import AIEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -138,13 +139,30 @@ def try_ai_prompt(examples: List[Dict[str, Any]]) -> Optional[str]:
         return None
 
 
+def _parse_ai_json(text: str) -> Dict[str, Any]:
+    if not text:
+        return {}
+    # Strip code fences and extract JSON object
+    lines = [ln for ln in text.splitlines() if not ln.strip().startswith("```")]
+    body = "\n".join(lines)
+    i, j = body.find("{"), body.rfind("}")
+    if i != -1 and j != -1 and j > i:
+        try:
+            return json.loads(body[i:j+1])
+        except Exception:
+            return {}
+    return {}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Preparation: analyze historical tickets")
     ap.add_argument("--input", type=str, help="File with IDs (one per line)")
     ap.add_argument("--ids", type=str, help="Comma-separated IDs", default="")
     ap.add_argument("--outdir", type=str, default="config/preparation")
     ap.add_argument("--max-details", type=int, default=10)
-    ap.add_argument("--no-ai", action="store_true", help="Do not call AI to generate prompt")
+    ap.add_argument("--no-ai", action="store_true", help="Do not call AI to generate prompt or per-ticket JSON")
+    ap.add_argument("--limit", type=int, default=0, help="Process only first N IDs (0 = all)")
+    ap.add_argument("--model", type=str, default="", help="Override AI model during preparation")
     args = ap.parse_args()
 
     input_path = Path(args.input) if args.input else None
@@ -158,6 +176,12 @@ def main() -> None:
 
     client = TicketingAPIClient()
     langdet = LanguageDetector()
+    engine = None if args.no_ai else AIEngine()
+    if engine and args.model:
+        try:
+            engine.provider.model = args.model  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     dataset_path = outdir / "dataset.jsonl"
     stats_path = outdir / "stats.json"
@@ -172,7 +196,10 @@ def main() -> None:
     examples: List[Dict[str, Any]] = []
 
     with dataset_path.open("w", encoding="utf-8") as fw:
+        processed = 0
         for raw_id in ids:
+            if args.limit and processed >= args.limit:
+                break
             id_type = detect_id_type(raw_id)
             stats["by_type"][id_type] += 1
 
@@ -194,6 +221,36 @@ def main() -> None:
                 stats["total"] += 1
                 stats["languages"][lang] = stats["languages"].get(lang, 0) + 1
 
+                # Build AI JSON via provider (best effort)
+                ai_json: Dict[str, Any] = {}
+                if engine is not None:
+                    try:
+                        supplier_name = (
+                            (ticket.get("salesOrder") or {}).get("purchaseOrders", [{}])[0].get("supplierName", "")
+                            if (ticket.get("salesOrder") or {}).get("purchaseOrders") else ""
+                        )
+                        prompt = (
+                            "You are distilling a support ticket into a compact, structured JSON for training an AI agent.\n"
+                            f"Ticket number: {ticket.get('ticketNumber')}\n"
+                            f"Detected language for customer content: {lang}\n"
+                            f"Supplier name (if any): {supplier_name}\n\n"
+                            "Ticket conversation (latest items, compact):\n"
+                            f"{summary}\n\n"
+                            "Produce STRICT JSON with these keys only:\n"
+                            "  issue_type, customer_intent, key_facts, actions_taken, outcome,\n"
+                            "  missing_info, recommended_rule, customer_template, supplier_template, language.\n\n"
+                            "Return pure JSON only."
+                        )
+                        text = engine.provider.generate_response(prompt, temperature=0.2) or ""
+                        ai_json = _parse_ai_json(text)
+                        if not isinstance(ai_json, dict):
+                            ai_json = {}
+                        if "language" not in ai_json:
+                            ai_json["language"] = lang
+                        logger.info("AI summary generated", ok=bool(ai_json))
+                    except Exception as e:
+                        logger.warning("AI summary failed; continuing", error=str(e))
+
                 record = {
                     "input_id": raw_id,
                     "id_type": id_type,
@@ -203,9 +260,11 @@ def main() -> None:
                     "owner_id": ticket.get("ownerId"),
                     "language": lang,
                     "summary": summary,
+                    "ai": ai_json,
                 }
                 fw.write(json.dumps(record, ensure_ascii=False) + "\n")
                 examples.append(record)
+                processed += 1
 
             except TicketingAPIError as e:
                 logger.error("Ticketing API error for id", id=raw_id, error=str(e))
@@ -233,4 +292,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

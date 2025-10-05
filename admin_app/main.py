@@ -98,7 +98,7 @@ def create_app() -> FastAPI:
         with open(ids_path, "w", encoding="utf-8") as f:
             f.write(ids_text.strip() + "\n")
         cmd = [
-            "python", "-m", "tools.prepare_ticket_prompt",
+            "python", "tools/prepare_ticket_prompt.py",
             "--input", ids_path,
             "--outdir", outdir,
         ]
