@@ -155,6 +155,16 @@ class Settings(BaseSettings):
         description="Email polling interval"
     )
 
+    # Prompt Configuration
+    prompt_path: str = Field(
+        default="config/prompt/agent_prompt.md",
+        description="Path to the operating prompt injected into AI analysis"
+    )
+    few_shots_path: str = Field(
+        default="config/prompt/few_shots.json",
+        description="Optional path to few-shot examples (JSON)"
+    )
+
     @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:
