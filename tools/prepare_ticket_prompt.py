@@ -61,15 +61,75 @@ def parse_ids(input_path: Optional[Path], ids_csv: Optional[str]) -> List[str]:
     return unique
 
 
-def detect_id_type(value: str) -> str:
-    if ORDER_RE.match(value):
-        return "order"
-    if TICKET_RE.match(value):
-        return "ticket"
-    # fallback heuristic: digits with dashes -> order
-    if re.match(r"^\d{3}-\d{7}-\d{7}$", value):
-        return "order"
-    return "ticket"
+def normalize(raw: str) -> str:
+    s = (raw or "").strip().upper()
+    # collapse whitespace
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+AMAZON_ANY_RE = re.compile(r"\b\d{3}-\d{7}-\d{7}\b")
+TICKET_ANY_RE = re.compile(r"\b(?:DE|FR|BE|LU|NL|AT|IT)\d{8}\b")
+PO_ANY_RE = re.compile(r"\b(?:[DFBLNAI])4\d{2}\d{6}\b")
+SO_ANY_RE = re.compile(r"\b(?:[DFBLNAI])3\d{2}-\d{6}\b")
+
+
+def extract_candidates(raw: str) -> Dict[str, List[str]]:
+    s = normalize(raw)
+    candidates = {"amazon": [], "ticket": [], "purchase": [], "sales": []}
+
+    # Amazon base
+    m = AMAZON_ANY_RE.search(s)
+    if m:
+        base = m.group(0)
+        variants = [base, f"{base}_X", f"{base}-X"]
+        # Also if original included a variant form, keep it — variants already cover both
+        candidates["amazon"] = list(dict.fromkeys(variants))
+
+    # Ticket
+    candidates["ticket"] = list(dict.fromkeys(TICKET_ANY_RE.findall(s)))
+
+    # Purchase order
+    candidates["purchase"] = list(dict.fromkeys(PO_ANY_RE.findall(s)))
+
+    # Sales order
+    candidates["sales"] = list(dict.fromkeys(SO_ANY_RE.findall(s)))
+
+    return candidates
+
+
+def parse_ticket_number(ticket_number: str) -> tuple:
+    """Return (yy:int, seq:int) for ticket numbers like DE25xxxxxx; fallback (-1,-1)."""
+    if not ticket_number:
+        return (-1, -1)
+    m = re.match(r"^(DE|FR|BE|LU|NL|AT|IT)(\d{2})(\d{6})$", ticket_number)
+    if not m:
+        return (-1, -1)
+    try:
+        yy = int(m.group(2))
+        seq = int(m.group(3))
+        return (yy, seq)
+    except Exception:
+        return (-1, -1)
+
+
+def choose_latest_ticket(tickets: List[Dict[str, Any]]) -> tuple[Optional[Dict[str, Any]], List[str]]:
+    """From a list of ticket dicts, choose the latest by ticket_number semantics.
+    Returns (chosen_ticket, related_ticket_numbers)."""
+    if not tickets:
+        return None, []
+    by_num: Dict[str, Dict[str, Any]] = {}
+    for t in tickets:
+        tn = t.get("ticketNumber")
+        if tn:
+            by_num[tn] = t
+    uniq = list(by_num.values())
+    if not uniq:
+        return tickets[0], []
+    uniq.sort(key=lambda t: parse_ticket_number(t.get("ticketNumber")), reverse=True)
+    chosen = uniq[0]
+    related = [t.get("ticketNumber") for t in uniq[1:] if t.get("ticketNumber")]
+    return chosen, related
 
 
 def compact_ticket_summary(ticket: Dict[str, Any], max_items: int = 10) -> str:
@@ -200,21 +260,55 @@ def main() -> None:
         for raw_id in ids:
             if args.limit and processed >= args.limit:
                 break
-            id_type = detect_id_type(raw_id)
-            stats["by_type"][id_type] += 1
 
             try:
-                if id_type == "order":
-                    tickets = client.get_ticket_by_amazon_order_number(raw_id)
-                else:
-                    tickets = client.get_ticket_by_ticket_number(raw_id)
+                cands = extract_candidates(raw_id)
+                resolved_type = "unknown"
+                gathered: List[Dict[str, Any]] = []
 
-                if not tickets:
-                    logger.warning("No ticket found", id=raw_id, id_type=id_type)
+                # Amazon first: try base and suffix variants (_X and -X)
+                amazon = cands.get("amazon") or []
+                if amazon:
+                    resolved_type = "order"
+                    tried = []
+                    for aid in amazon:
+                        tried.append(aid)
+                        tk = client.get_ticket_by_amazon_order_number(aid)
+                        if tk:
+                            gathered.extend(tk)
+                    if not gathered:
+                        logger.warning("amazon_not_found", id=raw_id, tried=tried)
+
+                # Ticket fallback
+                if not gathered and (cands.get("ticket") or []):
+                    resolved_type = "ticket"
+                    for tn in cands["ticket"]:
+                        tk = client.get_ticket_by_ticket_number(tn)
+                        if tk:
+                            gathered.extend(tk)
+                    if gathered:
+                        logger.info("fallback_ticket_match", id=raw_id, count=len(gathered))
+
+                # Purchase order fallback
+                if not gathered and (cands.get("purchase") or []):
+                    resolved_type = "purchase_order"
+                    for po in cands["purchase"]:
+                        tk = client.get_ticket_by_purchase_order_number(po)
+                        if tk:
+                            gathered.extend(tk)
+                    if gathered:
+                        logger.info("fallback_purchase_match", id=raw_id, count=len(gathered))
+
+                if not gathered:
+                    logger.warning("No ticket found", id=raw_id, id_type=resolved_type)
                     continue
 
-                # Use the first ticket returned
-                ticket = tickets[0]
+                # Choose latest, keep related
+                ticket, related = choose_latest_ticket(gathered)
+                if not ticket:
+                    logger.warning("No ticket chosen after gather", id=raw_id)
+                    continue
+
                 summary = compact_ticket_summary(ticket, max_items=args.max_details)
                 lang = langdet.detect_language(summary) if summary else "en-US"
 
@@ -260,15 +354,18 @@ def main() -> None:
 
                 record = {
                     "input_id": raw_id,
-                    "id_type": id_type,
+                    "id_type": resolved_type,
                     "ticket_number": ticket.get("ticketNumber"),
-                    "order_number": ticket.get("salesOrder", {}).get("orderNumber"),
+                    "order_number": (ticket.get("salesOrder", {}) or {}).get("orderNumber"),
                     "ticket_status_id": ticket.get("ticketStatusId"),
-                    "owner_id": ticket.get("ownerId"),
+                    "owner_id": ticket.get("OwnerId") or ticket.get("ownerId"),
                     "language": lang,
                     "summary": summary,
                     "ai": ai_json,
                 }
+                if related:
+                    record["related_tickets"] = related
+
                 fw.write(json.dumps(record, ensure_ascii=False) + "\n")
                 examples.append(record)
                 processed += 1
