@@ -120,53 +120,51 @@ class SupportAgentOrchestrator:
                 logger.info("Email already processed, skipping", gmail_id=gmail_message_id)
                 return False
 
-            # Preparation analysis of historical tickets is handled by a separate tool.
+            # Resolve ticket via multiple identifiers
+            order_number = self._extract_order_number(email_data)
+            ticket_data = None
+            ticket_state = None
 
-        # Try to resolve ticket via multiple identifiers
-        order_number = self._extract_order_number(email_data)
-        ticket_data = None
-        ticket_state = None
-
-        if order_number:
-            logger.info("Extracted order number", order_number=order_number)
-            ticket_data, ticket_state = self._get_or_create_ticket(
-                session=session,
-                email_data=email_data,
-                order_number=order_number
-            )
-        else:
-            # Fallbacks: ticket number, then purchase order number
-            fallback_ticket = self._find_ticket_by_ticket_or_po(email_data)
-            if fallback_ticket:
-                ticket_data = fallback_ticket
-                # Ensure ticket state exists
-                ticket_state = session.query(TicketState).filter_by(
-                    ticket_number=ticket_data.get('ticketNumber')
-                ).first()
-                if not ticket_state:
-                    ticket_state = self._create_ticket_state(session, ticket_data, order_number=None)
-            else:
-                logger.warning(
-                    "Could not resolve any known identifier; scheduling retry",
-                    gmail_id=gmail_message_id,
-                    subject=subject
+            if order_number:
+                logger.info("Extracted order number", order_number=order_number)
+                ticket_data, ticket_state = self._get_or_create_ticket(
+                    session=session,
+                    email_data=email_data,
+                    order_number=order_number
                 )
-                # Schedule retry and mark processed (we re-fetch by ID later)
-                self._schedule_retry(session, email_data, reason="no_identifier_found")
-                self._mark_email_processed(session, email_data, None, None)
+            else:
+                # Fallbacks: ticket number, then purchase order number
+                fallback_ticket = self._find_ticket_by_ticket_or_po(email_data)
+                if fallback_ticket:
+                    ticket_data = fallback_ticket
+                    # Ensure ticket state exists
+                    ticket_state = session.query(TicketState).filter_by(
+                        ticket_number=ticket_data.get('ticketNumber')
+                    ).first()
+                    if not ticket_state:
+                        ticket_state = self._create_ticket_state(session, ticket_data, order_number=None)
+                else:
+                    logger.warning(
+                        "Could not resolve any known identifier; scheduling retry",
+                        gmail_id=gmail_message_id,
+                        subject=subject
+                    )
+                    # Schedule retry and mark processed (we re-fetch by ID later)
+                    self._schedule_retry(session, email_data, reason="no_identifier_found")
+                    self._mark_email_processed(session, email_data, None, None)
+                    self.gmail_monitor.mark_as_processed(gmail_message_id)
+                    return False
+
+            # If still no ticket, schedule retry (Phase 1: never create)
+            if not ticket_data or not ticket_state:
+                logger.warning("Ticket not found; scheduling retry", order_number=order_number)
+                self._schedule_retry(session, email_data, reason="ticket_not_found")
+                self._mark_email_processed(session, email_data, None, order_number)
                 self.gmail_monitor.mark_as_processed(gmail_message_id)
                 return False
 
-        # If still no ticket, schedule retry (Phase 1: never create)
-        if not ticket_data or not ticket_state:
-            logger.warning("Ticket not found; scheduling retry", order_number=order_number)
-            self._schedule_retry(session, email_data, reason="ticket_not_found")
-            self._mark_email_processed(session, email_data, None, order_number)
-            self.gmail_monitor.mark_as_processed(gmail_message_id)
-            return False
-
-        ticket_id = ticket_data.get('ticketNumber')
-        logger.info("Processing ticket", ticket_number=ticket_id)
+            ticket_id = ticket_data.get('ticketNumber')
+            logger.info("Processing ticket", ticket_number=ticket_id)
 
             # Build ticket history for AI context
             ticket_history = self._build_ticket_history(ticket_data)
@@ -204,7 +202,7 @@ class SupportAgentOrchestrator:
 
             logger.info("Action dispatched", result=action_result.get('action'))
 
-            # Handle supplier communication if needed
+            # Handle supplier communication if needed (Phase 2+ only)
             if analysis.get('supplier_action') and settings.deployment_phase >= 2:
                 self._handle_supplier_communication(
                     session=session,
