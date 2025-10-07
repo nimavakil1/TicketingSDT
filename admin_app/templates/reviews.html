@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>AI Decision Reviews</h2>
+<p class="note">Latest decisions. Add feedback to guide the agent.</p>
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Ticket</th>
+      <th>Intent</th>
+      <th>Confidence</th>
+      <th>Recommended</th>
+      <th>Response</th>
+      <th>Feedback</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.ticket_id }}</td>
+      <td>{{ r.detected_intent }}</td>
+      <td>{{ '%.2f'|format(r.confidence_score or 0) }}</td>
+      <td><pre style="white-space:pre-wrap; max-width:420px;">{{ r.recommended_action or '' }}</pre></td>
+      <td><pre style="white-space:pre-wrap; max-width:420px;">{{ r.response_generated or '' }}</pre></td>
+      <td class="actions">
+        <form method="post" action="/feedback">
+          <input type="hidden" name="id" value="{{ r.id }}" />
+          <select name="feedback">
+            <option value="approved" {% if r.human_feedback=='approved' %}selected{% endif %}>Approve</option>
+            <option value="rejected" {% if r.human_feedback=='rejected' %}selected{% endif %}>Reject</option>
+            <option value="modified" {% if r.human_feedback=='modified' %}selected{% endif %}>Modify</option>
+          </select>
+          <br/>
+          <textarea name="notes" placeholder="Notes to the agent">{{ r.human_notes or '' }}</textarea>
+          <br/>
+          <button type="submit">Save</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  </table>
+{% endblock %}

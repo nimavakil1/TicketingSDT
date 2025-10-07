@@ -49,6 +49,20 @@ class Settings(BaseSettings):
         default="AI_Agent_Processed",
         description="Gmail label for processed emails"
     )
+    gmail_start_at: str | None = Field(
+        default=None,
+        description="ISO8601 or epoch seconds to start processing from"
+    )
+    gmail_max_results: int = Field(
+        default=25,
+        ge=1,
+        le=500,
+        description="Max messages to fetch per poll"
+    )
+    preparation_mode: bool = Field(
+        default=False,
+        description="Preparation mode: only label emails; skip AI and ticketing"
+    )
 
     # AI Configuration
     ai_provider: Literal["openai", "anthropic", "gemini"] = Field(
@@ -121,6 +135,14 @@ class Settings(BaseSettings):
         ...,
         description="Email for internal alerts"
     )
+    supplier_default_language: str = Field(
+        default="de-DE",
+        description="Default language for supplier communications"
+    )
+    supplier_language_overrides: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of supplier name -> language code (JSON or 'Name:code;Name2:code2')"
+    )
 
     # Logging Configuration
     log_level: str = Field(default="INFO")
@@ -133,7 +155,27 @@ class Settings(BaseSettings):
         description="Email polling interval"
     )
 
-    @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', mode='before')
+    # Prompt Configuration
+    prompt_path: str = Field(
+        default="config/prompt/agent_prompt.md",
+        description="Path to the operating prompt injected into AI analysis"
+    )
+    few_shots_path: str = Field(
+        default="config/prompt/few_shots.json",
+        description="Optional path to few-shot examples (JSON)"
+    )
+
+    # Phase 1 Internal Note Formatting
+    phase1_customer_prefix: str = Field(
+        default="AI agent proposes to send to the customer:",
+        description="Prefix line used in Phase 1 internal notes before the suggested customer message"
+    )
+    phase1_supplier_prefix: str = Field(
+        default="AI agent proposes to send to the supplier:",
+        description="Prefix line used in Phase 1 internal notes before the suggested supplier message"
+    )
+
+    @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:
         """Convert string integers from env vars to int"""
@@ -150,6 +192,34 @@ class Settings(BaseSettings):
             return float(v)
         except (ValueError, TypeError):
             raise ValueError(f"Must be a valid number")
+
+    @field_validator('supplier_language_overrides', mode='before')
+    @classmethod
+    def parse_supplier_lang_overrides(cls, v):
+        """Allow JSON or 'Name:code;Name2:code2' mapping in env."""
+        if isinstance(v, dict) or v is None:
+            return v or {}
+        s = str(v).strip()
+        if not s:
+            return {}
+        # Try JSON first
+        try:
+            import json
+            m = json.loads(s)
+            if isinstance(m, dict):
+                return m
+        except Exception:
+            pass
+        # Fallback: semi-colon separated pairs
+        result = {}
+        for part in s.split(';'):
+            part = part.strip()
+            if not part:
+                continue
+            if ':' in part:
+                name, code = part.split(':', 1)
+                result[name.strip()] = code.strip()
+        return result
 
     @field_validator('ai_provider', mode='after')
     @classmethod

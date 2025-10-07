@@ -6,7 +6,7 @@ import os
 import base64
 import re
 from typing import List, Dict, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import structlog
 
@@ -34,8 +34,33 @@ class GmailMonitor:
     def __init__(self):
         self.service = None
         self.processed_label_id = None
+        self.start_after_epoch: Optional[int] = self._parse_start_at(settings.gmail_start_at)
         self._authenticate()
         self._ensure_processed_label()
+
+    def _parse_start_at(self, value: Optional[str]) -> Optional[int]:
+        """Parse start-at setting into epoch seconds for Gmail query.
+
+        Accepts either an ISO8601 datetime (e.g. 2025-10-03T08:00:00+00:00)
+        or a string of digits representing epoch seconds.
+        Returns None if parsing fails or value is falsy.
+        """
+        if not value:
+            return None
+        try:
+            v = str(value).strip()
+            if v.isdigit():
+                return int(v)
+            # Normalize trailing Z to +00:00 and parse
+            if v.endswith("Z"):
+                v = v[:-1] + "+00:00"
+            dt = datetime.fromisoformat(v)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
+        except Exception as e:
+            logger.warning("Invalid gmail_start_at; ignoring", value=str(value), error=str(e))
+            return None
 
     def _authenticate(self) -> None:
         """Authenticate with Gmail API using OAuth2"""
@@ -116,7 +141,7 @@ class GmailMonitor:
             logger.error("Failed to ensure processed label exists", error=str(e))
             raise
 
-    def get_unprocessed_messages(self, max_results: int = 50) -> List[Dict]:
+    def get_unprocessed_messages(self, max_results: Optional[int] = None) -> List[Dict]:
         """
         Fetch unprocessed messages from the support inbox
 
@@ -127,15 +152,22 @@ class GmailMonitor:
             List of message dictionaries with full content
         """
         try:
-            # Query for messages that don't have the processed label
-            query = f'-label:{settings.gmail_processed_label} in:inbox'
+            # Build query: process all messages in inbox that don't already have
+            # the processed label. Optionally start from a configured date.
+            query_parts = [
+                f'-label:{settings.gmail_processed_label}',
+                'in:inbox',
+            ]
+            if self.start_after_epoch:
+                query_parts.append(f'after:{self.start_after_epoch}')
+            query = " ".join(query_parts)
 
             logger.info("Fetching unprocessed messages", query=query)
 
             results = self.service.users().messages().list(
                 userId='me',
                 q=query,
-                maxResults=max_results
+                maxResults=(max_results or settings.gmail_max_results)
             ).execute()
 
             messages = results.get('messages', [])
@@ -152,6 +184,17 @@ class GmailMonitor:
                 try:
                     full_msg = self._get_message_details(msg['id'])
                     if full_msg:
+                        # Defensive guard: enforce start_at using internalDate
+                        if self.start_after_epoch:
+                            try:
+                                meta = self.service.users().messages().get(
+                                    userId='me', id=msg['id'], format='metadata'
+                                ).execute()
+                                internal_ms = int(meta.get('internalDate', '0'))
+                                if internal_ms < self.start_after_epoch * 1000:
+                                    continue
+                            except Exception:
+                                pass
                         full_messages.append(full_msg)
                 except Exception as e:
                     logger.error(

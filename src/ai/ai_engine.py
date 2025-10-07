@@ -18,7 +18,7 @@ class AIProvider(ABC):
     """Abstract base class for AI providers"""
 
     @abstractmethod
-    def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
         """Generate a response from the AI model"""
         pass
 
@@ -31,11 +31,15 @@ class OpenAIProvider(AIProvider):
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
 
-    def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
         try:
+            messages = []
+            if system_text:
+                messages.append({"role": "system", "content": system_text})
+            messages.append({"role": "user", "content": prompt})
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 temperature=temperature,
                 max_tokens=settings.ai_max_tokens
             )
@@ -53,14 +57,17 @@ class AnthropicProvider(AIProvider):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
 
-    def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=settings.ai_max_tokens,
-                temperature=temperature,
-                messages=[{"role": "user", "content": prompt}]
-            )
+            kwargs = {
+                "model": self.model,
+                "max_tokens": settings.ai_max_tokens,
+                "temperature": temperature,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if system_text:
+                kwargs["system"] = system_text
+            response = self.client.messages.create(**kwargs)
             return response.content[0].text
         except Exception as e:
             logger.error("Anthropic API error", error=str(e))
@@ -75,10 +82,11 @@ class GeminiProvider(AIProvider):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model)
 
-    def generate_response(self, prompt: str, temperature: float = 0.7) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
         try:
+            content = prompt if not system_text else f"SYSTEM:\n{system_text}\n\n{prompt}"
             response = self.model.generate_content(
-                prompt,
+                content,
                 generation_config={
                     'temperature': temperature,
                     'max_output_tokens': settings.ai_max_tokens
@@ -110,6 +118,7 @@ class AIEngine:
 
     def __init__(self):
         self.provider = self._initialize_provider()
+        self.system_prompt = self._load_system_prompt()
         self.language_detector = LanguageDetector()
 
     def _initialize_provider(self) -> AIProvider:
@@ -138,11 +147,26 @@ class AIEngine:
         else:
             raise ValueError(f"Unsupported AI provider: {provider_name}")
 
+    def _load_system_prompt(self) -> Optional[str]:
+        """Load operating prompt from settings.prompt_path if present."""
+        try:
+            from pathlib import Path
+            p = Path(settings.prompt_path)
+            if p.exists():
+                text = p.read_text(encoding="utf-8").strip()
+                if text:
+                    logger.info("Loaded system prompt", path=str(p))
+                    return text
+        except Exception as e:
+            logger.warning("Failed to load system prompt", error=str(e))
+        return None
+
     def analyze_email(
         self,
         email_data: Dict[str, Any],
         ticket_data: Optional[Dict[str, Any]] = None,
-        ticket_history: Optional[str] = None
+        ticket_history: Optional[str] = None,
+        supplier_language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Analyze an email and determine the appropriate action
@@ -184,14 +208,16 @@ class AIEngine:
             from_address=from_address,
             language=language_name,
             ticket_data=ticket_data,
-            ticket_history=ticket_history
-        )
+            ticket_history=ticket_history,
+                supplier_language=supplier_language
+            )
 
         # Get AI analysis
         try:
             ai_response = self.provider.generate_response(
                 prompt,
-                temperature=settings.ai_temperature
+                temperature=settings.ai_temperature,
+                system_text=self.system_prompt
             )
 
             # Parse AI response (expecting JSON format)
@@ -231,7 +257,8 @@ class AIEngine:
         from_address: str,
         language: str,
         ticket_data: Optional[Dict[str, Any]],
-        ticket_history: Optional[str]
+        ticket_history: Optional[str],
+        supplier_language: Optional[str]
     ) -> str:
         """Build the analysis prompt for the AI"""
 
@@ -244,7 +271,10 @@ Email Details:
 - Body:
 {body}
 
-"""
+Supplier communication language: {supplier_language or settings.supplier_default_language}
+Customer communication language: {language}
+
+        """
 
         if ticket_data:
             prompt += f"""

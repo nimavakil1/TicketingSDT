@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Preparation – Analyze Historical Tickets</h2>
+<p class="note">Paste Amazon order numbers or ticket numbers (one per line). The job runs in the background and writes outputs to <code>config/preparation/</code>.</p>
+{% if message %}<p><strong>{{ message }}</strong></p>{% endif %}
+
+<form method="post" action="/prep">
+  <label>IDs (one per line)</label><br/>
+  <textarea name="ids" placeholder="304-3755348-6901123
+DE25006528
+302-4871157-8281966"></textarea>
+  <br/>
+  <label>Limit (0 = no limit)</label>
+  <input type="number" name="limit" value="0" />
+  <label>Model override</label>
+  <input type="text" name="model" placeholder="e.g., gpt-4o-mini" />
+  <label><input type="checkbox" name="no_ai" value="true" /> No AI (debug)</label>
+  <br/>
+  <button type="submit">Start Preparation</button>
+  <a href="/prep/log" style="margin-left:12px;">View Log</a>
+</form>
+{% endblock %}

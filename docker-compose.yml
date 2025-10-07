@@ -18,3 +18,25 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  admin-ui:
+    build: .
+    container_name: ai-support-admin
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: uvicorn admin_app.main:app --host 0.0.0.0 --port 8080 --root-path /TicketingSDT
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ADMIN_ROOT_PATH=/TicketingSDT
+    ports:
+      - "8080:8080"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
