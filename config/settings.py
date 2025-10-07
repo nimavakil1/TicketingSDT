@@ -165,6 +165,16 @@ class Settings(BaseSettings):
         description="Optional path to few-shot examples (JSON)"
     )
 
+    # Phase 1 Internal Note Formatting
+    phase1_customer_prefix: str = Field(
+        default="AI agent proposes to send to the customer:",
+        description="Prefix line used in Phase 1 internal notes before the suggested customer message"
+    )
+    phase1_supplier_prefix: str = Field(
+        default="AI agent proposes to send to the supplier:",
+        description="Prefix line used in Phase 1 internal notes before the suggested supplier message"
+    )
+
     @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:

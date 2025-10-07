@@ -359,42 +359,28 @@ This ticket requires human operator attention.
         Returns:
             Formatted internal note
         """
-        note = f"""🤖 AI Agent Suggestion (Phase 1 - Shadow Mode)
+        # Minimal internal note that matches Phase 1 requirement:
+        # two sections for customer and supplier suggestions only.
+        customer_prefix = settings.phase1_customer_prefix
+        supplier_prefix = settings.phase1_supplier_prefix
 
-Intent: {analysis.get('intent', 'unknown')}
-Confidence: {analysis.get('confidence', 0.0):.2f}
-Ticket Type: {analysis.get('ticket_type_id', 0)}
+        customer_response = (analysis.get('customer_response') or '').strip()
+        supplier_msg = ''
+        supplier_action = analysis.get('supplier_action') or {}
+        if isinstance(supplier_action, dict):
+            supplier_msg = (supplier_action.get('message') or '').strip()
 
-Summary:
-{analysis.get('summary', 'N/A')}
+        # Fallback text when a suggestion is not available
+        no_suggestion = "(no suggestion available)"
 
-"""
+        lines = []
+        lines.append(f"{customer_prefix}")
+        lines.append(customer_response if customer_response else no_suggestion)
+        lines.append("")
+        lines.append(f"{supplier_prefix}")
+        lines.append(supplier_msg if supplier_msg else no_suggestion)
 
-        # Customer response suggestion
-        customer_response = analysis.get('customer_response')
-        if customer_response:
-            note += f"""--- Suggested Customer Response ---
-{customer_response}
-
-"""
-
-        # Supplier action suggestion
-        supplier_action = analysis.get('supplier_action')
-        if supplier_action and supplier_action.get('message'):
-            note += f"""--- Suggested Supplier Action ---
-Action: {supplier_action.get('action', 'N/A')}
-
-Message to Supplier:
-{supplier_action.get('message')}
-
-"""
-
-        note += """
----
-This is an AI-generated suggestion for review. Please provide feedback to improve the system.
-"""
-
-        return note
+        return "\n".join(lines)
 
     def _log_ai_decision(
         self,
