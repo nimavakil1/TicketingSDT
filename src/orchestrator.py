@@ -328,7 +328,7 @@ class SupportAgentOrchestrator:
                 return ticket_data, ticket_state
 
             else:
-                # No existing ticket, create new one via API
+                # No existing ticket, try to create via API with SalesOrder reference variants
                 logger.info("Creating new ticket", order_number=order_number)
 
                 sender_name, sender_email = self.gmail_monitor.parse_sender_info(
@@ -338,28 +338,50 @@ class SupportAgentOrchestrator:
                 # Classify ticket type (default to general inquiry)
                 ticket_type_id = 6  # SupportEnquiry
 
-                result = self.ticketing_client.upsert_ticket(
-                    sales_order_reference=order_number,
-                    ticket_type_id=ticket_type_id,
-                    contact_name=sender_name,
-                    entrance_email_body=email_data.get('body', ''),
-                    entrance_email_date=email_data.get('date'),
-                    entrance_email_subject=email_data.get('subject', ''),
-                    entrance_email_sender_address=sender_email,
-                    entrance_gmail_thread_id=email_data.get('thread_id')
+                # Try base and common Amazon variants: base, base-1, base_1
+                variants = [order_number, f"{order_number}-1", f"{order_number}_1"]
+                for ref in variants:
+                    result = self.ticketing_client.upsert_ticket(
+                        sales_order_reference=ref,
+                        ticket_type_id=ticket_type_id,
+                        contact_name=sender_name,
+                        entrance_email_body=email_data.get('body', ''),
+                        entrance_email_date=email_data.get('date'),
+                        entrance_email_subject=email_data.get('subject', ''),
+                        entrance_email_sender_address=sender_email,
+                        entrance_gmail_thread_id=email_data.get('thread_id')
+                    )
+
+                    if result.get('succeeded'):
+                        # Fetch the created ticket by Amazon order (base)
+                        tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_number)
+                        if tickets and len(tickets) > 0:
+                            ticket_data = tickets[0]
+                            ticket_state = self._create_ticket_state(session, ticket_data, order_number)
+                            return ticket_data, ticket_state
+                        # If not retrievable by base, accept first dataItem if present
+                        data_items = result.get('dataItems') or []
+                        if data_items:
+                            ticket_data = data_items[0]
+                            ticket_state = self._create_ticket_state(session, ticket_data, order_number)
+                            return ticket_data, ticket_state
+                        # Otherwise continue
+                    else:
+                        # If explicit SalesOrder_Not_Found, try next variant; otherwise break
+                        msgs = result.get('messages') or []
+                        codes = {str(m.get('messageCode')) for m in msgs}
+                        if 'SalesOrder_Not_Found' in codes:
+                            logger.info("Sales order not found for variant", variant=ref)
+                            continue
+                        else:
+                            logger.error("Upsert failed for variant", variant=ref, api_messages=msgs)
+                            break
+
+                # All variants failed
+                logger.error(
+                    "Failed to create ticket after trying variants",
+                    variants=variants
                 )
-
-                if not result.get('succeeded'):
-                    logger.error("Failed to create ticket", api_messages=result.get('messages', []))
-                    return None, None
-
-                # Fetch the newly created ticket
-                tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_number)
-                if tickets and len(tickets) > 0:
-                    ticket_data = tickets[0]
-                    ticket_state = self._create_ticket_state(session, ticket_data, order_number)
-                    return ticket_data, ticket_state
-
                 return None, None
 
         except TicketingAPIError as e:
