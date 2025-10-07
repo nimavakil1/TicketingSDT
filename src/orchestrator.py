@@ -121,35 +121,46 @@ class SupportAgentOrchestrator:
 
             # Preparation analysis of historical tickets is handled by a separate tool.
 
-            # Extract order number from email
-            order_number = self._extract_order_number(email_data)
+        # Try to resolve ticket via multiple identifiers
+        order_number = self._extract_order_number(email_data)
+        ticket_data = None
+        ticket_state = None
 
-            if not order_number:
-                logger.warning(
-                    "Could not extract order number from email",
-                    gmail_id=gmail_message_id,
-                    subject=subject
-                )
-                # Mark as processed to avoid reprocessing
-                self._mark_email_processed(session, email_data, None, None)
-                self.gmail_monitor.mark_as_processed(gmail_message_id)
-                return False
-
+        if order_number:
             logger.info("Extracted order number", order_number=order_number)
-
-            # Get or create ticket
             ticket_data, ticket_state = self._get_or_create_ticket(
                 session=session,
                 email_data=email_data,
                 order_number=order_number
             )
+        else:
+            # Fallbacks: ticket number, then purchase order number
+            fallback_ticket = self._find_ticket_by_ticket_or_po(email_data)
+            if fallback_ticket:
+                ticket_data = fallback_ticket
+                # Ensure ticket state exists
+                ticket_state = session.query(TicketState).filter_by(
+                    ticket_number=ticket_data.get('ticketNumber')
+                ).first()
+                if not ticket_state:
+                    ticket_state = self._create_ticket_state(session, ticket_data, order_number=None)
+            else:
+                logger.warning(
+                    "Could not resolve any known identifier from email",
+                    gmail_id=gmail_message_id,
+                    subject=subject
+                )
+                # Mark as processed to avoid reprocessing loops
+                self._mark_email_processed(session, email_data, None, None)
+                self.gmail_monitor.mark_as_processed(gmail_message_id)
+                return False
 
             if not ticket_data or not ticket_state:
                 logger.error("Failed to get or create ticket", order_number=order_number)
                 return False
 
-            ticket_id = ticket_data.get('ticketNumber')
-            logger.info("Processing ticket", ticket_number=ticket_id)
+        ticket_id = ticket_data.get('ticketNumber')
+        logger.info("Processing ticket", ticket_number=ticket_id)
 
             # Build ticket history for AI context
             ticket_history = self._build_ticket_history(ticket_data)
@@ -234,6 +245,58 @@ class SupportAgentOrchestrator:
         order_number = self.gmail_monitor.extract_order_number(body)
         return order_number
 
+    def _find_ticket_by_ticket_or_po(self, email_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Try to locate an existing ticket by ticket number or purchase order number.
+
+        Returns the ticket data dict if found, otherwise None.
+        If multiple tickets are found, returns the one with the latest ticket number (by numeric part).
+        """
+        subject = email_data.get('subject', '')
+        body = email_data.get('body', '')
+
+        # Try ticket number
+        ticket_number = self.gmail_monitor.extract_ticket_number(subject) or \
+                        self.gmail_monitor.extract_ticket_number(body)
+        if ticket_number:
+            try:
+                tickets = self.ticketing_client.get_ticket_by_ticket_number(ticket_number)
+                if tickets:
+                    return self._select_latest_ticket(tickets)
+            except TicketingAPIError:
+                pass
+
+        # Try purchase order number
+        po_number = self.gmail_monitor.extract_purchase_order_number(subject) or \
+                    self.gmail_monitor.extract_purchase_order_number(body)
+        if po_number:
+            try:
+                tickets = self.ticketing_client.get_ticket_by_purchase_order_number(po_number)
+                if tickets:
+                    return self._select_latest_ticket(tickets)
+            except TicketingAPIError:
+                pass
+
+        return None
+
+    def _select_latest_ticket(self, tickets: list[dict]) -> dict:
+        """Select the latest ticket by ticket number numeric part."""
+        def ticket_sort_key(t: dict) -> int:
+            tn = str(t.get('ticketNumber', ''))
+            # Expect format like DE25006528; extract numeric part
+            import re
+            m = re.match(r'^[A-Z]{2}(\d+)$', tn)
+            if m:
+                try:
+                    return int(m.group(1))
+                except Exception:
+                    return 0
+            return 0
+
+        try:
+            return sorted(tickets, key=ticket_sort_key, reverse=True)[0]
+        except Exception:
+            return tickets[0]
+
     def _get_or_create_ticket(
         self,
         session: Any,
@@ -314,7 +377,12 @@ class SupportAgentOrchestrator:
 
         ticket_state = TicketState(
             ticket_number=ticket_data.get('ticketNumber'),
-            ticket_id=ticket_data.get('ticketNumber'),  # Assuming ticket number is the ID
+            ticket_id=(
+                ticket_data.get('id')
+                or ticket_data.get('ticketId')
+                or ticket_data.get('ticketID')
+                or ticket_data.get('ticketNumber')
+            ),
             order_number=order_number,
             customer_name=ticket_data.get('contactName'),
             customer_email=sales_order.get('customerEmail', ''),

@@ -564,8 +564,23 @@ class TicketingAPIClient:
             return result
 
         except requests.exceptions.RequestException as e:
-            logger.error("Failed to upsert ticket", error=str(e), order_reference=sales_order_reference)
-            raise TicketingAPIError(f"Failed to upsert ticket: {e}")
+            details = None
+            try:
+                if hasattr(e, 'response') and e.response is not None:
+                    details = e.response.text
+            except Exception:
+                pass
+            if details:
+                logger.error(
+                    "Failed to upsert ticket",
+                    error=str(e),
+                    order_reference=sales_order_reference,
+                    response_text=details[:500]
+                )
+                raise TicketingAPIError(f"Failed to upsert ticket: {e} | {details}")
+            else:
+                logger.error("Failed to upsert ticket", error=str(e), order_reference=sales_order_reference)
+                raise TicketingAPIError(f"Failed to upsert ticket: {e}")
         finally:
             for _, file_obj in files:
                 file_obj.close()

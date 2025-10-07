@@ -403,6 +403,33 @@ class GmailMonitor:
 
         return None
 
+    def extract_purchase_order_number(self, text: str) -> Optional[str]:
+        """
+        Extract purchase order number from email text.
+
+        Common pattern observed: 'D' followed by 9 digits (e.g., D425123006).
+        Also handle variants with prefixes like 'PO' or separators.
+
+        Args:
+            text: Email subject or body text
+
+        Returns:
+            Purchase order number if found, None otherwise
+        """
+        patterns = [
+            r"\b(D\d{9})\b",                 # Plain D#########
+            r"PO\s*[:#-]?\s*(D\d{9})",       # With 'PO' prefix
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                po = match.group(1).upper()
+                logger.debug("Extracted purchase order", purchase_order=po)
+                return po
+
+        return None
+
     def parse_sender_info(self, from_field: str) -> Tuple[str, str]:
         """
         Parse sender name and email from 'From' header
