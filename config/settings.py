@@ -175,6 +175,22 @@ class Settings(BaseSettings):
         description="Prefix line used in Phase 1 internal notes before the suggested supplier message"
     )
 
+    # Retry configuration for pending tickets (Phase 1)
+    retry_enabled: bool = Field(
+        default=True,
+        description="Enable retry queue when ticket lookup fails"
+    )
+    retry_max_attempts: int = Field(
+        default=5,
+        ge=1,
+        description="Maximum number of retry attempts per email"
+    )
+    retry_delay_minutes: int = Field(
+        default=60,
+        ge=1,
+        description="Minutes between retry attempts"
+    )
+
     @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:

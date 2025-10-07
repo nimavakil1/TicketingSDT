@@ -3,7 +3,7 @@ Main Orchestrator
 Coordinates email monitoring, ticket processing, AI analysis, and action dispatch
 """
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import structlog
 
@@ -17,6 +17,7 @@ from src.database.models import (
     ProcessedEmail,
     TicketState,
     Supplier,
+    PendingEmailRetry,
     init_database
 )
 
@@ -146,18 +147,23 @@ class SupportAgentOrchestrator:
                     ticket_state = self._create_ticket_state(session, ticket_data, order_number=None)
             else:
                 logger.warning(
-                    "Could not resolve any known identifier from email",
+                    "Could not resolve any known identifier; scheduling retry",
                     gmail_id=gmail_message_id,
                     subject=subject
                 )
-                # Mark as processed to avoid reprocessing loops
+                # Schedule retry and mark processed (we re-fetch by ID later)
+                self._schedule_retry(session, email_data, reason="no_identifier_found")
                 self._mark_email_processed(session, email_data, None, None)
                 self.gmail_monitor.mark_as_processed(gmail_message_id)
                 return False
 
-            if not ticket_data or not ticket_state:
-                logger.error("Failed to get or create ticket", order_number=order_number)
-                return False
+        # If still no ticket, schedule retry (Phase 1: never create)
+        if not ticket_data or not ticket_state:
+            logger.warning("Ticket not found; scheduling retry", order_number=order_number)
+            self._schedule_retry(session, email_data, reason="ticket_not_found")
+            self._mark_email_processed(session, email_data, None, order_number)
+            self.gmail_monitor.mark_as_processed(gmail_message_id)
+            return False
 
         ticket_id = ticket_data.get('ticketNumber')
         logger.info("Processing ticket", ticket_number=ticket_id)
@@ -245,6 +251,119 @@ class SupportAgentOrchestrator:
         order_number = self.gmail_monitor.extract_order_number(body)
         return order_number
 
+    def _schedule_retry(self, session: Any, email_data: Dict[str, Any], reason: str) -> None:
+        """Schedule a retry for an email that couldn't be linked to a ticket."""
+        if not settings.retry_enabled:
+            return
+        gmail_id = email_data.get('id')
+        existing = session.query(PendingEmailRetry).filter_by(gmail_message_id=gmail_id).first()
+        next_at = datetime.utcnow() + timedelta(minutes=settings.retry_delay_minutes)
+        if existing:
+            existing.next_attempt_at = next_at
+            existing.last_error = reason
+        else:
+            retry = PendingEmailRetry(
+                gmail_message_id=gmail_id,
+                gmail_thread_id=email_data.get('thread_id'),
+                subject=email_data.get('subject', ''),
+                from_address=email_data.get('from', ''),
+                attempts=0,
+                next_attempt_at=next_at,
+                last_error=reason
+            )
+            session.add(retry)
+        session.commit()
+        logger.info("Scheduled retry", gmail_id=gmail_id, reason=reason, next_attempt_at=str(next_at))
+
+    def process_pending_retries(self) -> int:
+        """Process pending email retries that are due."""
+        if not settings.retry_enabled:
+            return 0
+        session = self.SessionMaker()
+        processed = 0
+        try:
+            due = session.query(PendingEmailRetry).filter(
+                PendingEmailRetry.next_attempt_at <= datetime.utcnow(),
+                PendingEmailRetry.attempts < settings.retry_max_attempts
+            ).all()
+            for item in due:
+                try:
+                    # Fetch email details fresh from Gmail
+                    email_data = self.gmail_monitor._get_message_details(item.gmail_message_id)
+                    if not email_data:
+                        item.attempts += 1
+                        item.next_attempt_at = datetime.utcnow() + timedelta(minutes=settings.retry_delay_minutes)
+                        item.last_error = 'gmail_fetch_failed'
+                        session.commit()
+                        continue
+
+                    # Try Amazon order lookup (base + variants)
+                    order_number = self._extract_order_number(email_data)
+                    ticket_data = None
+                    ticket_state = None
+                    if order_number:
+                        tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_number) or []
+                        if not tickets:
+                            for ref in (f"{order_number}-1", f"{order_number}_1"):
+                                t = self.ticketing_client.get_ticket_by_amazon_order_number(ref)
+                                if t:
+                                    tickets = t
+                                    break
+                        if tickets:
+                            ticket_data = tickets[0]
+                            ticket_state = session.query(TicketState).filter_by(ticket_number=ticket_data.get('ticketNumber')).first()
+                            if not ticket_state:
+                                ticket_state = self._create_ticket_state(session, ticket_data, order_number)
+
+                    # Fallback: ticket number / PO number
+                    if not ticket_data:
+                        t = self._find_ticket_by_ticket_or_po(email_data)
+                        if t:
+                            ticket_data = t
+                            ticket_state = session.query(TicketState).filter_by(ticket_number=ticket_data.get('ticketNumber')).first()
+                            if not ticket_state:
+                                ticket_state = self._create_ticket_state(session, ticket_data, order_number=None)
+
+                    if ticket_data and ticket_state:
+                        # Proceed with normal analysis and Phase 1 internal note
+                        ticket_history = self._build_ticket_history(ticket_data)
+                        supplier_language = self._resolve_supplier_language(ticket_data)
+                        analysis = self.ai_engine.analyze_email(
+                            email_data=email_data,
+                            ticket_data=ticket_data,
+                            ticket_history=ticket_history,
+                            supplier_language=supplier_language
+                        )
+                        dispatcher = ActionDispatcher(self.ticketing_client)
+                        dispatcher.dispatch(
+                            analysis=analysis,
+                            ticket_id=ticket_state.ticket_id,
+                            ticket_number=ticket_state.ticket_number,
+                            ticket_status_id=ticket_state.ticket_status_id,
+                            owner_id=ticket_state.owner_id,
+                            db_session=session,
+                            gmail_message_id=email_data['id']
+                        )
+                        session.delete(item)
+                        session.commit()
+                        processed += 1
+                    else:
+                        # Not yet available; reschedule or drop after max attempts
+                        item.attempts += 1
+                        if item.attempts >= settings.retry_max_attempts:
+                            item.last_error = 'max_attempts_reached'
+                        item.next_attempt_at = datetime.utcnow() + timedelta(minutes=settings.retry_delay_minutes)
+                        session.commit()
+                except Exception as e:
+                    logger.error("Failed processing pending retry", gmail_id=item.gmail_message_id, error=str(e))
+                    item.attempts += 1
+                    item.next_attempt_at = datetime.utcnow() + timedelta(minutes=settings.retry_delay_minutes)
+                    item.last_error = str(e)
+                    session.commit()
+            return processed
+        finally:
+            session.close()
+
     def _find_ticket_by_ticket_or_po(self, email_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Try to locate an existing ticket by ticket number or purchase order number.
 
@@ -310,8 +429,14 @@ class SupportAgentOrchestrator:
             Tuple of (ticket_data from API, ticket_state from DB)
         """
         try:
-            # Try to get existing ticket from API
-            tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_number)
+            # Try to get existing ticket from API (base and variants)
+            tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_number) or []
+            if not tickets:
+                for ref in (f"{order_number}-1", f"{order_number}_1"):
+                    t = self.ticketing_client.get_ticket_by_amazon_order_number(ref)
+                    if t:
+                        tickets = t
+                        break
 
             if tickets and len(tickets) > 0:
                 ticket_data = tickets[0]
@@ -328,60 +453,11 @@ class SupportAgentOrchestrator:
                 return ticket_data, ticket_state
 
             else:
-                # No existing ticket, try to create via API with SalesOrder reference variants
-                logger.info("Creating new ticket", order_number=order_number)
-
-                sender_name, sender_email = self.gmail_monitor.parse_sender_info(
-                    email_data.get('from', '')
-                )
-
-                # Classify ticket type (default to general inquiry)
-                ticket_type_id = 6  # SupportEnquiry
-
-                # Try base and common Amazon variants: base, base-1, base_1
-                variants = [order_number, f"{order_number}-1", f"{order_number}_1"]
-                for ref in variants:
-                    result = self.ticketing_client.upsert_ticket(
-                        sales_order_reference=ref,
-                        ticket_type_id=ticket_type_id,
-                        contact_name=sender_name,
-                        entrance_email_body=email_data.get('body', ''),
-                        entrance_email_date=email_data.get('date'),
-                        entrance_email_subject=email_data.get('subject', ''),
-                        entrance_email_sender_address=sender_email,
-                        entrance_gmail_thread_id=email_data.get('thread_id')
-                    )
-
-                    if result.get('succeeded'):
-                        # Fetch the created ticket by Amazon order (base)
-                        tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_number)
-                        if tickets and len(tickets) > 0:
-                            ticket_data = tickets[0]
-                            ticket_state = self._create_ticket_state(session, ticket_data, order_number)
-                            return ticket_data, ticket_state
-                        # If not retrievable by base, accept first dataItem if present
-                        data_items = result.get('dataItems') or []
-                        if data_items:
-                            ticket_data = data_items[0]
-                            ticket_state = self._create_ticket_state(session, ticket_data, order_number)
-                            return ticket_data, ticket_state
-                        # Otherwise continue
-                    else:
-                        # If explicit SalesOrder_Not_Found, try next variant; otherwise break
-                        msgs = result.get('messages') or []
-                        codes = {str(m.get('messageCode')) for m in msgs}
-                        if 'SalesOrder_Not_Found' in codes:
-                            logger.info("Sales order not found for variant", variant=ref)
-                            continue
-                        else:
-                            logger.error("Upsert failed for variant", variant=ref, api_messages=msgs)
-                            break
-
-                # All variants failed
-                logger.error(
-                    "Failed to create ticket after trying variants",
-                    variants=variants
-                )
+                # No existing ticket
+                if settings.deployment_phase >= 2:
+                    logger.info("No ticket found; Phase >=2 may create new ticket", order_number=order_number)
+                else:
+                    logger.info("No ticket found; Phase 1 skips creation", order_number=order_number)
                 return None, None
 
         except TicketingAPIError as e:
@@ -565,6 +641,14 @@ class SupportAgentOrchestrator:
             try:
                 # Process new emails
                 self.process_new_emails()
+
+                # Process any pending retries
+                try:
+                    retried = self.process_pending_retries()
+                    if retried:
+                        logger.info("Processed pending retries", count=retried)
+                except Exception as e:
+                    logger.error("Error processing pending retries", error=str(e))
 
                 # Check supplier reminders (every cycle)
                 self.check_supplier_reminders()

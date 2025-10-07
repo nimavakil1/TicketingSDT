@@ -185,6 +185,30 @@ class AIDecisionLog(Base):
         return f"<AIDecisionLog(id={self.id}, intent={self.detected_intent}, confidence={self.confidence_score})>"
 
 
+class PendingEmailRetry(Base):
+    """
+    Queue of emails to retry linking to an existing ticket.
+    Used when no ticket was found yet; we retry later as the ticketing tool may ingest the email asynchronously.
+    """
+    __tablename__ = 'pending_email_retries'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    gmail_message_id = Column(String(255), unique=True, nullable=False, index=True)
+    gmail_thread_id = Column(String(255), index=True)
+    subject = Column(String(500))
+    from_address = Column(String(255))
+
+    attempts = Column(Integer, default=0, nullable=False)
+    next_attempt_at = Column(DateTime, index=True)
+    last_error = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<PendingEmailRetry(gmail_id={self.gmail_message_id}, attempts={self.attempts})>"
+
+
 # Database initialization
 def init_database(database_url: Optional[str] = None) -> sessionmaker:
     """
