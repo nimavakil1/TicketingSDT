@@ -229,7 +229,17 @@ class SupportAgentOrchestrator:
 
         except Exception as e:
             logger.error("Error processing email", error=str(e), gmail_id=gmail_message_id)
-            session.rollback()
+            try:
+                session.rollback()
+                # As a safety net in Phase 1, schedule a retry and mark processed
+                self._schedule_retry(session, email_data, reason=f"exception:{type(e).__name__}")
+                self._mark_email_processed(session, email_data, None, None)
+                try:
+                    self.gmail_monitor.mark_as_processed(gmail_message_id)
+                except Exception as ge:
+                    logger.error("Failed to mark Gmail as processed after exception", error=str(ge))
+            except Exception as ie:
+                logger.error("Failed to record retry after exception", error=str(ie))
             return False
 
         finally:
