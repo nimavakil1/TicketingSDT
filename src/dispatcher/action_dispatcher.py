@@ -136,12 +136,18 @@ class ActionDispatcher:
         # Build internal note with AI suggestions
         internal_note = self._build_phase1_note(analysis)
 
+        # Use default owner if ticket has no owner assigned
+        effective_owner_id = owner_id if owner_id and owner_id > 0 else settings.default_owner_id
+
+        if effective_owner_id != owner_id:
+            logger.info("Using default owner", original=owner_id, effective=effective_owner_id)
+
         try:
             result = self.ticketing_client.send_internal_message(
                 ticket_id=ticket_id,
                 message=internal_note,
                 ticket_status_id=ticket_status_id,
-                owner_id=owner_id
+                owner_id=effective_owner_id
             )
 
             if result.get('succeeded'):
@@ -317,12 +323,15 @@ Summary: {analysis.get('summary', 'N/A')}
 This ticket requires human operator attention.
 """
 
+        # Use default owner if ticket has no owner assigned
+        effective_owner_id = owner_id if owner_id and owner_id > 0 else settings.default_owner_id
+
         try:
             result = self.ticketing_client.send_internal_message(
                 ticket_id=ticket_id,
                 message=escalation_note,
                 ticket_status_id=ticket_status_id,
-                owner_id=owner_id
+                owner_id=effective_owner_id
             )
 
             if result.get('succeeded'):
