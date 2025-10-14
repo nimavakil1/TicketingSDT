@@ -284,7 +284,8 @@ class TicketingAPIClient:
                 logger.warning(
                     "Internal message API call completed but not succeeded",
                     ticket_id=ticket_id,
-                    messages=result.get("messages", [])
+                    messages=result.get("messages", []),
+                    full_response=result
                 )
 
             return result
