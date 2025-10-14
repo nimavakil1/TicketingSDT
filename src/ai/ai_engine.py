@@ -190,11 +190,11 @@ class AIEngine:
                 'summary': 'Customer asking about tracking...'
             }
         """
-        subject = email_data.get('subject', '')
+        subject = email_data.get('subject') or ''
         body = email_data.get('body', '')
         from_address = email_data.get('from', '')
 
-        logger.info("Analyzing email", subject=subject[:100])
+        logger.info("Analyzing email", subject=subject[:100] if subject else '(no subject)')
 
         # Detect language
         combined_text = f"{subject} {body}"

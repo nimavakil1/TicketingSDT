@@ -97,8 +97,28 @@ class SupportAgentOrchestrator:
             True if successfully processed
         """
         gmail_message_id = email_data['id']
-        subject = email_data.get('subject', '')
+        subject = email_data.get('subject') or ''
         from_address = email_data.get('from', '')
+
+        # Skip emails with no subject (bounce messages, system notifications)
+        if not subject:
+            logger.info(
+                "Skipping email with no subject",
+                gmail_id=gmail_message_id,
+                from_addr=from_address
+            )
+            # Mark as processed so we don't keep trying
+            session = self.SessionMaker()
+            try:
+                self._mark_email_processed(session, email_data, None, None)
+                self.gmail_monitor.mark_as_processed(gmail_message_id)
+                session.commit()
+            except Exception as e:
+                logger.error("Failed to mark empty subject email as processed", error=str(e))
+                session.rollback()
+            finally:
+                session.close()
+            return False
 
         logger.info(
             "Processing email",
@@ -247,7 +267,7 @@ class SupportAgentOrchestrator:
 
     def _extract_order_number(self, email_data: Dict[str, Any]) -> Optional[str]:
         """Extract order number from email"""
-        subject = email_data.get('subject', '')
+        subject = email_data.get('subject') or ''
         body = email_data.get('body', '')
 
         # Try subject first
@@ -273,7 +293,7 @@ class SupportAgentOrchestrator:
             retry = PendingEmailRetry(
                 gmail_message_id=gmail_id,
                 gmail_thread_id=email_data.get('thread_id'),
-                subject=email_data.get('subject', ''),
+                subject=email_data.get('subject') or '',
                 from_address=email_data.get('from', ''),
                 attempts=0,
                 next_attempt_at=next_at,
@@ -378,7 +398,7 @@ class SupportAgentOrchestrator:
         Returns the ticket data dict if found, otherwise None.
         If multiple tickets are found, returns the one with the latest ticket number (by numeric part).
         """
-        subject = email_data.get('subject', '')
+        subject = email_data.get('subject') or ''
         body = email_data.get('body', '')
 
         # Try ticket number
@@ -602,7 +622,7 @@ class SupportAgentOrchestrator:
             gmail_thread_id=email_data.get('thread_id'),
             ticket_id=ticket_state.id if ticket_state else None,
             order_number=order_number,
-            subject=email_data.get('subject', ''),
+            subject=email_data.get('subject') or '',
             from_address=email_data.get('from', '')
         )
 
