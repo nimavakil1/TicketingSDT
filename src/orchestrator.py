@@ -501,6 +501,16 @@ class SupportAgentOrchestrator:
         """Create new ticket state in database"""
         sales_order = ticket_data.get('salesOrder', {})
 
+        # Log raw owner_id from API to understand what value we get
+        raw_owner_id = ticket_data.get('ownerId')
+        logger.info(
+            "Raw owner_id from API",
+            raw_owner_id=raw_owner_id,
+            raw_owner_id_type=type(raw_owner_id).__name__,
+            raw_owner_id_repr=repr(raw_owner_id),
+            ticket_number=ticket_data.get('ticketNumber')
+        )
+
         ticket_state = TicketState(
             ticket_number=ticket_data.get('ticketNumber'),
             ticket_id=(
