@@ -516,7 +516,7 @@ class SupportAgentOrchestrator:
             supplier_name=sales_order.get('purchaseOrders', [{}])[0].get('supplierName', '') if sales_order.get('purchaseOrders') else '',
             ticket_type_id=ticket_data.get('ticketTypeId', 0),
             ticket_status_id=ticket_data.get('ticketStatusId', 1),
-            owner_id=ticket_data.get('ownerId', settings.default_owner_id),
+            owner_id=ticket_data.get('ownerId') or settings.default_owner_id,
             current_state='new',
             last_action='created',
             last_action_date=datetime.utcnow()
