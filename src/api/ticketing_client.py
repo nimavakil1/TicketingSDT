@@ -316,6 +316,69 @@ class TicketingAPIClient:
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type(requests.exceptions.RequestException)
     )
+    def update_ticket_owner(
+        self,
+        ticket_id: int,
+        owner_id: int,
+        ticket_status_id: int
+    ) -> Dict[str, Any]:
+        """
+        Update ticket owner (assign or reassign)
+
+        Args:
+            ticket_id: Ticket ID
+            owner_id: New owner ID
+            ticket_status_id: Current ticket status ID
+
+        Returns:
+            API response dictionary
+        """
+        url = f"{self.base_url}/tickets/tickets/{ticket_id}"
+
+        payload = {
+            "ownerId": owner_id,
+            "ticketStatusId": ticket_status_id
+        }
+
+        try:
+            logger.info(
+                "Updating ticket owner",
+                ticket_id=ticket_id,
+                owner_id=owner_id,
+                ticket_status_id=ticket_status_id
+            )
+
+            headers = self._get_headers()
+            response = requests.put(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("succeeded"):
+                logger.info("Ticket owner updated successfully", ticket_id=ticket_id, owner_id=owner_id)
+            else:
+                logger.warning(
+                    "Ticket owner update API call completed but not succeeded",
+                    ticket_id=ticket_id,
+                    messages=result.get("messages", []),
+                    full_response=result
+                )
+
+            return result
+
+        except requests.exceptions.RequestException as e:
+            logger.error("Failed to update ticket owner", error=str(e), ticket_id=ticket_id)
+            raise TicketingAPIError(f"Failed to update ticket owner: {e}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(requests.exceptions.RequestException)
+    )
     def send_message_to_customer(
         self,
         ticket_id: int,
