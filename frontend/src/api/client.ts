@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = (import.meta.env?.VITE_API_URL as string) || 'http://localhost:8002';
+// In production, use relative URLs so requests go through Nginx proxy
+// In development, use localhost:8002
+const API_BASE_URL = (import.meta.env?.VITE_API_URL as string) ||
+  (import.meta.env.MODE === 'production' ? '' : 'http://localhost:8002');
 
 const client = axios.create({
   baseURL: API_BASE_URL,
