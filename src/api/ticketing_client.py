@@ -261,12 +261,15 @@ class TicketingAPIClient:
             logger.info(
                 "Sending internal message",
                 ticket_id=ticket_id,
-                message_length=len(message)
+                message_length=len(message),
+                ticket_status_id=ticket_status_id,
+                owner_id=owner_id,
+                form_data_keys=list(form_data.keys())
             )
 
             # Note: Using multipart/form-data for this endpoint
-            headers = {"Authorization": f"Bearer {self.access_token}"}
             self._ensure_authenticated()
+            headers = {"Authorization": f"Bearer {self.access_token}"}
 
             response = requests.post(
                 url,
