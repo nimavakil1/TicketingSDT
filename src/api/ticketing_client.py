@@ -264,20 +264,30 @@ class TicketingAPIClient:
                 message_length=len(message),
                 ticket_status_id=ticket_status_id,
                 owner_id=owner_id,
-                form_data_keys=list(form_data.keys())
+                form_data_keys=list(form_data.keys()),
+                message_preview=message[:200] if len(message) > 200 else message
             )
 
             # Note: Using multipart/form-data for this endpoint
             self._ensure_authenticated()
             headers = {"Authorization": f"Bearer {self.access_token}"}
 
-            response = requests.post(
-                url,
-                data=form_data,
-                files=files if files else None,
-                headers=headers,
-                timeout=30
-            )
+            # Only include files parameter if we have attachments
+            if files:
+                response = requests.post(
+                    url,
+                    data=form_data,
+                    files=files,
+                    headers=headers,
+                    timeout=30
+                )
+            else:
+                response = requests.post(
+                    url,
+                    data=form_data,
+                    headers=headers,
+                    timeout=30
+                )
             response.raise_for_status()
 
             result = response.json()
