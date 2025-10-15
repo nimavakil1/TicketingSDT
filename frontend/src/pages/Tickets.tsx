@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi, Ticket } from '../api/tickets';
 import { format } from 'date-fns';
-import { AlertTriangle, Ticket as TicketIcon } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 const Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { aiDecisionsApi, AIDecisionInfo } from '../api/ai-decisions';
 import { format } from 'date-fns';
-import { Brain } from 'lucide-react';
 
 const AIDecisions: React.FC = () => {
   const [decisions, setDecisions] = useState<AIDecisionInfo[]>([]);
