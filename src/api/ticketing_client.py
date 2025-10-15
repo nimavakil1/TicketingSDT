@@ -160,7 +160,16 @@ class TicketingAPIClient:
 
             tickets = response.json()
             if tickets:
-                logger.info("Found ticket", ticket_number=ticket_number)
+                # Log raw owner_id from API response
+                for ticket in tickets:
+                    raw_owner_id = ticket.get('ownerId')
+                    logger.info(
+                        "Found ticket with raw owner_id from API",
+                        ticket_number=ticket_number,
+                        raw_owner_id=raw_owner_id,
+                        raw_owner_id_type=type(raw_owner_id).__name__,
+                        raw_owner_id_repr=repr(raw_owner_id)
+                    )
                 return tickets
             return None
 
