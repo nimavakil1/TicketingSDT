@@ -14,7 +14,8 @@ import jwt
 from passlib.context import CryptContext
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedMessage, RetryQueue, User, init_database
+from src.database.db_manager import DatabaseManager
+from src.database.models import TicketState, AIDecisionLog, ProcessedMessage, RetryQueue, User
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 
@@ -113,13 +114,11 @@ class SettingsUpdate(BaseModel):
     ai_temperature: Optional[float]
 
 
-# Initialize database session maker
-SessionMaker = init_database()
-
 # Database dependency
 def get_db():
     """Get database session"""
-    session = SessionMaker()
+    db_manager = DatabaseManager()
+    session = db_manager.get_session()
     try:
         yield session
     finally:

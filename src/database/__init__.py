@@ -6,6 +6,10 @@ from .models import (
     Supplier,
     SupplierMessage,
     AIDecisionLog,
+    User,
+    PendingEmailRetry,
+    ProcessedMessage,
+    RetryQueue,
     init_database,
     get_session
 )
@@ -17,6 +21,10 @@ __all__ = [
     'Supplier',
     'SupplierMessage',
     'AIDecisionLog',
+    'User',
+    'PendingEmailRetry',
+    'ProcessedMessage',
+    'RetryQueue',
     'init_database',
     'get_session'
 ]
