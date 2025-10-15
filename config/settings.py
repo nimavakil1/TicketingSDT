@@ -119,6 +119,20 @@ class Settings(BaseSettings):
         description="Database connection string"
     )
 
+    # Web UI Configuration
+    jwt_secret_key: str = Field(
+        default="change-this-secret-key-in-production-use-openssl-rand-hex-32",
+        description="Secret key for JWT token signing"
+    )
+    jwt_algorithm: str = Field(
+        default="HS256",
+        description="JWT signing algorithm"
+    )
+    jwt_access_token_expire_minutes: int = Field(
+        default=1440,  # 24 hours
+        description="JWT access token expiration in minutes"
+    )
+
     # Default Ticket Configuration
     default_owner_id: int = Field(
         default=1087,

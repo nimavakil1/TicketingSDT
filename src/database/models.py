@@ -176,10 +176,18 @@ class AIDecisionLog(Base):
     deployment_phase = Column(Integer)  # 1, 2, or 3
 
     # Human feedback (for Phase 1 learning)
+    feedback = Column(String(20))  # 'correct', 'incorrect', 'partially_correct'
+    feedback_notes = Column(Text)
+
+    # Legacy fields for backward compatibility
     human_feedback = Column(String(20))  # 'approved', 'rejected', 'modified'
     human_notes = Column(Text)
 
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationship
+    ticket = relationship('TicketState', backref='ai_decisions')
 
     def __repr__(self):
         return f"<AIDecisionLog(id={self.id}, intent={self.detected_intent}, confidence={self.confidence_score})>"
@@ -207,6 +215,34 @@ class PendingEmailRetry(Base):
 
     def __repr__(self):
         return f"<PendingEmailRetry(gmail_id={self.gmail_message_id}, attempts={self.attempts})>"
+
+
+class User(Base):
+    """
+    User accounts for web UI authentication
+    """
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(20), default='viewer', nullable=False)  # 'admin', 'operator', 'viewer'
+
+    # Additional fields
+    full_name = Column(String(255))
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login = Column(DateTime)
+
+    def __repr__(self):
+        return f"<User(id={self.id}, username={self.username}, role={self.role})>"
+
+
+# Aliases for backward compatibility
+ProcessedMessage = ProcessedEmail
+RetryQueue = PendingEmailRetry
 
 
 # Database initialization
