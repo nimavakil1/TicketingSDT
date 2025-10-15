@@ -208,6 +208,36 @@ class SupportAgentOrchestrator:
             # Update ticket state
             self._update_ticket_state(session, ticket_state, analysis)
 
+            # Check if ticket has no owner in the API and assign one
+            raw_api_owner_id = ticket_data.get('ownerId')
+            if raw_api_owner_id is None or raw_api_owner_id == 0:
+                logger.info(
+                    "Ticket has no owner in API, assigning default owner",
+                    ticket_id=ticket_state.ticket_id,
+                    ticket_number=ticket_state.ticket_number,
+                    new_owner_id=settings.default_owner_id
+                )
+                try:
+                    from src.api.ticketing_client import TicketingAPIError
+                    update_result = self.ticketing_client.update_ticket_owner(
+                        ticket_id=ticket_state.ticket_id,
+                        owner_id=settings.default_owner_id,
+                        ticket_status_id=ticket_state.ticket_status_id
+                    )
+                    if update_result.get('succeeded'):
+                        logger.info("Successfully assigned ticket owner", ticket_id=ticket_state.ticket_id)
+                        # Update database to reflect the change
+                        ticket_state.owner_id = settings.default_owner_id
+                        session.commit()
+                    else:
+                        logger.error(
+                            "Failed to assign ticket owner",
+                            ticket_id=ticket_state.ticket_id,
+                            messages=update_result.get('messages', [])
+                        )
+                except TicketingAPIError as e:
+                    logger.error("API error assigning ticket owner", error=str(e))
+
             # Dispatch action
             dispatcher = ActionDispatcher(self.ticketing_client)
             action_result = dispatcher.dispatch(
