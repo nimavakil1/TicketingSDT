@@ -208,35 +208,17 @@ class SupportAgentOrchestrator:
             # Update ticket state
             self._update_ticket_state(session, ticket_state, analysis)
 
-            # Check if ticket has no owner in the API and assign one
+            # Get raw owner_id from API (may be None)
             raw_api_owner_id = ticket_data.get('ownerId')
-            if raw_api_owner_id is None or raw_api_owner_id == 0:
-                logger.info(
-                    "Ticket has no owner in API, assigning default owner",
-                    ticket_id=ticket_state.ticket_id,
-                    ticket_number=ticket_state.ticket_number,
-                    new_owner_id=settings.default_owner_id
-                )
-                try:
-                    from src.api.ticketing_client import TicketingAPIError
-                    update_result = self.ticketing_client.update_ticket_owner(
-                        ticket_id=ticket_state.ticket_id,
-                        owner_id=settings.default_owner_id,
-                        ticket_status_id=ticket_state.ticket_status_id
-                    )
-                    if update_result.get('succeeded'):
-                        logger.info("Successfully assigned ticket owner", ticket_id=ticket_state.ticket_id)
-                        # Update database to reflect the change
-                        ticket_state.owner_id = settings.default_owner_id
-                        session.commit()
-                    else:
-                        logger.error(
-                            "Failed to assign ticket owner",
-                            ticket_id=ticket_state.ticket_id,
-                            messages=update_result.get('messages', [])
-                        )
-                except TicketingAPIError as e:
-                    logger.error("API error assigning ticket owner", error=str(e))
+
+            # Pass the raw owner_id (even if None) to dispatcher
+            # According to API docs: "pass the same ownerId that you receive, leave it empty if no owner"
+            logger.info(
+                "Dispatching with owner_id from API",
+                ticket_id=ticket_state.ticket_id,
+                raw_owner_id=raw_api_owner_id,
+                raw_owner_id_type=type(raw_api_owner_id).__name__
+            )
 
             # Dispatch action
             dispatcher = ActionDispatcher(self.ticketing_client)
@@ -245,7 +227,7 @@ class SupportAgentOrchestrator:
                 ticket_id=ticket_state.ticket_id,
                 ticket_number=ticket_state.ticket_number,
                 ticket_status_id=ticket_state.ticket_status_id,
-                owner_id=ticket_state.owner_id,
+                owner_id=raw_api_owner_id,  # Pass raw value from API, not database fallback
                 db_session=session,
                 gmail_message_id=gmail_message_id
             )

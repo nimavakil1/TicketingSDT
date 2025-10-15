@@ -136,49 +136,21 @@ class ActionDispatcher:
         # Build internal note with AI suggestions
         internal_note = self._build_phase1_note(analysis)
 
-        # Use default owner if ticket has no owner assigned
-        effective_owner_id = owner_id if owner_id and owner_id > 0 else settings.default_owner_id
-
-        if effective_owner_id != owner_id:
-            logger.info("Using default owner", original=owner_id, effective=effective_owner_id)
-
-        # If ticket has no owner, assign one first
-        if not owner_id or owner_id <= 0:
-            logger.info("Ticket has no owner, assigning owner before posting internal note",
-                       ticket_id=ticket_id,
-                       new_owner_id=effective_owner_id)
-            try:
-                update_result = self.ticketing_client.update_ticket_owner(
-                    ticket_id=ticket_id,
-                    owner_id=effective_owner_id,
-                    ticket_status_id=ticket_status_id
-                )
-                if not update_result.get('succeeded'):
-                    logger.error("Failed to assign ticket owner",
-                               ticket_id=ticket_id,
-                               api_messages=update_result.get('messages', []))
-                    return {
-                        'success': False,
-                        'action': 'owner_assignment_failed',
-                        'phase': 1,
-                        'error': update_result.get('messages', [])
-                    }
-                logger.info("Successfully assigned ticket owner", ticket_id=ticket_id)
-            except TicketingAPIError as e:
-                logger.error("API error assigning ticket owner", error=str(e), ticket_id=ticket_id)
-                return {
-                    'success': False,
-                    'action': 'owner_assignment_failed',
-                    'phase': 1,
-                    'error': str(e)
-                }
+        # Pass owner_id as-is (even if None) per API docs:
+        # "pass the same ownerId that you receive, leave it empty if no owner"
+        logger.info(
+            "Posting internal message with owner_id from API",
+            ticket_id=ticket_id,
+            owner_id=owner_id,
+            owner_id_type=type(owner_id).__name__
+        )
 
         try:
             result = self.ticketing_client.send_internal_message(
                 ticket_id=ticket_id,
                 message=internal_note,
                 ticket_status_id=ticket_status_id,
-                owner_id=effective_owner_id
+                owner_id=owner_id  # Pass as-is, including None
             )
 
             if result.get('succeeded'):
@@ -354,44 +326,20 @@ Summary: {analysis.get('summary', 'N/A')}
 This ticket requires human operator attention.
 """
 
-        # Use default owner if ticket has no owner assigned
-        effective_owner_id = owner_id if owner_id and owner_id > 0 else settings.default_owner_id
-
-        # If ticket has no owner, assign one first
-        if not owner_id or owner_id <= 0:
-            logger.info("Ticket has no owner, assigning owner before posting escalation note",
-                       ticket_id=ticket_id,
-                       new_owner_id=effective_owner_id)
-            try:
-                update_result = self.ticketing_client.update_ticket_owner(
-                    ticket_id=ticket_id,
-                    owner_id=effective_owner_id,
-                    ticket_status_id=ticket_status_id
-                )
-                if not update_result.get('succeeded'):
-                    logger.error("Failed to assign ticket owner for escalation",
-                               ticket_id=ticket_id,
-                               api_messages=update_result.get('messages', []))
-                    return {
-                        'success': False,
-                        'action': 'escalation_failed',
-                        'error': 'Could not assign ticket owner: ' + str(update_result.get('messages', []))
-                    }
-                logger.info("Successfully assigned ticket owner for escalation", ticket_id=ticket_id)
-            except TicketingAPIError as e:
-                logger.error("API error assigning ticket owner for escalation", error=str(e), ticket_id=ticket_id)
-                return {
-                    'success': False,
-                    'action': 'escalation_failed',
-                    'error': str(e)
-                }
+        # Pass owner_id as-is per API docs
+        logger.info(
+            "Posting escalation note with owner_id from API",
+            ticket_id=ticket_id,
+            owner_id=owner_id,
+            owner_id_type=type(owner_id).__name__
+        )
 
         try:
             result = self.ticketing_client.send_internal_message(
                 ticket_id=ticket_id,
                 message=escalation_note,
                 ticket_status_id=ticket_status_id,
-                owner_id=effective_owner_id
+                owner_id=owner_id  # Pass as-is, including None
             )
 
             if result.get('succeeded'):

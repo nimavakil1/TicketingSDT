@@ -256,9 +256,12 @@ class TicketingAPIClient:
         # Prepare form data
         form_data = {
             "ticketStatusId": str(ticket_status_id),
-            "ownerId": str(owner_id),
             "Message": message
         }
+
+        # Only include ownerId if it's not None (API says to leave empty when no owner)
+        if owner_id is not None:
+            form_data["ownerId"] = str(owner_id)
 
         files = []
         try:
@@ -417,9 +420,12 @@ class TicketingAPIClient:
 
         form_data = {
             "ticketStatusId": str(ticket_status_id),
-            "ownerId": str(owner_id),
             "Message": message
         }
+
+        # Only include ownerId if it's not None (API says to leave empty when no owner)
+        if owner_id is not None:
+            form_data["ownerId"] = str(owner_id)
 
         if email_address:
             form_data["EmailAddress"] = email_address
@@ -503,9 +509,12 @@ class TicketingAPIClient:
 
         form_data = {
             "ticketStatusId": str(ticket_status_id),
-            "ownerId": str(owner_id),
             "Message": message
         }
+
+        # Only include ownerId if it's not None (API says to leave empty when no owner)
+        if owner_id is not None:
+            form_data["ownerId"] = str(owner_id)
 
         if email_address:
             form_data["EmailAddress"] = email_address
