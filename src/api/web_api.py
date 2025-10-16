@@ -501,6 +501,11 @@ class FeedbackSubmission(BaseModel):
     feedback_notes: Optional[str] = None
 
 
+class FeedbackUpdate(BaseModel):
+    feedback_notes: Optional[str] = None
+    addressed: Optional[bool] = None
+
+
 @app.post("/api/ai-decisions/{decision_id}/feedback")
 async def submit_feedback(
     decision_id: int,
@@ -560,8 +565,7 @@ async def get_feedback(
 @app.patch("/api/feedback/{decision_id}")
 async def update_feedback(
     decision_id: int,
-    feedback_notes: Optional[str] = None,
-    addressed: Optional[bool] = None,
+    update_data: FeedbackUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -571,12 +575,12 @@ async def update_feedback(
     if not decision:
         raise HTTPException(status_code=404, detail="Decision not found")
 
-    if feedback_notes is not None:
-        decision.feedback_notes = feedback_notes
+    if update_data.feedback_notes is not None:
+        decision.feedback_notes = update_data.feedback_notes
 
-    if addressed is not None:
+    if update_data.addressed is not None:
         try:
-            decision.addressed = addressed
+            decision.addressed = update_data.addressed
         except AttributeError:
             pass  # Column might not exist yet
 
