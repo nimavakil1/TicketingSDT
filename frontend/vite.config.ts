@@ -6,13 +6,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    host: true,
+    allowedHosts: ['ai.distri-smart.com', 'localhost'],
     proxy: {
       '/api': {
-        target: 'http://localhost:8002',
+        target: 'http://localhost:8003',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8002',
+        target: 'ws://localhost:8003',
         ws: true,
       },
     },
