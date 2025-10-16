@@ -672,10 +672,8 @@ async def analyze_feedback_for_prompt_improvement(
                 "timestamp": item.timestamp.isoformat() if item.timestamp else ""
             })
 
-        # Use Claude to analyze patterns and suggest improvements
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        # Use AI to analyze patterns and suggest improvements
+        ai_engine = AIEngine()
 
         analysis_prompt = f"""You are an AI prompt engineering expert. Analyze the following feedback on an AI support agent's performance and suggest improvements to the system prompt.
 
@@ -692,14 +690,10 @@ Analyze the patterns in the feedback and provide:
 
 Focus on the most impactful improvements. Be specific and concrete."""
 
-        response = client.messages.create(
-            model=settings.ai_model,
-            max_tokens=2000,
-            temperature=0.3,
-            messages=[{"role": "user", "content": analysis_prompt}]
+        analysis_result = ai_engine.llm_client.generate_response(
+            prompt=analysis_prompt,
+            temperature=0.3
         )
-
-        analysis_result = response.content[0].text
 
         logger.info(
             "Prompt improvement analysis completed",
@@ -772,10 +766,8 @@ async def generate_improved_prompt(
                 "feedback_notes": item.feedback_notes or "No specific notes",
             })
 
-        # Use Claude to generate improved prompt
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        # Use AI to generate improved prompt
+        ai_engine = AIEngine()
 
         improvement_prompt = f"""You are an AI prompt engineering expert. Improve the following system prompt based on operator feedback about incorrect AI decisions.
 
@@ -793,14 +785,10 @@ Rewrite the ENTIRE system prompt to address these issues. Key improvements to ma
 
 Return ONLY the improved system prompt text. Do not include any preamble or explanation."""
 
-        response = client.messages.create(
-            model=settings.ai_model,
-            max_tokens=4000,
-            temperature=0.3,
-            messages=[{"role": "user", "content": improvement_prompt}]
+        improved_prompt = ai_engine.llm_client.generate_response(
+            prompt=improvement_prompt,
+            temperature=0.3
         )
-
-        improved_prompt = response.content[0].text
 
         logger.info(
             "Improved prompt generated",
