@@ -1033,9 +1033,14 @@ async def update_settings(
             user=current_user.username
         )
 
+        # Reload settings from environment
+        import importlib
+        from config import settings as settings_module
+        importlib.reload(settings_module)
+
         return {
             "success": True,
-            "message": f"Settings updated successfully. Changes: {', '.join(changes_made)}. Restart services to apply changes.",
+            "message": f"Settings updated successfully. Changes: {', '.join(changes_made)}. Restart AI agent service to apply changes.",
             "changes": changes_made
         }
     except Exception as e:
