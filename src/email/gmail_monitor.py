@@ -141,28 +141,42 @@ class GmailMonitor:
             logger.error("Failed to ensure processed label exists", error=str(e))
             raise
 
-    def get_unprocessed_messages(self, max_results: Optional[int] = None) -> List[Dict]:
+    def get_unprocessed_messages(self, max_results: Optional[int] = None, lookback_minutes: int = 10) -> List[Dict]:
         """
-        Fetch unprocessed messages from the support inbox
+        Fetch messages from the inbox within the lookback window.
+
+        Instead of relying on labels, we query based on time (last X minutes).
+        The orchestrator will check the database to determine if each email
+        has been successfully processed.
 
         Args:
             max_results: Maximum number of messages to fetch
+            lookback_minutes: How many minutes back to search (default: 10)
 
         Returns:
             List of message dictionaries with full content
         """
         try:
-            # Build query: process all messages in inbox that don't already have
-            # the processed label. Optionally start from a configured date.
+            # Calculate time threshold - look back X minutes from now
+            from datetime import datetime, timedelta, timezone
+            lookback_time = datetime.now(timezone.utc) - timedelta(minutes=lookback_minutes)
+            lookback_epoch = int(lookback_time.timestamp())
+
+            # Use the configured start_after_epoch as a hard minimum if set
+            if self.start_after_epoch and lookback_epoch < self.start_after_epoch:
+                lookback_epoch = self.start_after_epoch
+
+            # Build query: all messages in inbox from the last X minutes
+            # Note: We intentionally don't filter by label here
             query_parts = [
-                f'-label:{settings.gmail_processed_label}',
                 'in:inbox',
+                f'after:{lookback_epoch}'
             ]
-            if self.start_after_epoch:
-                query_parts.append(f'after:{self.start_after_epoch}')
             query = " ".join(query_parts)
 
-            logger.info("Fetching unprocessed messages", query=query)
+            logger.info("Fetching messages from lookback window",
+                       query=query,
+                       lookback_minutes=lookback_minutes)
 
             results = self.service.users().messages().list(
                 userId='me',
@@ -173,10 +187,10 @@ class GmailMonitor:
             messages = results.get('messages', [])
 
             if not messages:
-                logger.debug("No unprocessed messages found")
+                logger.debug("No messages found in lookback window")
                 return []
 
-            logger.info("Found unprocessed messages", count=len(messages))
+            logger.info("Found messages in lookback window", count=len(messages))
 
             # Fetch full message details
             full_messages = []
@@ -184,17 +198,6 @@ class GmailMonitor:
                 try:
                     full_msg = self._get_message_details(msg['id'])
                     if full_msg:
-                        # Defensive guard: enforce start_at using internalDate
-                        if self.start_after_epoch:
-                            try:
-                                meta = self.service.users().messages().get(
-                                    userId='me', id=msg['id'], format='metadata'
-                                ).execute()
-                                internal_ms = int(meta.get('internalDate', '0'))
-                                if internal_ms < self.start_after_epoch * 1000:
-                                    continue
-                            except Exception:
-                                pass
                         full_messages.append(full_msg)
                 except Exception as e:
                     logger.error(
@@ -207,7 +210,7 @@ class GmailMonitor:
             return full_messages
 
         except HttpError as e:
-            logger.error("Failed to fetch unprocessed messages", error=str(e))
+            logger.error("Failed to fetch messages", error=str(e))
             raise
 
     def _get_message_details(self, message_id: str) -> Optional[Dict]:

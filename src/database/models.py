@@ -30,9 +30,11 @@ class ProcessedEmail(Base):
     order_number = Column(String(50), index=True)
     subject = Column(String(500))
     from_address = Column(String(255))
+    success = Column(Boolean, default=True, nullable=False, index=True)
+    error_message = Column(Text)
 
     def __repr__(self):
-        return f"<ProcessedEmail(id={self.id}, gmail_id={self.gmail_message_id}, ticket_id={self.ticket_id})>"
+        return f"<ProcessedEmail(id={self.id}, gmail_id={self.gmail_message_id}, success={self.success})>"
 
 
 class TicketState(Base):

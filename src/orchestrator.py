@@ -107,10 +107,10 @@ class SupportAgentOrchestrator:
                 gmail_id=gmail_message_id,
                 from_addr=from_address
             )
-            # Mark as processed so we don't keep trying
+            # Mark as successfully processed (intentional skip) so we don't keep trying
             session = self.SessionMaker()
             try:
-                self._mark_email_processed(session, email_data, None, None)
+                self._mark_email_processed(session, email_data, None, None, success=True)
                 self.gmail_monitor.mark_as_processed(gmail_message_id)
                 session.commit()
             except Exception as e:
@@ -131,14 +131,16 @@ class SupportAgentOrchestrator:
         session = self.SessionMaker()
 
         try:
-            # Check if already processed (idempotency)
+            # Check if already successfully processed (idempotency)
             existing = session.query(ProcessedEmail).filter_by(
                 gmail_message_id=gmail_message_id
             ).first()
 
-            if existing:
-                logger.info("Email already processed, skipping", gmail_id=gmail_message_id)
+            if existing and existing.success:
+                logger.debug("Email already successfully processed, skipping", gmail_id=gmail_message_id)
                 return False
+
+            # If existing but not successful, we'll retry (don't return here)
 
             # Resolve ticket via multiple identifiers
             order_number = self._extract_order_number(email_data)
@@ -169,18 +171,26 @@ class SupportAgentOrchestrator:
                         gmail_id=gmail_message_id,
                         subject=subject
                     )
-                    # Schedule retry and mark processed (we re-fetch by ID later)
+                    # Schedule retry and mark as failed (will retry later)
                     self._schedule_retry(session, email_data, reason="no_identifier_found")
-                    self._mark_email_processed(session, email_data, None, None)
-                    self.gmail_monitor.mark_as_processed(gmail_message_id)
+                    self._mark_email_processed(
+                        session, email_data, None, None,
+                        success=False,
+                        error_message="No identifier found (order number, ticket number, or PO)"
+                    )
+                    # Don't mark in Gmail - allow retry
                     return False
 
             # If still no ticket, schedule retry (Phase 1: never create)
             if not ticket_data or not ticket_state:
                 logger.warning("Ticket not found; scheduling retry", order_number=order_number)
                 self._schedule_retry(session, email_data, reason="ticket_not_found")
-                self._mark_email_processed(session, email_data, None, order_number)
-                self.gmail_monitor.mark_as_processed(gmail_message_id)
+                self._mark_email_processed(
+                    session, email_data, None, order_number,
+                    success=False,
+                    error_message=f"Ticket not found for order {order_number}"
+                )
+                # Don't mark in Gmail - allow retry
                 return False
 
             ticket_id = ticket_data.get('ticketNumber')
@@ -243,19 +253,20 @@ class SupportAgentOrchestrator:
                     supplier_action=analysis['supplier_action']
                 )
 
-            # Mark email as processed
+            # Mark email as successfully processed in database
             self._mark_email_processed(
                 session=session,
                 email_data=email_data,
                 ticket_state=ticket_state,
-                order_number=order_number
+                order_number=order_number,
+                success=True
             )
-
-            # Mark in Gmail
-            self.gmail_monitor.mark_as_processed(gmail_message_id)
 
             session.commit()
             logger.info("Email processing successful", gmail_id=gmail_message_id)
+
+            # Only mark in Gmail after successful database commit
+            self.gmail_monitor.mark_as_processed(gmail_message_id)
 
             return True
 
@@ -263,13 +274,15 @@ class SupportAgentOrchestrator:
             logger.error("Error processing email", error=str(e), gmail_id=gmail_message_id)
             try:
                 session.rollback()
-                # As a safety net in Phase 1, schedule a retry and mark processed
+                # Schedule a retry and mark as failed (will retry later)
                 self._schedule_retry(session, email_data, reason=f"exception:{type(e).__name__}")
-                self._mark_email_processed(session, email_data, None, None)
-                try:
-                    self.gmail_monitor.mark_as_processed(gmail_message_id)
-                except Exception as ge:
-                    logger.error("Failed to mark Gmail as processed after exception", error=str(ge))
+                self._mark_email_processed(
+                    session, email_data, None, None,
+                    success=False,
+                    error_message=f"Exception: {type(e).__name__}: {str(e)}"
+                )
+                session.commit()
+                # Don't mark in Gmail - allow retry
             except Exception as ie:
                 logger.error("Failed to record retry after exception", error=str(ie))
             return False
@@ -636,19 +649,39 @@ class SupportAgentOrchestrator:
         session: Any,
         email_data: Dict[str, Any],
         ticket_state: Optional[TicketState],
-        order_number: Optional[str]
+        order_number: Optional[str],
+        success: bool = True,
+        error_message: Optional[str] = None
     ) -> None:
         """Mark email as processed in database"""
-        processed_email = ProcessedEmail(
-            gmail_message_id=email_data['id'],
-            gmail_thread_id=email_data.get('thread_id'),
-            ticket_id=ticket_state.id if ticket_state else None,
-            order_number=order_number,
-            subject=email_data.get('subject') or '',
-            from_address=email_data.get('from', '')
-        )
+        gmail_id = email_data['id']
 
-        session.add(processed_email)
+        # Check if email already exists in database
+        existing = session.query(ProcessedEmail).filter_by(
+            gmail_message_id=gmail_id
+        ).first()
+
+        if existing:
+            # Update existing record
+            existing.processed_at = datetime.utcnow()
+            existing.ticket_id = ticket_state.id if ticket_state else existing.ticket_id
+            existing.order_number = order_number or existing.order_number
+            existing.success = success
+            existing.error_message = error_message
+        else:
+            # Create new record
+            processed_email = ProcessedEmail(
+                gmail_message_id=gmail_id,
+                gmail_thread_id=email_data.get('thread_id'),
+                ticket_id=ticket_state.id if ticket_state else None,
+                order_number=order_number,
+                subject=email_data.get('subject') or '',
+                from_address=email_data.get('from', ''),
+                success=success,
+                error_message=error_message
+            )
+            session.add(processed_email)
+
         session.commit()
 
     def check_supplier_reminders(self) -> int:
