@@ -113,6 +113,25 @@ class SettingsUpdate(BaseModel):
     deployment_phase: Optional[int]
     confidence_threshold: Optional[float]
     ai_temperature: Optional[float]
+    ai_model: Optional[str]
+    ai_max_tokens: Optional[int]
+    system_prompt: Optional[str]
+
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+    role: str = 'viewer'  # 'admin', 'operator', 'viewer'
+    full_name: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
+    email: Optional[str]
+    password: Optional[str]
+    role: Optional[str]
+    full_name: Optional[str]
+    is_active: Optional[bool]
 
 
 # Initialize database session maker
@@ -469,6 +488,17 @@ async def submit_feedback(
 @app.get("/api/settings")
 async def get_settings(current_user: User = Depends(get_current_user)):
     """Get current system settings"""
+    from pathlib import Path
+
+    # Load system prompt if it exists
+    system_prompt = None
+    try:
+        prompt_path = Path(settings.prompt_path) if hasattr(settings, 'prompt_path') else Path(settings.base_dir) / "prompts" / "system_prompt.txt"
+        if prompt_path.exists():
+            system_prompt = prompt_path.read_text(encoding='utf-8')
+    except Exception:
+        pass
+
     return {
         "deployment_phase": settings.deployment_phase,
         "confidence_threshold": settings.confidence_threshold,
@@ -479,7 +509,8 @@ async def get_settings(current_user: User = Depends(get_current_user)):
         "retry_enabled": settings.retry_enabled,
         "retry_max_attempts": settings.retry_max_attempts,
         "retry_delay_minutes": settings.retry_delay_minutes,
-        "gmail_check_interval": settings.gmail_check_interval
+        "gmail_check_interval": settings.gmail_check_interval,
+        "system_prompt": system_prompt
     }
 
 
@@ -493,18 +524,243 @@ async def update_settings(
     if current_user.role != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    # Note: In production, settings should be persisted to database or config file
-    # For now, this is a placeholder showing the API structure
+    # Update .env file with new settings
+    import os
+    from pathlib import Path
 
-    logger.warning(
-        "Settings update requested (not yet persisted)",
-        updates=updates.dict(exclude_none=True),
-        user=current_user.username
+    env_path = Path(settings.base_dir) / ".env"
+    changes_made = []
+
+    try:
+        # Read current .env file
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                lines = f.readlines()
+        else:
+            lines = []
+
+        # Update lines with new values
+        updated_lines = []
+        keys_updated = set()
+
+        for line in lines:
+            line_updated = False
+            if updates.deployment_phase is not None and line.startswith('DEPLOYMENT_PHASE='):
+                updated_lines.append(f'DEPLOYMENT_PHASE={updates.deployment_phase}\n')
+                keys_updated.add('DEPLOYMENT_PHASE')
+                changes_made.append(f'deployment_phase={updates.deployment_phase}')
+                line_updated = True
+            elif updates.confidence_threshold is not None and line.startswith('CONFIDENCE_THRESHOLD='):
+                updated_lines.append(f'CONFIDENCE_THRESHOLD={updates.confidence_threshold}\n')
+                keys_updated.add('CONFIDENCE_THRESHOLD')
+                changes_made.append(f'confidence_threshold={updates.confidence_threshold}')
+                line_updated = True
+            elif updates.ai_temperature is not None and line.startswith('AI_TEMPERATURE='):
+                updated_lines.append(f'AI_TEMPERATURE={updates.ai_temperature}\n')
+                keys_updated.add('AI_TEMPERATURE')
+                changes_made.append(f'ai_temperature={updates.ai_temperature}')
+                line_updated = True
+            elif updates.ai_model is not None and line.startswith('AI_MODEL='):
+                updated_lines.append(f'AI_MODEL={updates.ai_model}\n')
+                keys_updated.add('AI_MODEL')
+                changes_made.append(f'ai_model={updates.ai_model}')
+                line_updated = True
+            elif updates.ai_max_tokens is not None and line.startswith('AI_MAX_TOKENS='):
+                updated_lines.append(f'AI_MAX_TOKENS={updates.ai_max_tokens}\n')
+                keys_updated.add('AI_MAX_TOKENS')
+                changes_made.append(f'ai_max_tokens={updates.ai_max_tokens}')
+                line_updated = True
+
+            if not line_updated:
+                updated_lines.append(line)
+
+        # Add new keys that weren't in the file
+        if updates.deployment_phase is not None and 'DEPLOYMENT_PHASE' not in keys_updated:
+            updated_lines.append(f'DEPLOYMENT_PHASE={updates.deployment_phase}\n')
+            changes_made.append(f'deployment_phase={updates.deployment_phase}')
+        if updates.confidence_threshold is not None and 'CONFIDENCE_THRESHOLD' not in keys_updated:
+            updated_lines.append(f'CONFIDENCE_THRESHOLD={updates.confidence_threshold}\n')
+            changes_made.append(f'confidence_threshold={updates.confidence_threshold}')
+        if updates.ai_temperature is not None and 'AI_TEMPERATURE' not in keys_updated:
+            updated_lines.append(f'AI_TEMPERATURE={updates.ai_temperature}\n')
+            changes_made.append(f'ai_temperature={updates.ai_temperature}')
+        if updates.ai_model is not None and 'AI_MODEL' not in keys_updated:
+            updated_lines.append(f'AI_MODEL={updates.ai_model}\n')
+            changes_made.append(f'ai_model={updates.ai_model}')
+        if updates.ai_max_tokens is not None and 'AI_MAX_TOKENS' not in keys_updated:
+            updated_lines.append(f'AI_MAX_TOKENS={updates.ai_max_tokens}\n')
+            changes_made.append(f'ai_max_tokens={updates.ai_max_tokens}')
+
+        # Write back to file
+        with open(env_path, 'w') as f:
+            f.writelines(updated_lines)
+
+        # Handle system prompt separately
+        if updates.system_prompt is not None:
+            prompt_path = Path(settings.prompt_path) if hasattr(settings, 'prompt_path') else Path(settings.base_dir) / "prompts" / "system_prompt.txt"
+            prompt_path.parent.mkdir(parents=True, exist_ok=True)
+            prompt_path.write_text(updates.system_prompt, encoding='utf-8')
+            changes_made.append('system_prompt updated')
+
+        logger.info(
+            "Settings updated",
+            changes=changes_made,
+            user=current_user.username
+        )
+
+        return {
+            "success": True,
+            "message": f"Settings updated successfully. Changes: {', '.join(changes_made)}. Restart services to apply changes.",
+            "changes": changes_made
+        }
+    except Exception as e:
+        logger.error("Failed to update settings", error=str(e), user=current_user.username)
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+
+# User Management endpoints
+@app.get("/api/users", response_model=List[UserInfo])
+async def get_users(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of all users (requires admin role)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    users = db.query(User).order_by(User.created_at.desc()).all()
+
+    return [
+        UserInfo(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            role=user.role,
+            created_at=user.created_at
+        )
+        for user in users
+    ]
+
+
+@app.post("/api/users")
+async def create_user(
+    user_data: UserCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new user (requires admin role)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Check if username or email already exists
+    existing = db.query(User).filter(
+        (User.username == user_data.username) | (User.email == user_data.email)
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Username or email already exists")
+
+    # Validate role
+    if user_data.role not in ['admin', 'operator', 'viewer']:
+        raise HTTPException(status_code=400, detail="Invalid role. Must be admin, operator, or viewer")
+
+    # Create new user
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        password_hash=get_password_hash(user_data.password),
+        role=user_data.role,
+        full_name=user_data.full_name,
+        is_active=True
     )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    logger.info("User created", username=user_data.username, role=user_data.role, by=current_user.username)
 
     return {
         "success": True,
-        "message": "Settings updated (restart required for some changes)"
+        "message": f"User {user_data.username} created successfully",
+        "user_id": new_user.id
+    }
+
+
+@app.patch("/api/users/{user_id}")
+async def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user information (requires admin role)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Update fields if provided
+    if user_data.email is not None:
+        # Check if email is already taken by another user
+        existing = db.query(User).filter(User.email == user_data.email, User.id != user_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = user_data.email
+
+    if user_data.password is not None:
+        user.password_hash = get_password_hash(user_data.password)
+
+    if user_data.role is not None:
+        if user_data.role not in ['admin', 'operator', 'viewer']:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        user.role = user_data.role
+
+    if user_data.full_name is not None:
+        user.full_name = user_data.full_name
+
+    if user_data.is_active is not None:
+        user.is_active = user_data.is_active
+
+    db.commit()
+
+    logger.info("User updated", user_id=user_id, username=user.username, by=current_user.username)
+
+    return {
+        "success": True,
+        "message": f"User {user.username} updated successfully"
+    }
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a user (requires admin role)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    # Prevent deleting yourself
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    username = user.username
+    db.delete(user)
+    db.commit()
+
+    logger.info("User deleted", user_id=user_id, username=username, by=current_user.username)
+
+    return {
+        "success": True,
+        "message": f"User {username} deleted successfully"
     }
 
 
