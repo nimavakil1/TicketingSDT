@@ -97,6 +97,9 @@ const Settings: React.FC = () => {
       const response = await client.patch('/api/settings', settings);
       showMessage('success', response.data.message || 'Settings saved successfully');
 
+      // Reload settings from server to show updated values
+      await loadSettings();
+
       // Automatically restart services after successful save
       showMessage('success', 'Restarting services...');
       try {
