@@ -10,6 +10,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import jwt
 from passlib.context import CryptContext
 
@@ -257,7 +258,7 @@ async def get_dashboard_stats(
 
     # Calculate average confidence today
     avg_confidence_result = db.query(
-        db.func.avg(AIDecisionLog.confidence_score)
+        func.avg(AIDecisionLog.confidence_score)
     ).filter(
         AIDecisionLog.timestamp >= today,
         AIDecisionLog.confidence_score.isnot(None)
