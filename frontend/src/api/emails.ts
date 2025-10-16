@@ -12,9 +12,10 @@ export interface ProcessedEmail {
 export interface RetryQueueItem {
   id: number;
   gmail_message_id: string;
-  ticket_number: string;
-  attempt_count: number;
-  next_retry_at: string;
+  subject: string | null;
+  from_address: string | null;
+  attempts: number;
+  next_attempt_at: string | null;
   last_error: string | null;
 }
 

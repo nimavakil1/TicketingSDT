@@ -140,10 +140,10 @@ const Emails: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Message ID
+                    Subject
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ticket Number
+                    From
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Attempts
@@ -159,20 +159,20 @@ const Emails: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {retryQueue.map((item) => (
                   <tr key={item.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
-                      {item.gmail_message_id.substring(0, 16)}...
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {item.subject || 'No subject'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.ticket_number}
+                      {item.from_address || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                         <RefreshCw className="h-3 w-3 mr-1" />
-                        {item.attempt_count}
+                        {item.attempts}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {format(new Date(item.next_retry_at), 'MMM dd, yyyy HH:mm')}
+                      {item.next_attempt_at ? format(new Date(item.next_attempt_at), 'MMM dd, yyyy HH:mm') : 'Not scheduled'}
                     </td>
                     <td className="px-6 py-4 text-sm text-red-600">
                       {item.last_error && (
