@@ -96,6 +96,19 @@ const Settings: React.FC = () => {
     try {
       const response = await client.patch('/api/settings', settings);
       showMessage('success', response.data.message || 'Settings saved successfully');
+
+      // Automatically restart services after successful save
+      showMessage('success', 'Restarting services...');
+      try {
+        const restartResponse = await client.post('/api/services/restart');
+        if (restartResponse.data.success) {
+          showMessage('success', 'Settings saved and services restarted successfully!');
+        } else {
+          showMessage('error', `Settings saved but service restart failed: ${restartResponse.data.message}`);
+        }
+      } catch (restartError: any) {
+        showMessage('error', `Settings saved but failed to restart services: ${restartError.response?.data?.detail || restartError.message}`);
+      }
     } catch (error: any) {
       showMessage('error', error.response?.data?.detail || 'Failed to save settings');
     } finally {
@@ -320,13 +333,9 @@ const Settings: React.FC = () => {
             </button>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-            <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> After saving AI settings, you must restart the agent services for changes to take effect:
-              <code className="block mt-2 bg-yellow-100 p-2 rounded text-xs">
-                sudo systemctl restart ai-agent<br/>
-                sudo systemctl restart ai-agent-api
-              </code>
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> Services will be automatically restarted after saving settings to apply changes.
             </p>
           </div>
         </div>

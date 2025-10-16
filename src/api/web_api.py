@@ -780,6 +780,52 @@ async def delete_user(
     }
 
 
+@app.post("/api/services/restart")
+async def restart_services(
+    current_user: User = Depends(get_current_user)
+):
+    """Restart the AI agent services (requires admin role)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    import subprocess
+
+    services = ['ai-agent', 'ai-agent-api']
+    results = {}
+
+    for service in services:
+        try:
+            # Run systemctl restart command
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'restart', service],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                results[service] = {'success': True, 'message': f'{service} restarted successfully'}
+                logger.info(f"Service restarted", service=service, by=current_user.username)
+            else:
+                results[service] = {'success': False, 'message': f'Failed to restart {service}: {result.stderr}'}
+                logger.error(f"Service restart failed", service=service, error=result.stderr)
+        except subprocess.TimeoutExpired:
+            results[service] = {'success': False, 'message': f'Restart of {service} timed out'}
+            logger.error(f"Service restart timeout", service=service)
+        except Exception as e:
+            results[service] = {'success': False, 'message': f'Error restarting {service}: {str(e)}'}
+            logger.error(f"Service restart error", service=service, error=str(e))
+
+    # Check if all succeeded
+    all_success = all(r['success'] for r in results.values())
+
+    return {
+        "success": all_success,
+        "services": results,
+        "message": "All services restarted successfully" if all_success else "Some services failed to restart"
+    }
+
+
 # WebSocket for real-time logs
 class ConnectionManager:
     """Manage WebSocket connections"""
