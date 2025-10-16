@@ -690,7 +690,7 @@ Analyze the patterns in the feedback and provide:
 
 Focus on the most impactful improvements. Be specific and concrete."""
 
-        analysis_result = ai_engine.llm_client.generate_response(
+        analysis_result = ai_engine.provider.generate_response(
             prompt=analysis_prompt,
             temperature=0.3
         )
@@ -785,7 +785,7 @@ Rewrite the ENTIRE system prompt to address these issues. Key improvements to ma
 
 Return ONLY the improved system prompt text. Do not include any preamble or explanation."""
 
-        improved_prompt = ai_engine.llm_client.generate_response(
+        improved_prompt = ai_engine.provider.generate_response(
             prompt=improvement_prompt,
             temperature=0.3
         )
