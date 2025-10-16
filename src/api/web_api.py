@@ -1034,9 +1034,20 @@ async def update_settings(
         )
 
         # Reload settings from environment
-        import importlib
-        from config import settings as settings_module
-        importlib.reload(settings_module)
+        try:
+            import importlib
+            import sys
+            # Remove cached module
+            if 'config.settings' in sys.modules:
+                del sys.modules['config.settings']
+            # Reload environment variables
+            from dotenv import load_dotenv
+            load_dotenv(override=True)
+            # Import fresh settings
+            from config import settings as new_settings
+            logger.info("Settings reloaded from .env file")
+        except Exception as reload_error:
+            logger.warning("Failed to reload settings in memory", error=str(reload_error))
 
         return {
             "success": True,
