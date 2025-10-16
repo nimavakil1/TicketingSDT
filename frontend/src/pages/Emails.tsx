@@ -81,10 +81,10 @@ const Emails: React.FC = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Message ID
+                  Subject
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ticket Number
+                  Order Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Processed At
@@ -104,13 +104,11 @@ const Emails: React.FC = () => {
                       <XCircle className="h-5 w-5 text-red-500" />
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
-                    {email.gmail_message_id.substring(0, 16)}...
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {email.subject}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <a href={`/tickets/${email.ticket_number}`} className="text-indigo-600 hover:text-indigo-900">
-                      {email.ticket_number}
-                    </a>
+                    {email.order_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {format(new Date(email.processed_at), 'MMM dd, yyyy HH:mm')}

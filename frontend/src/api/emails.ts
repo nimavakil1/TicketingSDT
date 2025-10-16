@@ -3,7 +3,9 @@ import client from './client';
 export interface ProcessedEmail {
   id: number;
   gmail_message_id: string;
-  ticket_number: string;
+  subject: string;
+  from_address: string;
+  order_number: string;
   processed_at: string;
   success: boolean;
   error_message: string | null;
