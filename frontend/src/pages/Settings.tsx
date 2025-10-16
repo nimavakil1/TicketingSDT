@@ -51,10 +51,25 @@ const Settings: React.FC = () => {
   const loadSettings = async () => {
     try {
       const response = await client.get('/api/settings');
+      console.log('Settings loaded:', response.data);
       setSettings(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load settings:', error);
-      showMessage('error', 'Failed to load settings');
+      showMessage('error', `Failed to load settings: ${error.response?.data?.detail || error.message}`);
+      // Set default settings if load fails
+      setSettings({
+        deployment_phase: 1,
+        confidence_threshold: 0.75,
+        ai_provider: 'openai',
+        ai_model: 'gpt-4',
+        ai_temperature: 0.7,
+        ai_max_tokens: 2000,
+        system_prompt: null,
+        retry_enabled: true,
+        retry_max_attempts: 3,
+        retry_delay_minutes: 30,
+        gmail_check_interval: 60
+      });
     } finally {
       setLoading(false);
     }
@@ -346,26 +361,26 @@ const Settings: React.FC = () => {
                   placeholder="Username *"
                   value={userForm.username}
                   onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
                 <input
                   type="email"
                   placeholder="Email *"
                   value={userForm.email}
                   onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
                 <input
                   type="password"
                   placeholder="Password *"
                   value={userForm.password}
                   onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
                 <select
                   value={userForm.role}
                   onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 >
                   <option value="viewer">Viewer</option>
                   <option value="operator">Operator</option>
