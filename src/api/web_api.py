@@ -101,9 +101,10 @@ class AIDecisionInfo(BaseModel):
 class RetryQueueItem(BaseModel):
     id: int
     gmail_message_id: str
-    ticket_number: str
-    attempt_count: int
-    next_retry_at: datetime
+    subject: Optional[str]
+    from_address: Optional[str]
+    attempts: int
+    next_attempt_at: Optional[datetime]
     last_error: Optional[str]
 
 
@@ -239,9 +240,9 @@ async def get_dashboard_stats(
         ProcessedMessage.processed_at >= today
     ).count()
 
-    # Count active tickets
+    # Count active tickets (not resolved/closed)
     active_tickets = db.query(TicketState).filter(
-        TicketState.status == 'active'
+        TicketState.escalated == False
     ).count()
 
     # Count escalated tickets
@@ -295,10 +296,12 @@ async def get_processed_emails(
         {
             "id": msg.id,
             "gmail_message_id": msg.gmail_message_id,
-            "ticket_number": msg.ticket_number,
+            "subject": msg.subject or "N/A",
+            "from_address": msg.from_address or "N/A",
+            "order_number": msg.order_number or "N/A",
             "processed_at": msg.processed_at,
-            "success": msg.success,
-            "error_message": msg.error_message
+            "success": getattr(msg, 'success', True),  # Default to True for old records
+            "error_message": getattr(msg, 'error_message', None)
         }
         for msg in processed
     ]
@@ -318,9 +321,10 @@ async def get_retry_queue(
         RetryQueueItem(
             id=retry.id,
             gmail_message_id=retry.gmail_message_id,
-            ticket_number=retry.ticket_number,
-            attempt_count=retry.attempt_count,
-            next_retry_at=retry.next_retry_at,
+            subject=retry.subject,
+            from_address=retry.from_address,
+            attempts=retry.attempts,
+            next_attempt_at=retry.next_attempt_at,
             last_error=retry.last_error
         )
         for retry in retries
@@ -347,12 +351,12 @@ async def get_tickets(
     return [
         TicketInfo(
             ticket_number=ticket.ticket_number,
-            status=ticket.status,
+            status=ticket.current_state or "unknown",
             customer_email=ticket.customer_email or "N/A",
-            last_updated=ticket.last_updated,
+            last_updated=ticket.updated_at,
             escalated=ticket.escalated,
             ai_decision_count=len(ticket.ai_decisions),
-            ticket_status_id=ticket.ticket_status_id,
+            ticket_status_id=ticket.ticket_status_id or 0,
             owner_id=ticket.owner_id
         )
         for ticket in tickets
@@ -381,14 +385,14 @@ async def get_ticket_detail(
     return {
         "ticket_number": ticket.ticket_number,
         "ticket_id": ticket.ticket_id,
-        "status": ticket.status,
+        "status": ticket.current_state or "unknown",
         "customer_email": ticket.customer_email,
         "ticket_status_id": ticket.ticket_status_id,
         "owner_id": ticket.owner_id,
         "escalated": ticket.escalated,
         "escalation_reason": ticket.escalation_reason,
         "escalation_date": ticket.escalation_date,
-        "last_updated": ticket.last_updated,
+        "last_updated": ticket.updated_at,
         "created_at": ticket.created_at,
         "ai_decisions": [
             {
