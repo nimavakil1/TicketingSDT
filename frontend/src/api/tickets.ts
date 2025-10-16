@@ -11,6 +11,16 @@ export interface Ticket {
   owner_id: number | null;
 }
 
+export interface TicketMessage {
+  id: number;
+  createdAt: string;
+  messageText: string;
+  messageType: string;
+  isInternal: boolean;
+  authorName: string | null;
+  authorEmail: string | null;
+}
+
 export interface TicketDetail {
   ticket_number: string;
   ticket_id: number;
@@ -23,6 +33,7 @@ export interface TicketDetail {
   escalation_date: string | null;
   last_updated: string;
   created_at: string;
+  messages: TicketMessage[];
   ai_decisions: AIDecision[];
 }
 

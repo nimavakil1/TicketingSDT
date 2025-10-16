@@ -389,7 +389,7 @@ async def get_ticket_detail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get detailed ticket information including AI decisions"""
+    """Get detailed ticket information including AI decisions and message history"""
     ticket = db.query(TicketState).filter(
         TicketState.ticket_number == ticket_number
     ).first()
@@ -401,6 +401,20 @@ async def get_ticket_detail(
     decisions = db.query(AIDecisionLog).filter(
         AIDecisionLog.ticket_id == ticket.id
     ).order_by(AIDecisionLog.timestamp.desc()).all()
+
+    # Fetch ticket messages from ticketing system API
+    from api.ticketing_client import TicketingAPIClient
+    messages = []
+    try:
+        ticketing_client = TicketingAPIClient()
+        ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
+        if ticket_data and len(ticket_data) > 0:
+            # The API returns a list, take the first ticket
+            messages = ticket_data[0].get("messages", [])
+            logger.info("Fetched ticket messages", ticket_number=ticket_number, message_count=len(messages))
+    except Exception as e:
+        logger.warning("Failed to fetch ticket messages from ticketing API", error=str(e), ticket_number=ticket_number)
+        # Continue without messages rather than failing
 
     return {
         "ticket_number": ticket.ticket_number,
@@ -414,6 +428,7 @@ async def get_ticket_detail(
         "escalation_date": ticket.escalation_date,
         "last_updated": ticket.updated_at,
         "created_at": ticket.created_at,
+        "messages": messages,
         "ai_decisions": [
             {
                 "id": dec.id,
