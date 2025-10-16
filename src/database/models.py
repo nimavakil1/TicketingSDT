@@ -163,7 +163,7 @@ class AIDecisionLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticket_id = Column(Integer, ForeignKey('ticket_states.id'), nullable=False, index=True)
     gmail_message_id = Column(String(255), index=True)
-    prompt_version_id = Column(Integer, ForeignKey('prompt_versions.id'), index=True)  # Which prompt version was used
+    prompt_version_id = Column(Integer, ForeignKey('prompt_versions.id'), nullable=True, index=True)  # Which prompt version was used (nullable for existing records)
 
     # AI analysis
     detected_language = Column(String(10))
