@@ -163,6 +163,7 @@ class AIDecisionLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticket_id = Column(Integer, ForeignKey('ticket_states.id'), nullable=False, index=True)
     gmail_message_id = Column(String(255), index=True)
+    prompt_version_id = Column(Integer, ForeignKey('prompt_versions.id'), index=True)  # Which prompt version was used
 
     # AI analysis
     detected_language = Column(String(10))
@@ -194,6 +195,26 @@ class AIDecisionLog(Base):
 
     def __repr__(self):
         return f"<AIDecisionLog(id={self.id}, intent={self.detected_intent}, confidence={self.confidence_score})>"
+
+
+class PromptVersion(Base):
+    """
+    Track system prompt versions over time
+    Links feedback to specific prompt versions
+    """
+    __tablename__ = 'prompt_versions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    version_number = Column(Integer, nullable=False, unique=True, index=True)
+    prompt_text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_by = Column(String(100))  # Username who approved this version
+    change_summary = Column(Text)  # What changed and why
+    feedback_count = Column(Integer, default=0)  # How many feedback items prompted this change
+    is_active = Column(Boolean, default=False)  # Currently active version
+
+    def __repr__(self):
+        return f"<PromptVersion(id={self.id}, version={self.version_number}, active={self.is_active})>"
 
 
 class PendingEmailRetry(Base):
