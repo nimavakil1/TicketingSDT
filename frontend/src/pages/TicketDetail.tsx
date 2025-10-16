@@ -175,21 +175,21 @@ const TicketDetail: React.FC = () => {
               <button
                 onClick={navigateToPrevious}
                 disabled={currentIndex <= 0}
-                className="p-2 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-700"
                 title="Previous ticket"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-5 w-5 text-gray-900" />
               </button>
-              <span className="text-sm text-gray-600 min-w-[60px] text-center">
+              <span className="text-sm text-gray-600 min-w-[60px] text-center font-medium">
                 {currentIndex + 1} / {ticketList.length}
               </span>
               <button
                 onClick={navigateToNext}
                 disabled={currentIndex >= ticketList.length - 1}
-                className="p-2 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-700"
                 title="Next ticket"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-5 w-5 text-gray-900" />
               </button>
             </div>
           )}
