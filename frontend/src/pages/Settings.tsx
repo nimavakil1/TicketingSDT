@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Users, Bot, Save, Plus, Trash2, Edit2, X } from 'lucide-react';
+import { Users, Bot, Save, Plus, Trash2, Edit2, X } from 'lucide-react';
 import client from '../api/client';
 
 interface SettingsData {
