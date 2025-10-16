@@ -491,11 +491,15 @@ async def get_ai_decisions(
     ]
 
 
+class FeedbackSubmission(BaseModel):
+    feedback: str  # 'correct', 'incorrect', 'partially_correct'
+    feedback_notes: Optional[str] = None
+
+
 @app.post("/api/ai-decisions/{decision_id}/feedback")
 async def submit_feedback(
     decision_id: int,
-    feedback: str,  # 'correct', 'incorrect', 'partially_correct'
-    notes: Optional[str] = None,
+    feedback_data: FeedbackSubmission,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -505,11 +509,11 @@ async def submit_feedback(
     if not decision:
         raise HTTPException(status_code=404, detail="Decision not found")
 
-    decision.feedback = feedback
-    decision.feedback_notes = notes
+    decision.feedback = feedback_data.feedback
+    decision.feedback_notes = feedback_data.feedback_notes
     db.commit()
 
-    logger.info("Feedback submitted", decision_id=decision_id, feedback=feedback, user=current_user.username)
+    logger.info("Feedback submitted", decision_id=decision_id, feedback=feedback_data.feedback, user=current_user.username)
 
     return {"success": True, "message": "Feedback recorded"}
 

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsApi, TicketDetail as TicketDetailType } from '../api/tickets';
 import { format } from 'date-fns';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown } from 'lucide-react';
+import client from '../api/client';
 
 const TicketDetail: React.FC = () => {
   const { ticketNumber } = useParams<{ ticketNumber: string }>();
@@ -10,6 +11,9 @@ const TicketDetail: React.FC = () => {
   const [ticket, setTicket] = useState<TicketDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackDecisionId, setFeedbackDecisionId] = useState<number | null>(null);
+  const [feedbackNotes, setFeedbackNotes] = useState('');
+  const [savingFeedback, setSavingFeedback] = useState(false);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -18,6 +22,43 @@ const TicketDetail: React.FC = () => {
     const text = tmp.textContent || tmp.innerText || '';
     // Clean up excessive whitespace
     return text.replace(/\s+/g, ' ').trim();
+  };
+
+  const handleFeedback = async (decisionId: number, feedbackType: 'correct' | 'incorrect') => {
+    if (feedbackType === 'incorrect') {
+      setFeedbackDecisionId(decisionId);
+      setFeedbackNotes('');
+    } else {
+      // For positive feedback, submit immediately
+      try {
+        await client.post(`/api/ai-decisions/${decisionId}/feedback`, {
+          feedback: feedbackType,
+          feedback_notes: ''
+        });
+        await loadTicket(); // Reload to show updated feedback
+      } catch (err) {
+        console.error('Failed to save feedback:', err);
+      }
+    }
+  };
+
+  const submitFeedbackNotes = async () => {
+    if (!feedbackDecisionId) return;
+
+    setSavingFeedback(true);
+    try {
+      await client.post(`/api/ai-decisions/${feedbackDecisionId}/feedback`, {
+        feedback: 'incorrect',
+        feedback_notes: feedbackNotes
+      });
+      await loadTicket(); // Reload to show updated feedback
+      setFeedbackDecisionId(null);
+      setFeedbackNotes('');
+    } catch (err) {
+      console.error('Failed to save feedback:', err);
+    } finally {
+      setSavingFeedback(false);
+    }
   };
 
   useEffect(() => {
@@ -238,21 +279,40 @@ const TicketDetail: React.FC = () => {
                       {format(new Date(decision.timestamp), 'MMM dd, yyyy HH:mm:ss')}
                     </span>
                   </div>
-                  {decision.feedback && (
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        decision.feedback === 'correct'
-                          ? 'bg-green-100 text-green-800'
-                          : decision.feedback === 'incorrect'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
-                    >
-                      {decision.feedback === 'correct' && <CheckCircle className="h-3 w-3 mr-1" />}
-                      {decision.feedback === 'incorrect' && <XCircle className="h-3 w-3 mr-1" />}
-                      {decision.feedback}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {decision.feedback ? (
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          decision.feedback === 'correct'
+                            ? 'bg-green-100 text-green-800'
+                            : decision.feedback === 'incorrect'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}
+                      >
+                        {decision.feedback === 'correct' && <CheckCircle className="h-3 w-3 mr-1" />}
+                        {decision.feedback === 'incorrect' && <XCircle className="h-3 w-3 mr-1" />}
+                        {decision.feedback}
+                      </span>
+                    ) : (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleFeedback(decision.id, 'correct')}
+                          className="p-1 hover:bg-green-50 rounded text-green-600 hover:text-green-700"
+                          title="Mark as correct"
+                        >
+                          <ThumbsUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleFeedback(decision.id, 'incorrect')}
+                          className="p-1 hover:bg-red-50 rounded text-red-600 hover:text-red-700"
+                          title="Mark as incorrect and add notes"
+                        >
+                          <ThumbsDown className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-3">
@@ -309,6 +369,43 @@ const TicketDetail: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Feedback Notes Modal */}
+      {feedbackDecisionId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">What went wrong?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Please describe what the AI did incorrectly. This feedback will be used to improve the system prompt.
+            </p>
+            <textarea
+              value={feedbackNotes}
+              onChange={(e) => setFeedbackNotes(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900 mb-4"
+              placeholder="Example: You did not respond in the customer's language (German). Always respond in the same language as the customer's message."
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setFeedbackDecisionId(null);
+                  setFeedbackNotes('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitFeedbackNotes}
+                disabled={!feedbackNotes.trim() || savingFeedback}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingFeedback ? 'Saving...' : 'Submit Feedback'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
