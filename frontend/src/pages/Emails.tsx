@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { emailsApi, ProcessedEmail, RetryQueueItem } from '../api/emails';
-import { format } from 'date-fns';
 import { CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
+import { formatInCET } from '../utils/dateFormat';
 
 const Emails: React.FC = () => {
   const [processed, setProcessed] = useState<ProcessedEmail[]>([]);
@@ -111,7 +111,7 @@ const Emails: React.FC = () => {
                     {email.order_number}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {format(new Date(email.processed_at), 'MMM dd, yyyy HH:mm')}
+                    {formatInCET(email.processed_at)}
                   </td>
                   <td className="px-6 py-4 text-sm text-red-600">
                     {email.error_message && (
@@ -170,7 +170,7 @@ const Emails: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {item.next_attempt_at ? format(new Date(item.next_attempt_at), 'MMM dd, yyyy HH:mm') : 'Not scheduled'}
+                      {item.next_attempt_at ? formatInCET(item.next_attempt_at) : 'Not scheduled'}
                     </td>
                     <td className="px-6 py-4 text-sm text-red-600">
                       {item.last_error && (

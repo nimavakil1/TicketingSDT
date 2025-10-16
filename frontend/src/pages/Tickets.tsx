@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi, Ticket } from '../api/tickets';
-import { format } from 'date-fns';
 import { AlertTriangle } from 'lucide-react';
+import { formatInCET } from '../utils/dateFormat';
 
 const Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -112,7 +112,7 @@ const Tickets: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {format(new Date(ticket.last_updated), 'MMM dd, yyyy HH:mm')}
+                  {formatInCET(ticket.last_updated)}
                 </td>
               </tr>
             ))}

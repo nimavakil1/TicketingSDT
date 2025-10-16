@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { aiDecisionsApi, AIDecisionInfo } from '../api/ai-decisions';
-import { format } from 'date-fns';
+import { formatInCET } from '../utils/dateFormat';
 
 const AIDecisions: React.FC = () => {
   const [decisions, setDecisions] = useState<AIDecisionInfo[]>([]);
@@ -64,7 +64,7 @@ const AIDecisions: React.FC = () => {
             {decisions.map((decision) => (
               <tr key={decision.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {format(new Date(decision.timestamp), 'MMM dd, HH:mm')}
+                  {formatInCET(decision.timestamp, 'MMM dd, HH:mm')}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <a

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
-import { format } from 'date-fns';
 import { ThumbsDown, Edit2, Trash2, ExternalLink, CheckCircle } from 'lucide-react';
+import { formatInCET } from '../utils/dateFormat';
 
 interface FeedbackItem {
   id: number;
@@ -141,7 +141,7 @@ const Feedback: React.FC = () => {
                     <ExternalLink className="h-4 w-4" />
                   </button>
                   <span className="text-sm text-gray-500">
-                    {format(new Date(item.timestamp), 'MMM dd, yyyy HH:mm')}
+                    {formatInCET(item.timestamp)}
                   </span>
                   {item.detected_language && (
                     <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">

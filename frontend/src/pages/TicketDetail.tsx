@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsApi, TicketDetail as TicketDetailType, Ticket } from '../api/tickets';
-import { format } from 'date-fns';
 import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../api/client';
+import { formatInCET } from '../utils/dateFormat';
 
 const TicketDetail: React.FC = () => {
   const { ticketNumber } = useParams<{ ticketNumber: string }>();
@@ -236,13 +236,13 @@ const TicketDetail: React.FC = () => {
           <div>
             <p className="text-sm text-gray-500">Created</p>
             <p className="text-sm font-medium text-gray-900">
-              {format(new Date(ticket.created_at), 'MMM dd, yyyy HH:mm')}
+              {formatInCET(ticket.created_at)}
             </p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Last Updated</p>
             <p className="text-sm font-medium text-gray-900">
-              {format(new Date(ticket.last_updated), 'MMM dd, yyyy HH:mm')}
+              {formatInCET(ticket.last_updated)}
             </p>
           </div>
           {ticket.escalated && ticket.escalation_reason && (
@@ -255,7 +255,7 @@ const TicketDetail: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-500">Escalation Date</p>
                   <p className="text-sm font-medium text-gray-900">
-                    {format(new Date(ticket.escalation_date), 'MMM dd, yyyy HH:mm')}
+                    {formatInCET(ticket.escalation_date)}
                   </p>
                 </div>
               )}
@@ -299,7 +299,7 @@ const TicketDetail: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-500">
-                      {format(new Date(message.createdAt), 'MMM dd, yyyy HH:mm')}
+                      {formatInCET(message.createdAt)}
                     </span>
                     {message.messageType && (
                       <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
@@ -335,7 +335,7 @@ const TicketDetail: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-gray-400" />
                     <span className="text-sm font-medium text-gray-900">
-                      {format(new Date(decision.timestamp), 'MMM dd, yyyy HH:mm:ss')}
+                      {formatInCET(decision.timestamp)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
