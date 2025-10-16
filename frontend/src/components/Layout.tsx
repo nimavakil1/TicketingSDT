@@ -11,6 +11,7 @@ import {
   Bot,
   ScrollText,
   MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -32,6 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/tickets', icon: Ticket, label: 'Tickets' },
     { to: '/ai-decisions', icon: Brain, label: 'AI Decisions' },
     { to: '/feedback', icon: MessageSquare, label: 'Feedback' },
+    { to: '/prompt-improvement', icon: Sparkles, label: 'Prompt Improvement' },
     { to: '/logs', icon: ScrollText, label: 'Logs' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ticketsApi, TicketDetail as TicketDetailType } from '../api/tickets';
+import { ticketsApi, TicketDetail as TicketDetailType, Ticket } from '../api/tickets';
 import { format } from 'date-fns';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../api/client';
 
 const TicketDetail: React.FC = () => {
@@ -14,6 +14,8 @@ const TicketDetail: React.FC = () => {
   const [feedbackDecisionId, setFeedbackDecisionId] = useState<number | null>(null);
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [savingFeedback, setSavingFeedback] = useState(false);
+  const [ticketList, setTicketList] = useState<Ticket[]>([]);
+  const [currentIndex, setCurrentIndex] = useState<number>(-1);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -62,10 +64,41 @@ const TicketDetail: React.FC = () => {
   };
 
   useEffect(() => {
+    loadTicketList();
+  }, []);
+
+  useEffect(() => {
     if (ticketNumber) {
       loadTicket();
+      updateCurrentIndex();
     }
-  }, [ticketNumber]);
+  }, [ticketNumber, ticketList]);
+
+  const loadTicketList = async () => {
+    try {
+      const tickets = await ticketsApi.getTickets({ limit: 100 });
+      setTicketList(tickets);
+    } catch (err) {
+      console.error('Failed to load ticket list:', err);
+    }
+  };
+
+  const updateCurrentIndex = () => {
+    const index = ticketList.findIndex(t => t.ticket_number === ticketNumber);
+    setCurrentIndex(index);
+  };
+
+  const navigateToPrevious = () => {
+    if (currentIndex > 0) {
+      navigate(`/tickets/${ticketList[currentIndex - 1].ticket_number}`);
+    }
+  };
+
+  const navigateToNext = () => {
+    if (currentIndex >= 0 && currentIndex < ticketList.length - 1) {
+      navigate(`/tickets/${ticketList[currentIndex + 1].ticket_number}`);
+    }
+  };
 
   const loadTicket = async () => {
     try {
@@ -135,6 +168,32 @@ const TicketDetail: React.FC = () => {
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
+
+          {/* Navigation arrows */}
+          {ticketList.length > 0 && (
+            <div className="flex items-center gap-2 border-l pl-4">
+              <button
+                onClick={navigateToPrevious}
+                disabled={currentIndex <= 0}
+                className="p-2 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Previous ticket"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <span className="text-sm text-gray-600 min-w-[60px] text-center">
+                {currentIndex + 1} / {ticketList.length}
+              </span>
+              <button
+                onClick={navigateToNext}
+                disabled={currentIndex >= ticketList.length - 1}
+                className="p-2 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                title="Next ticket"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-bold text-gray-900">

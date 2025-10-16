@@ -9,6 +9,7 @@ import Tickets from './pages/Tickets';
 import TicketDetail from './pages/TicketDetail';
 import AIDecisions from './pages/AIDecisions';
 import Feedback from './pages/Feedback';
+import PromptImprovement from './pages/PromptImprovement';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 
@@ -86,6 +87,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <Feedback />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/prompt-improvement"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <PromptImprovement />
             </Layout>
           </PrivateRoute>
         }

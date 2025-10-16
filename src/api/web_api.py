@@ -118,6 +118,11 @@ class SettingsUpdate(BaseModel):
     system_prompt: Optional[str]
 
 
+class PromptApprovalRequest(BaseModel):
+    new_prompt: str
+    change_summary: str
+
+
 class UserCreate(BaseModel):
     username: str
     email: str
@@ -606,6 +611,294 @@ async def delete_feedback(
     logger.info("Feedback deleted", decision_id=decision_id, user=current_user.username)
 
     return {"success": True, "message": "Feedback deleted"}
+
+
+# Prompt improvement endpoints
+@app.post("/api/prompt/analyze-feedback")
+async def analyze_feedback_for_prompt_improvement(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Use Claude to analyze unaddressed feedback and suggest prompt improvements
+    Returns suggested improvements with explanations
+    """
+    if current_user.role not in ['admin', 'operator']:
+        raise HTTPException(status_code=403, detail="Operator or admin access required")
+
+    try:
+        # Get all unaddressed feedback
+        unaddressed_feedback = db.query(AIDecisionLog).filter(
+            AIDecisionLog.feedback == 'incorrect',
+            AIDecisionLog.addressed == False
+        ).all()
+
+        if not unaddressed_feedback:
+            return {
+                "success": True,
+                "feedback_count": 0,
+                "message": "No unaddressed feedback found",
+                "suggestions": []
+            }
+
+        # Load current system prompt
+        import os
+        from pathlib import Path
+
+        if hasattr(settings, 'prompt_path') and settings.prompt_path:
+            prompt_path = Path(settings.prompt_path)
+            if not prompt_path.is_absolute():
+                prompt_path = Path(os.getcwd()) / prompt_path
+        else:
+            prompt_path = Path(os.getcwd()) / "prompts" / "system_prompt.txt"
+
+        current_prompt = ""
+        if prompt_path.exists():
+            current_prompt = prompt_path.read_text(encoding='utf-8')
+        else:
+            raise HTTPException(status_code=404, detail="System prompt file not found")
+
+        # Prepare feedback summary for AI analysis
+        feedback_summary = []
+        for item in unaddressed_feedback:
+            ticket = item.ticket
+            feedback_summary.append({
+                "ticket_number": ticket.ticket_number if ticket else "Unknown",
+                "detected_intent": item.detected_intent,
+                "detected_language": item.detected_language,
+                "confidence": item.confidence_score,
+                "ai_response": item.response_generated[:200] if item.response_generated else "",
+                "feedback_notes": item.feedback_notes or "No specific notes",
+                "timestamp": item.timestamp.isoformat() if item.timestamp else ""
+            })
+
+        # Use Claude to analyze patterns and suggest improvements
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+        analysis_prompt = f"""You are an AI prompt engineering expert. Analyze the following feedback on an AI support agent's performance and suggest improvements to the system prompt.
+
+CURRENT SYSTEM PROMPT:
+{current_prompt}
+
+FEEDBACK ON INCORRECT AI DECISIONS (Total: {len(feedback_summary)}):
+{chr(10).join([f"- Ticket {f['ticket_number']}: Intent={f['detected_intent']}, Language={f['detected_language']}, Notes: {f['feedback_notes']}" for f in feedback_summary[:20]])}
+
+Analyze the patterns in the feedback and provide:
+1. **Key Issues**: What are the main problems the AI is having? (2-3 bullet points)
+2. **Suggested Changes**: Specific, actionable changes to the system prompt (be concrete, not vague)
+3. **Improved Prompt Section**: Write the specific sections of the prompt that need to be changed (use markdown code blocks)
+
+Focus on the most impactful improvements. Be specific and concrete."""
+
+        response = client.messages.create(
+            model=settings.ai_model,
+            max_tokens=2000,
+            temperature=0.3,
+            messages=[{"role": "user", "content": analysis_prompt}]
+        )
+
+        analysis_result = response.content[0].text
+
+        logger.info(
+            "Prompt improvement analysis completed",
+            feedback_count=len(feedback_summary),
+            user=current_user.username
+        )
+
+        return {
+            "success": True,
+            "feedback_count": len(feedback_summary),
+            "analysis": analysis_result,
+            "feedback_items": feedback_summary
+        }
+
+    except Exception as e:
+        logger.error("Failed to analyze feedback", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to analyze feedback: {str(e)}")
+
+
+@app.post("/api/prompt/generate-improved")
+async def generate_improved_prompt(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a complete improved prompt based on feedback analysis
+    Uses Claude to rewrite the entire prompt incorporating feedback
+    """
+    if current_user.role not in ['admin', 'operator']:
+        raise HTTPException(status_code=403, detail="Operator or admin access required")
+
+    try:
+        # Get all unaddressed feedback
+        unaddressed_feedback = db.query(AIDecisionLog).filter(
+            AIDecisionLog.feedback == 'incorrect',
+            AIDecisionLog.addressed == False
+        ).all()
+
+        if not unaddressed_feedback:
+            return {
+                "success": False,
+                "message": "No unaddressed feedback found to improve from"
+            }
+
+        # Load current system prompt
+        import os
+        from pathlib import Path
+
+        if hasattr(settings, 'prompt_path') and settings.prompt_path:
+            prompt_path = Path(settings.prompt_path)
+            if not prompt_path.is_absolute():
+                prompt_path = Path(os.getcwd()) / prompt_path
+        else:
+            prompt_path = Path(os.getcwd()) / "prompts" / "system_prompt.txt"
+
+        current_prompt = ""
+        if prompt_path.exists():
+            current_prompt = prompt_path.read_text(encoding='utf-8')
+        else:
+            raise HTTPException(status_code=404, detail="System prompt file not found")
+
+        # Prepare feedback summary
+        feedback_summary = []
+        for item in unaddressed_feedback:
+            ticket = item.ticket
+            feedback_summary.append({
+                "ticket_number": ticket.ticket_number if ticket else "Unknown",
+                "detected_intent": item.detected_intent,
+                "detected_language": item.detected_language,
+                "feedback_notes": item.feedback_notes or "No specific notes",
+            })
+
+        # Use Claude to generate improved prompt
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+        improvement_prompt = f"""You are an AI prompt engineering expert. Improve the following system prompt based on operator feedback about incorrect AI decisions.
+
+CURRENT SYSTEM PROMPT:
+{current_prompt}
+
+FEEDBACK ON ISSUES (Total: {len(feedback_summary)}):
+{chr(10).join([f"- Ticket {f['ticket_number']}: {f['feedback_notes']}" for f in feedback_summary[:30]])}
+
+Rewrite the ENTIRE system prompt to address these issues. Key improvements to make:
+1. Make instructions more explicit and actionable
+2. Add specific examples for problematic cases
+3. Emphasize critical requirements that were missed
+4. Keep the structure and tone, but improve clarity and specificity
+
+Return ONLY the improved system prompt text. Do not include any preamble or explanation."""
+
+        response = client.messages.create(
+            model=settings.ai_model,
+            max_tokens=4000,
+            temperature=0.3,
+            messages=[{"role": "user", "content": improvement_prompt}]
+        )
+
+        improved_prompt = response.content[0].text
+
+        logger.info(
+            "Improved prompt generated",
+            feedback_count=len(feedback_summary),
+            user=current_user.username
+        )
+
+        return {
+            "success": True,
+            "current_prompt": current_prompt,
+            "improved_prompt": improved_prompt,
+            "feedback_count": len(feedback_summary)
+        }
+
+    except Exception as e:
+        logger.error("Failed to generate improved prompt", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate improved prompt: {str(e)}")
+
+
+@app.post("/api/prompt/approve")
+async def approve_prompt_version(
+    request: PromptApprovalRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Approve and deploy a new prompt version
+    Saves the prompt, creates version record, marks feedback as addressed
+    """
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        from src.database.models import PromptVersion
+        import os
+        from pathlib import Path
+
+        # Get count of unaddressed feedback that will be addressed by this version
+        unaddressed_count = db.query(func.count(AIDecisionLog.id)).filter(
+            AIDecisionLog.feedback == 'incorrect',
+            AIDecisionLog.addressed == False
+        ).scalar()
+
+        # Get next version number
+        latest_version = db.query(func.max(PromptVersion.version_number)).scalar() or 0
+        new_version_number = latest_version + 1
+
+        # Deactivate current active version
+        db.query(PromptVersion).filter(PromptVersion.is_active == True).update({"is_active": False})
+
+        # Create new prompt version record
+        new_version = PromptVersion(
+            version_number=new_version_number,
+            prompt_text=request.new_prompt,
+            created_by=current_user.username,
+            change_summary=request.change_summary,
+            feedback_count=unaddressed_count,
+            is_active=True
+        )
+        db.add(new_version)
+
+        # Mark all unaddressed feedback as addressed
+        db.query(AIDecisionLog).filter(
+            AIDecisionLog.feedback == 'incorrect',
+            AIDecisionLog.addressed == False
+        ).update({"addressed": True})
+
+        # Save new prompt to file
+        if hasattr(settings, 'prompt_path') and settings.prompt_path:
+            prompt_path = Path(settings.prompt_path)
+            if not prompt_path.is_absolute():
+                prompt_path = Path(os.getcwd()) / prompt_path
+        else:
+            prompt_path = Path(os.getcwd()) / "prompts" / "system_prompt.txt"
+
+        prompt_path.parent.mkdir(parents=True, exist_ok=True)
+        prompt_path.write_text(request.new_prompt, encoding='utf-8')
+
+        db.commit()
+
+        logger.info(
+            "New prompt version approved and deployed",
+            version=new_version_number,
+            feedback_addressed=unaddressed_count,
+            user=current_user.username
+        )
+
+        return {
+            "success": True,
+            "version": new_version_number,
+            "feedback_addressed": unaddressed_count,
+            "message": f"Prompt v{new_version_number} deployed successfully. {unaddressed_count} feedback items marked as addressed."
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to approve prompt version", error=str(e), exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to approve prompt: {str(e)}")
 
 
 # Settings endpoints
