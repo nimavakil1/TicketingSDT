@@ -455,7 +455,13 @@ const Settings: React.FC = () => {
                           </select>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(user.created_at).toLocaleDateString()}
+                          <input
+                            type="password"
+                            placeholder="New password (optional)"
+                            value={userForm.password}
+                            onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                            className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900 text-sm"
+                          />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                           <button
