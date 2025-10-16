@@ -224,7 +224,7 @@ const Settings: React.FC = () => {
                 <select
                   value={settings.deployment_phase}
                   onChange={(e) => setSettings({ ...settings, deployment_phase: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 >
                   <option value={1}>Phase 1 - Shadow Mode (Observe only)</option>
                   <option value={2}>Phase 2 - Partial Automation</option>
@@ -243,7 +243,7 @@ const Settings: React.FC = () => {
                   max="1"
                   value={settings.confidence_threshold}
                   onChange={(e) => setSettings({ ...settings, confidence_threshold: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
                 <p className="text-xs text-gray-500 mt-1">Minimum confidence for automated actions (0.0 - 1.0)</p>
               </div>
@@ -256,7 +256,7 @@ const Settings: React.FC = () => {
                   type="text"
                   value={settings.ai_model}
                   onChange={(e) => setSettings({ ...settings, ai_model: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                   placeholder="e.g., gpt-4, claude-3-5-sonnet-20241022"
                 />
               </div>
@@ -272,7 +272,7 @@ const Settings: React.FC = () => {
                   max="2"
                   value={settings.ai_temperature}
                   onChange={(e) => setSettings({ ...settings, ai_temperature: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
                 <p className="text-xs text-gray-500 mt-1">Higher = more creative (0.0 - 2.0)</p>
               </div>
@@ -287,7 +287,7 @@ const Settings: React.FC = () => {
                   max="8000"
                   value={settings.ai_max_tokens}
                   onChange={(e) => setSettings({ ...settings, ai_max_tokens: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 />
               </div>
             </div>
@@ -301,7 +301,7 @@ const Settings: React.FC = () => {
               value={settings.system_prompt || ''}
               onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })}
               rows={12}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm bg-white text-gray-900"
               placeholder="Enter the system prompt that guides AI behavior..."
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -431,14 +431,14 @@ const Settings: React.FC = () => {
                             type="email"
                             value={userForm.email}
                             onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                            className="px-2 py-1 border border-gray-300 rounded"
+                            className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
                           />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
                             value={userForm.role}
                             onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                            className="px-2 py-1 border border-gray-300 rounded"
+                            className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
                           >
                             <option value="viewer">Viewer</option>
                             <option value="operator">Operator</option>
