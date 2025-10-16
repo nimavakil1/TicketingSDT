@@ -8,6 +8,7 @@ import Emails from './pages/Emails';
 import Tickets from './pages/Tickets';
 import TicketDetail from './pages/TicketDetail';
 import AIDecisions from './pages/AIDecisions';
+import Feedback from './pages/Feedback';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 
@@ -75,6 +76,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <AIDecisions />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/feedback"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Feedback />
             </Layout>
           </PrivateRoute>
         }

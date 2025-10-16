@@ -518,6 +518,96 @@ async def submit_feedback(
     return {"success": True, "message": "Feedback recorded"}
 
 
+@app.get("/api/feedback")
+async def get_feedback(
+    filter: str = 'all',  # 'all' or 'unaddressed'
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all feedback items"""
+    query = db.query(AIDecisionLog).filter(AIDecisionLog.feedback == 'incorrect')
+
+    if filter == 'unaddressed':
+        # Check if addressed column exists, otherwise assume False
+        try:
+            query = query.filter(AIDecisionLog.addressed == False)
+        except:
+            pass  # Column might not exist yet
+
+    decisions = query.order_by(AIDecisionLog.timestamp.desc()).all()
+
+    return [
+        {
+            "id": dec.id,
+            "ticket_number": dec.ticket.ticket_number,
+            "timestamp": dec.timestamp,
+            "detected_intent": dec.detected_intent,
+            "detected_language": dec.detected_language,
+            "response_generated": dec.response_generated,
+            "feedback": dec.feedback,
+            "feedback_notes": dec.feedback_notes,
+            "addressed": getattr(dec, 'addressed', False)
+        }
+        for dec in decisions
+    ]
+
+
+@app.patch("/api/feedback/{decision_id}")
+async def update_feedback(
+    decision_id: int,
+    feedback_notes: Optional[str] = None,
+    addressed: Optional[bool] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update feedback notes or addressed status"""
+    decision = db.query(AIDecisionLog).filter(AIDecisionLog.id == decision_id).first()
+
+    if not decision:
+        raise HTTPException(status_code=404, detail="Decision not found")
+
+    if feedback_notes is not None:
+        decision.feedback_notes = feedback_notes
+
+    if addressed is not None:
+        try:
+            decision.addressed = addressed
+        except AttributeError:
+            pass  # Column might not exist yet
+
+    db.commit()
+
+    logger.info("Feedback updated", decision_id=decision_id, user=current_user.username)
+
+    return {"success": True, "message": "Feedback updated"}
+
+
+@app.delete("/api/feedback/{decision_id}")
+async def delete_feedback(
+    decision_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete feedback (clear feedback fields)"""
+    decision = db.query(AIDecisionLog).filter(AIDecisionLog.id == decision_id).first()
+
+    if not decision:
+        raise HTTPException(status_code=404, detail="Decision not found")
+
+    decision.feedback = None
+    decision.feedback_notes = None
+    try:
+        decision.addressed = False
+    except AttributeError:
+        pass
+
+    db.commit()
+
+    logger.info("Feedback deleted", decision_id=decision_id, user=current_user.username)
+
+    return {"success": True, "message": "Feedback deleted"}
+
+
 # Settings endpoints
 @app.get("/api/settings")
 async def get_settings(current_user: User = Depends(get_current_user)):

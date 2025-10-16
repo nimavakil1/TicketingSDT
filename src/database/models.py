@@ -180,6 +180,7 @@ class AIDecisionLog(Base):
     # Human feedback (for Phase 1 learning)
     feedback = Column(String(20))  # 'correct', 'incorrect', 'partially_correct'
     feedback_notes = Column(Text)
+    addressed = Column(Boolean, default=False)  # Whether feedback has been addressed in prompt improvements
 
     # Legacy fields for backward compatibility
     human_feedback = Column(String(20))  # 'approved', 'rejected', 'modified'
