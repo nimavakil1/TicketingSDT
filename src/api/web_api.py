@@ -339,7 +339,7 @@ async def get_retry_queue(
 ):
     """Get emails in retry queue"""
     retries = db.query(RetryQueue).order_by(
-        RetryQueue.next_retry_at.asc()
+        RetryQueue.next_attempt_at.asc()
     ).all()
 
     return [

@@ -34,7 +34,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/ai-decisions', icon: Brain, label: 'AI Decisions' },
     { to: '/feedback', icon: MessageSquare, label: 'Feedback' },
     { to: '/prompt-improvement', icon: Sparkles, label: 'Prompt Improvement' },
-    { to: '/logs', icon: ScrollText, label: 'Logs' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
 

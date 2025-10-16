@@ -11,7 +11,6 @@ import AIDecisions from './pages/AIDecisions';
 import Feedback from './pages/Feedback';
 import PromptImprovement from './pages/PromptImprovement';
 import Settings from './pages/Settings';
-import Logs from './pages/Logs';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -97,16 +96,6 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <PromptImprovement />
-            </Layout>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/logs"
-        element={
-          <PrivateRoute>
-            <Layout>
-              <Logs />
             </Layout>
           </PrivateRoute>
         }
