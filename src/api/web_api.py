@@ -403,7 +403,7 @@ async def get_ticket_detail(
     ).order_by(AIDecisionLog.timestamp.desc()).all()
 
     # Fetch ticket messages from ticketing system API
-    from api.ticketing_client import TicketingAPIClient
+    from src.api.ticketing_client import TicketingAPIClient
     messages = []
     try:
         ticketing_client = TicketingAPIClient()
