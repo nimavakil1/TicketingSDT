@@ -11,6 +11,15 @@ const TicketDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const stripHtml = (html: string): string => {
+    // Remove HTML tags and decode entities
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = html;
+    const text = tmp.textContent || tmp.innerText || '';
+    // Clean up excessive whitespace
+    return text.replace(/\s+/g, ' ').trim();
+  };
+
   useEffect(() => {
     if (ticketNumber) {
       loadTicket();
@@ -199,8 +208,8 @@ const TicketDetail: React.FC = () => {
                     )}
                   </div>
                 </div>
-                <div className="text-sm text-gray-700 whitespace-pre-wrap pl-6">
-                  {message.messageText}
+                <div className="text-sm text-gray-700 pl-6">
+                  {stripHtml(message.messageText)}
                 </div>
               </div>
             ))
