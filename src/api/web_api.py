@@ -409,8 +409,23 @@ async def get_ticket_detail(
         ticketing_client = TicketingAPIClient()
         ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
         if ticket_data and len(ticket_data) > 0:
-            # The API returns a list, take the first ticket
-            messages = ticket_data[0].get("messages", [])
+            # The API returns ticketDetails array with message objects
+            ticket_details = ticket_data[0].get("ticketDetails", [])
+
+            # Transform ticketDetails into a simpler message format
+            for detail in ticket_details:
+                message = {
+                    "id": detail.get("id"),
+                    "createdAt": detail.get("createdDateTime"),
+                    "messageText": detail.get("comment", ""),
+                    "messageType": "internal" if detail.get("visibleToSupplierIND") == False and detail.get("createdByUserId") else "customer",
+                    "isInternal": detail.get("visibleToSupplierIND") == False and detail.get("createdByUserId") is not None,
+                    "authorName": None,  # Not available in this API
+                    "authorEmail": detail.get("receiverEmailAddress") or detail.get("entranceEmailSenderAddress"),
+                    "sourceType": "email" if detail.get("entranceEmailBody") else "note"
+                }
+                messages.append(message)
+
             logger.info("Fetched ticket messages", ticket_number=ticket_number, message_count=len(messages))
     except Exception as e:
         logger.warning("Failed to fetch ticket messages from ticketing API", error=str(e), ticket_number=ticket_number)
