@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Emails from './pages/Emails';
 import Tickets from './pages/Tickets';
+import TicketDetail from './pages/TicketDetail';
 import AIDecisions from './pages/AIDecisions';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
@@ -54,6 +55,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <Tickets />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/tickets/:ticketNumber"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <TicketDetail />
             </Layout>
           </PrivateRoute>
         }
