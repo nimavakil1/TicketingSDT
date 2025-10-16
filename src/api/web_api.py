@@ -361,7 +361,7 @@ async def get_tickets(
     escalated_only: bool = False
 ):
     """Get list of tickets"""
-    query = db.query(TicketState).order_by(TicketState.last_updated.desc())
+    query = db.query(TicketState).order_by(TicketState.updated_at.desc())
 
     if escalated_only:
         query = query.filter(TicketState.escalated == True)
@@ -516,10 +516,10 @@ async def get_settings(current_user: User = Depends(get_current_user)):
         "ai_model": settings.ai_model,
         "ai_temperature": settings.ai_temperature,
         "ai_max_tokens": settings.ai_max_tokens,
-        "retry_enabled": settings.retry_enabled,
-        "retry_max_attempts": settings.retry_max_attempts,
-        "retry_delay_minutes": settings.retry_delay_minutes,
-        "gmail_check_interval": settings.gmail_check_interval,
+        "retry_enabled": getattr(settings, 'retry_enabled', True),
+        "retry_max_attempts": getattr(settings, 'retry_max_attempts', 3),
+        "retry_delay_minutes": getattr(settings, 'retry_delay_minutes', 30),
+        "gmail_check_interval": getattr(settings, 'gmail_check_interval', 60),
         "system_prompt": system_prompt
     }
 
