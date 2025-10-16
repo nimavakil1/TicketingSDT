@@ -488,16 +488,26 @@ async def submit_feedback(
 @app.get("/api/settings")
 async def get_settings(current_user: User = Depends(get_current_user)):
     """Get current system settings"""
+    import os
     from pathlib import Path
 
     # Load system prompt if it exists
     system_prompt = None
     try:
-        prompt_path = Path(settings.prompt_path) if hasattr(settings, 'prompt_path') else Path(settings.base_dir) / "prompts" / "system_prompt.txt"
+        # Try to load from prompt_path setting
+        if hasattr(settings, 'prompt_path') and settings.prompt_path:
+            prompt_path = Path(settings.prompt_path)
+            # If it's not absolute, make it relative to current directory
+            if not prompt_path.is_absolute():
+                prompt_path = Path(os.getcwd()) / prompt_path
+        else:
+            # Fallback to default location
+            prompt_path = Path(os.getcwd()) / "prompts" / "system_prompt.txt"
+
         if prompt_path.exists():
             system_prompt = prompt_path.read_text(encoding='utf-8')
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Could not load system prompt", error=str(e))
 
     return {
         "deployment_phase": settings.deployment_phase,
@@ -528,7 +538,7 @@ async def update_settings(
     import os
     from pathlib import Path
 
-    env_path = Path(settings.base_dir) / ".env"
+    env_path = Path(os.getcwd()) / ".env"
     changes_made = []
 
     try:
@@ -597,7 +607,13 @@ async def update_settings(
 
         # Handle system prompt separately
         if updates.system_prompt is not None:
-            prompt_path = Path(settings.prompt_path) if hasattr(settings, 'prompt_path') else Path(settings.base_dir) / "prompts" / "system_prompt.txt"
+            if hasattr(settings, 'prompt_path') and settings.prompt_path:
+                prompt_path = Path(settings.prompt_path)
+                if not prompt_path.is_absolute():
+                    prompt_path = Path(os.getcwd()) / prompt_path
+            else:
+                prompt_path = Path(os.getcwd()) / "prompts" / "system_prompt.txt"
+
             prompt_path.parent.mkdir(parents=True, exist_ok=True)
             prompt_path.write_text(updates.system_prompt, encoding='utf-8')
             changes_made.append('system_prompt updated')
