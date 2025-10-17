@@ -562,6 +562,39 @@ async def reprocess_ticket(
 
         logger.info("Ticket reprocessed", ticket_number=ticket_number, decision_id=new_decision.id)
 
+        # Send internal note to ticketing system
+        try:
+            intent = analysis.get('intent', 'unknown')
+            confidence = analysis.get('confidence', 0)
+            confidence_pct = int(confidence * 100)
+            escalated = "Yes" if analysis.get('requires_escalation') else "No"
+            escalation_reason = analysis.get('escalation_reason', '')
+
+            # Build internal note message
+            internal_note = f"""🔄 Ticket Reprocessed by AI Agent
+
+**Analysis Results:**
+- Intent: {intent}
+- Confidence: {confidence_pct}%
+- Escalated: {escalated}
+"""
+            if escalation_reason:
+                internal_note += f"- Escalation Reason: {escalation_reason}\n"
+
+            internal_note += f"\nReprocessed by: {current_user.username}\nTimestamp: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+
+            # Send internal note
+            ticketing_client.add_internal_note(
+                ticket_id=ticket.ticket_id,
+                note=internal_note
+            )
+            logger.info("Internal note sent to ticketing system", ticket_number=ticket_number)
+        except Exception as note_error:
+            logger.error("Failed to send internal note to ticketing system",
+                        ticket_number=ticket_number,
+                        error=str(note_error))
+            # Don't fail the whole operation if note fails
+
         return {
             "success": True,
             "message": "Ticket reprocessed successfully",
