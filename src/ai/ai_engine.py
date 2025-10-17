@@ -18,8 +18,19 @@ class AIProvider(ABC):
     """Abstract base class for AI providers"""
 
     @abstractmethod
-    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
-        """Generate a response from the AI model"""
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None, images: Optional[list] = None) -> str:
+        """
+        Generate a response from the AI model
+
+        Args:
+            prompt: Text prompt
+            temperature: Sampling temperature
+            system_text: System message/instructions
+            images: List of image paths for vision analysis
+
+        Returns:
+            Generated response text
+        """
         pass
 
 
@@ -31,8 +42,10 @@ class OpenAIProvider(AIProvider):
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
 
-    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None, images: Optional[list] = None) -> str:
         try:
+            import base64
+
             # Determine which token parameter to use based on model
             model_lower = self.model.lower()
             is_reasoning_model = 'o1' in model_lower or 'gpt-5' in model_lower
@@ -50,7 +63,35 @@ class OpenAIProvider(AIProvider):
             else:
                 if system_text:
                     messages.append({"role": "system", "content": system_text})
-                messages.append({"role": "user", "content": prompt})
+
+                # Build user message content - text + images if provided
+                if images and len(images) > 0:
+                    # Multi-modal message with text and images
+                    content_parts = [{"type": "text", "text": prompt}]
+
+                    for image_path in images:
+                        try:
+                            with open(image_path, 'rb') as img_file:
+                                image_data = base64.b64encode(img_file.read()).decode('utf-8')
+                                # Determine image format from extension
+                                ext = image_path.lower().split('.')[-1]
+                                mime_type = f"image/{ext}" if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "image/jpeg"
+
+                                content_parts.append({
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:{mime_type};base64,{image_data}"
+                                    }
+                                })
+                                logger.info("Added image to prompt", image_path=image_path)
+                        except Exception as e:
+                            logger.warning("Failed to load image", image_path=image_path, error=str(e))
+
+                    messages.append({"role": "user", "content": content_parts})
+                    logger.info("Using vision-enabled prompt", image_count=len(images))
+                else:
+                    # Text-only message
+                    messages.append({"role": "user", "content": prompt})
 
             kwargs = {
                 "model": self.model,
@@ -90,13 +131,44 @@ class AnthropicProvider(AIProvider):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
 
-    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None, images: Optional[list] = None) -> str:
         try:
+            import base64
+
+            # Build message content - text + images if provided
+            if images and len(images) > 0:
+                content_parts = [{"type": "text", "text": prompt}]
+
+                for image_path in images:
+                    try:
+                        with open(image_path, 'rb') as img_file:
+                            image_data = base64.standard_b64encode(img_file.read()).decode('utf-8')
+                            # Determine media type from extension
+                            ext = image_path.lower().split('.')[-1]
+                            media_type = f"image/{ext}" if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] else "image/jpeg"
+
+                            content_parts.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": image_data
+                                }
+                            })
+                            logger.info("Added image to Claude prompt", image_path=image_path)
+                    except Exception as e:
+                        logger.warning("Failed to load image for Claude", image_path=image_path, error=str(e))
+
+                message_content = content_parts
+                logger.info("Using vision-enabled Claude prompt", image_count=len(images))
+            else:
+                message_content = prompt
+
             kwargs = {
                 "model": self.model,
                 "max_tokens": settings.ai_max_tokens,
                 "temperature": temperature,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [{"role": "user", "content": message_content}],
             }
             if system_text:
                 kwargs["system"] = system_text
@@ -115,11 +187,30 @@ class GeminiProvider(AIProvider):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model)
 
-    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
+    def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None, images: Optional[list] = None) -> str:
         try:
-            content = prompt if not system_text else f"SYSTEM:\n{system_text}\n\n{prompt}"
+            from PIL import Image as PILImage
+
+            # Build content - text + images if provided
+            text_content = prompt if not system_text else f"SYSTEM:\n{system_text}\n\n{prompt}"
+
+            if images and len(images) > 0:
+                content_parts = [text_content]
+
+                for image_path in images:
+                    try:
+                        img = PILImage.open(image_path)
+                        content_parts.append(img)
+                        logger.info("Added image to Gemini prompt", image_path=image_path)
+                    except Exception as e:
+                        logger.warning("Failed to load image for Gemini", image_path=image_path, error=str(e))
+
+                logger.info("Using vision-enabled Gemini prompt", image_count=len(images))
+            else:
+                content_parts = text_content
+
             response = self.model.generate_content(
-                content,
+                content_parts,
                 generation_config={
                     'temperature': temperature,
                     'max_output_tokens': settings.ai_max_tokens
@@ -227,7 +318,22 @@ class AIEngine:
         body = email_data.get('body', '')
         from_address = email_data.get('from', '')
 
-        logger.info("Analyzing email", subject=subject[:100] if subject else '(no subject)')
+        # Extract images from attachments
+        attachments = email_data.get('attachments', [])
+        images = [att for att in attachments if att.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'))]
+
+        # Include extracted text from attachments in the body
+        attachment_texts = email_data.get('attachment_texts', [])
+        if attachment_texts:
+            body += "\n\n--- ATTACHMENT CONTENT ---\n"
+            for att_text in attachment_texts:
+                body += f"\n[{att_text['filename']}]:\n{att_text['text']}\n"
+
+        logger.info("Analyzing email",
+                   subject=subject[:100] if subject else '(no subject)',
+                   has_images=len(images) > 0,
+                   image_count=len(images),
+                   has_attachment_text=len(attachment_texts) > 0)
 
         # Detect language
         combined_text = f"{subject} {body}"
@@ -245,12 +351,17 @@ class AIEngine:
                 supplier_language=supplier_language
             )
 
+        # Add note about images if present
+        if images:
+            prompt += f"\n\n**IMPORTANT: Customer has attached {len(images)} image(s). Please analyze the images for any visible damage, defects, or issues mentioned in the text.**"
+
         # Get AI analysis
         try:
             ai_response = self.provider.generate_response(
                 prompt,
                 temperature=settings.ai_temperature,
-                system_text=self.system_prompt
+                system_text=self.system_prompt,
+                images=images if images else None
             )
 
             # Parse AI response (expecting JSON format)
