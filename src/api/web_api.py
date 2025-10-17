@@ -261,8 +261,8 @@ async def get_dashboard_stats(
     today = datetime.utcnow().date()
 
     # Count emails processed today
-    emails_today = db.query(ProcessedMessage).filter(
-        ProcessedMessage.processed_at >= today
+    emails_today = db.query(ProcessedEmail).filter(
+        ProcessedEmail.processed_at >= today
     ).count()
 
     # Count active tickets (not resolved/closed)
@@ -313,8 +313,8 @@ async def get_processed_emails(
     offset: int = 0
 ):
     """Get list of processed emails"""
-    processed = db.query(ProcessedMessage).order_by(
-        ProcessedMessage.processed_at.desc()
+    processed = db.query(ProcessedEmail).order_by(
+        ProcessedEmail.processed_at.desc()
     ).offset(offset).limit(limit).all()
 
     return [
