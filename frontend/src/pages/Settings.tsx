@@ -258,7 +258,17 @@ const Settings: React.FC = () => {
     }
 
     try {
-      await client.post('/api/text-filters/skip-blocks', skipBlockForm);
+      // Send as form data
+      const formData = new URLSearchParams();
+      formData.append('pattern', skipBlockForm.pattern);
+      formData.append('description', skipBlockForm.description);
+      formData.append('is_regex', skipBlockForm.is_regex.toString());
+
+      await client.post('/api/text-filters/skip-blocks', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
       showMessage('success', 'Skip text block created successfully');
       setShowSkipBlockForm(false);
       setSkipBlockForm({ pattern: '', description: '', is_regex: false });
@@ -270,7 +280,16 @@ const Settings: React.FC = () => {
 
   const handleUpdateSkipBlock = async (blockId: number) => {
     try {
-      await client.patch(`/api/text-filters/skip-blocks/${blockId}`, skipBlockForm);
+      const formData = new URLSearchParams();
+      formData.append('pattern', skipBlockForm.pattern);
+      formData.append('description', skipBlockForm.description);
+      formData.append('is_regex', skipBlockForm.is_regex.toString());
+
+      await client.patch(`/api/text-filters/skip-blocks/${blockId}`, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
       showMessage('success', 'Skip text block updated successfully');
       setEditingSkipBlock(null);
       setSkipBlockForm({ pattern: '', description: '', is_regex: false });
@@ -294,8 +313,13 @@ const Settings: React.FC = () => {
 
   const handleToggleSkipBlock = async (block: SkipTextBlock) => {
     try {
-      await client.patch(`/api/text-filters/skip-blocks/${block.id}`, {
-        enabled: !block.enabled
+      const formData = new URLSearchParams();
+      formData.append('enabled', (!block.enabled).toString());
+
+      await client.patch(`/api/text-filters/skip-blocks/${block.id}`, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
       });
       loadSkipBlocks();
     } catch (error: any) {
@@ -319,7 +343,18 @@ const Settings: React.FC = () => {
     }
 
     try {
-      await client.post('/api/text-filters/ignore-patterns', ignorePatternForm);
+      const formData = new URLSearchParams();
+      formData.append('pattern', ignorePatternForm.pattern);
+      formData.append('description', ignorePatternForm.description);
+      formData.append('match_subject', ignorePatternForm.match_subject.toString());
+      formData.append('match_body', ignorePatternForm.match_body.toString());
+      formData.append('is_regex', ignorePatternForm.is_regex.toString());
+
+      await client.post('/api/text-filters/ignore-patterns', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
       showMessage('success', 'Ignore email pattern created successfully');
       setShowIgnorePatternForm(false);
       setIgnorePatternForm({
@@ -337,7 +372,18 @@ const Settings: React.FC = () => {
 
   const handleUpdateIgnorePattern = async (patternId: number) => {
     try {
-      await client.patch(`/api/text-filters/ignore-patterns/${patternId}`, ignorePatternForm);
+      const formData = new URLSearchParams();
+      formData.append('pattern', ignorePatternForm.pattern);
+      formData.append('description', ignorePatternForm.description);
+      formData.append('match_subject', ignorePatternForm.match_subject.toString());
+      formData.append('match_body', ignorePatternForm.match_body.toString());
+      formData.append('is_regex', ignorePatternForm.is_regex.toString());
+
+      await client.patch(`/api/text-filters/ignore-patterns/${patternId}`, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
       showMessage('success', 'Ignore email pattern updated successfully');
       setEditingIgnorePattern(null);
       setIgnorePatternForm({
@@ -367,8 +413,13 @@ const Settings: React.FC = () => {
 
   const handleToggleIgnorePattern = async (pattern: IgnoreEmailPattern) => {
     try {
-      await client.patch(`/api/text-filters/ignore-patterns/${pattern.id}`, {
-        enabled: !pattern.enabled
+      const formData = new URLSearchParams();
+      formData.append('enabled', (!pattern.enabled).toString());
+
+      await client.patch(`/api/text-filters/ignore-patterns/${pattern.id}`, formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
       });
       loadIgnorePatterns();
     } catch (error: any) {
