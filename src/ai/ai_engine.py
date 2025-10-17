@@ -36,6 +36,8 @@ class OpenAIProvider(AIProvider):
             # Determine which token parameter to use based on model
             model_lower = self.model.lower()
             is_reasoning_model = 'o1' in model_lower or 'gpt-5' in model_lower
+            # GPT-4o models also use max_completion_tokens
+            uses_completion_tokens = is_reasoning_model or 'gpt-4o' in model_lower or 'chatgpt-4o' in model_lower
 
             messages = []
 
@@ -60,6 +62,11 @@ class OpenAIProvider(AIProvider):
                 # Don't set temperature for reasoning models (defaults to 1)
                 kwargs["max_completion_tokens"] = settings.ai_max_tokens
                 logger.info("Using reasoning model parameters", model=self.model, max_completion_tokens=settings.ai_max_tokens, note="temperature defaults to 1, no system role")
+            elif uses_completion_tokens:
+                # GPT-4o models use max_completion_tokens but support temperature and system messages
+                kwargs["temperature"] = temperature
+                kwargs["max_completion_tokens"] = settings.ai_max_tokens
+                logger.info("Using GPT-4o model parameters", model=self.model, temperature=temperature, max_completion_tokens=settings.ai_max_tokens)
             else:
                 kwargs["temperature"] = temperature
                 kwargs["max_tokens"] = settings.ai_max_tokens
