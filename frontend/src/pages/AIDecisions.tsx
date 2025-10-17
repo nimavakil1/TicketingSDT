@@ -1,19 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { aiDecisionsApi, AIDecisionInfo } from '../api/ai-decisions';
 import { formatInCET } from '../utils/dateFormat';
+import Pagination from '../components/Pagination';
+
+const ITEMS_PER_PAGE = 50;
 
 const AIDecisions: React.FC = () => {
   const [decisions, setDecisions] = useState<AIDecisionInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     loadDecisions();
-  }, []);
+  }, [currentPage]);
 
   const loadDecisions = async () => {
     try {
-      const data = await aiDecisionsApi.getDecisions({ limit: 100 });
+      const data = await aiDecisionsApi.getDecisions({
+        limit: ITEMS_PER_PAGE,
+        offset: (currentPage - 1) * ITEMS_PER_PAGE
+      });
       setDecisions(data);
+      // Estimate total based on whether we got a full page
+      setTotalItems(data.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + data.length);
     } catch (error) {
       console.error('Failed to load decisions:', error);
     } finally {
@@ -104,6 +114,12 @@ const AIDecisions: React.FC = () => {
             ))}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

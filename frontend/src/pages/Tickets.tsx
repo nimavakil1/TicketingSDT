@@ -3,24 +3,32 @@ import { useNavigate } from 'react-router-dom';
 import { ticketsApi, Ticket } from '../api/tickets';
 import { AlertTriangle } from 'lucide-react';
 import { formatInCET } from '../utils/dateFormat';
+import Pagination from '../components/Pagination';
+
+const ITEMS_PER_PAGE = 50;
 
 const Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEscalated, setShowEscalated] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadTickets();
-  }, [showEscalated]);
+  }, [showEscalated, currentPage]);
 
   const loadTickets = async () => {
     try {
       const data = await ticketsApi.getTickets({
-        limit: 50,
+        limit: ITEMS_PER_PAGE,
+        offset: (currentPage - 1) * ITEMS_PER_PAGE,
         escalated_only: showEscalated,
       });
       setTickets(data);
+      // Estimate total based on whether we got a full page
+      setTotalItems(data.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + data.length);
     } catch (error) {
       console.error('Failed to load tickets:', error);
     } finally {
@@ -118,6 +126,12 @@ const Tickets: React.FC = () => {
             ))}
           </tbody>
         </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

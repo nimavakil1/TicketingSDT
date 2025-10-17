@@ -2,27 +2,39 @@ import React, { useEffect, useState } from 'react';
 import { emailsApi, ProcessedEmail, RetryQueueItem } from '../api/emails';
 import { CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react';
 import { formatInCET } from '../utils/dateFormat';
+import Pagination from '../components/Pagination';
+
+const ITEMS_PER_PAGE = 50;
 
 const Emails: React.FC = () => {
   const [processed, setProcessed] = useState<ProcessedEmail[]>([]);
   const [retryQueue, setRetryQueue] = useState<RetryQueueItem[]>([]);
   const [activeTab, setActiveTab] = useState<'processed' | 'retry'>('processed');
   const [loading, setLoading] = useState(true);
+  const [processedPage, setProcessedPage] = useState(1);
+  const [retryPage, setRetryPage] = useState(1);
+  const [processedTotal, setProcessedTotal] = useState(0);
+  const [retryTotal, setRetryTotal] = useState(0);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [processedPage, retryPage]);
 
   const loadData = async () => {
     try {
       const [processedData, retryData] = await Promise.all([
-        emailsApi.getProcessed({ limit: 50 }),
-        emailsApi.getRetryQueue(),
+        emailsApi.getProcessed({ limit: ITEMS_PER_PAGE, offset: (processedPage - 1) * ITEMS_PER_PAGE }),
+        emailsApi.getRetryQueue({ limit: ITEMS_PER_PAGE, offset: (retryPage - 1) * ITEMS_PER_PAGE }),
       ]);
       setProcessed(processedData);
       setRetryQueue(retryData);
+
+      // For now, estimate total based on whether we got a full page
+      // In production, backend should return total count
+      setProcessedTotal(processedData.length === ITEMS_PER_PAGE ? processedPage * ITEMS_PER_PAGE + 1 : (processedPage - 1) * ITEMS_PER_PAGE + processedData.length);
+      setRetryTotal(retryData.length === ITEMS_PER_PAGE ? retryPage * ITEMS_PER_PAGE + 1 : (retryPage - 1) * ITEMS_PER_PAGE + retryData.length);
     } catch (error) {
       console.error('Failed to load emails:', error);
     } finally {
@@ -122,6 +134,12 @@ const Emails: React.FC = () => {
               ))}
             </tbody>
           </table>
+          <Pagination
+            currentPage={processedPage}
+            totalItems={processedTotal}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setProcessedPage}
+          />
         </div>
       )}
 
@@ -181,6 +199,14 @@ const Emails: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          )}
+          {retryQueue.length > 0 && (
+            <Pagination
+              currentPage={retryPage}
+              totalItems={retryTotal}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setRetryPage}
+            />
           )}
         </div>
       )}

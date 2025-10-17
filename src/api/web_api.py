@@ -335,12 +335,14 @@ async def get_processed_emails(
 @app.get("/api/emails/retry-queue", response_model=List[RetryQueueItem])
 async def get_retry_queue(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0
 ):
-    """Get emails in retry queue"""
+    """Get emails in retry queue (most recent first)"""
     retries = db.query(RetryQueue).order_by(
-        RetryQueue.next_attempt_at.asc()
-    ).all()
+        RetryQueue.created_at.desc()
+    ).offset(offset).limit(limit).all()
 
     return [
         RetryQueueItem(
@@ -674,6 +676,8 @@ async def submit_feedback(
 @app.get("/api/feedback")
 async def get_feedback(
     filter: str = 'all',  # 'all' or 'unaddressed'
+    limit: int = 50,
+    offset: int = 0,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -687,7 +691,7 @@ async def get_feedback(
         except:
             pass  # Column might not exist yet
 
-    decisions = query.order_by(AIDecisionLog.timestamp.desc()).all()
+    decisions = query.order_by(AIDecisionLog.timestamp.desc()).offset(offset).limit(limit).all()
 
     return [
         {

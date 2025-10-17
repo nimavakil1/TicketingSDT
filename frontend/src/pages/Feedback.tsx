@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { ThumbsDown, Edit2, Trash2, ExternalLink, CheckCircle } from 'lucide-react';
 import { formatInCET } from '../utils/dateFormat';
+import Pagination from '../components/Pagination';
+
+const ITEMS_PER_PAGE = 50;
 
 interface FeedbackItem {
   id: number;
@@ -22,19 +25,27 @@ const Feedback: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'unaddressed'>('unaddressed');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editNotes, setEditNotes] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadFeedback();
-  }, [filter]);
+  }, [filter, currentPage]);
 
   const loadFeedback = async () => {
     try {
       setLoading(true);
       const response = await client.get('/api/feedback', {
-        params: { filter }
+        params: {
+          filter,
+          limit: ITEMS_PER_PAGE,
+          offset: (currentPage - 1) * ITEMS_PER_PAGE
+        }
       });
       setFeedbackItems(response.data);
+      // Estimate total based on whether we got a full page
+      setTotalItems(response.data.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + response.data.length);
     } catch (error) {
       console.error('Failed to load feedback:', error);
     } finally {
@@ -233,6 +244,14 @@ const Feedback: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
+      {feedbackItems.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       )}
     </div>
   );
