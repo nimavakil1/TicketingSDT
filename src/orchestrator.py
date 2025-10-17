@@ -19,8 +19,11 @@ from src.database.models import (
     TicketState,
     Supplier,
     PendingEmailRetry,
+    AIDecisionLog,
     init_database
 )
+from src.utils.message_service import MessageService
+from src.utils.message_formatter import MessageFormatter
 
 logger = structlog.get_logger(__name__)
 
@@ -261,6 +264,15 @@ class SupportAgentOrchestrator:
 
             # Update ticket state
             self._update_ticket_state(session, ticket_state, analysis)
+
+            # Extract and update PO number and supplier references
+            self._update_ticket_identifiers(session, ticket_state, ticket_data, analysis)
+
+            # Create pending messages for Phase 1 approval (human review required)
+            ai_decision_id = self._log_ai_decision(session, ticket_state, analysis)
+            self._create_pending_messages_from_analysis(
+                session, ticket_state, ticket_data, analysis, ai_decision_id
+            )
 
             # Get raw owner_id from API (may be None)
             raw_api_owner_id = ticket_data.get('ownerId')
@@ -796,3 +808,141 @@ class SupportAgentOrchestrator:
                 logger.error("Unexpected error in main loop", error=str(e))
                 # Continue running despite errors
                 time.sleep(settings.email_poll_interval_seconds)
+
+    def _update_ticket_identifiers(
+        self,
+        session,
+        ticket_state: TicketState,
+        ticket_data: Dict[str, Any],
+        analysis: Dict[str, Any]
+    ) -> None:
+        """Extract and update PO number and supplier references"""
+        formatter = MessageFormatter()
+
+        # Extract PO number from ticket data
+        if not ticket_state.purchase_order_number:
+            po_number = formatter._extract_po_number(ticket_data)
+            if po_number:
+                ticket_state.purchase_order_number = po_number
+                logger.info("Extracted PO number", po_number=po_number, ticket_number=ticket_state.ticket_number)
+
+        # Parse supplier ticket references from history
+        ticket_details = ticket_data.get('ticketDetails', [])
+        all_refs = set()
+        for detail in ticket_details:
+            comment = detail.get('comment', '')
+            refs = formatter.parse_supplier_references(comment)
+            all_refs.update(refs)
+
+        if all_refs:
+            refs_str = ','.join(sorted(all_refs))
+            if refs_str != ticket_state.supplier_ticket_references:
+                ticket_state.supplier_ticket_references = refs_str
+                logger.info("Updated supplier references", refs=refs_str, ticket_number=ticket_state.ticket_number)
+
+        # Update supplier email if not set
+        if not ticket_state.supplier_email:
+            sales_order = ticket_data.get('salesOrder', {})
+            pos = sales_order.get('purchaseOrders', [])
+            if pos and len(pos) > 0:
+                supplier_email = pos[0].get('supplierEmail')
+                if supplier_email:
+                    ticket_state.supplier_email = supplier_email
+
+        session.flush()
+
+    def _log_ai_decision(
+        self,
+        session,
+        ticket_state: TicketState,
+        analysis: Dict[str, Any]
+    ) -> Optional[int]:
+        """Log AI decision and return decision ID"""
+        try:
+            decision_log = AIDecisionLog(
+                ticket_id=ticket_state.id,
+                detected_language=analysis.get('language', 'unknown'),
+                detected_intent=analysis.get('intent', 'unknown'),
+                confidence_score=analysis.get('confidence', 0.0),
+                recommended_action=analysis.get('summary', ''),
+                response_generated=str(analysis.get('customer_response', '')),
+                action_taken='pending_approval',
+                deployment_phase=settings.deployment_phase
+            )
+            session.add(decision_log)
+            session.flush()
+            return decision_log.id
+        except Exception as e:
+            logger.error("Failed to log AI decision", error=str(e))
+            return None
+
+    def _create_pending_messages_from_analysis(
+        self,
+        session,
+        ticket_state: TicketState,
+        ticket_data: Dict[str, Any],
+        analysis: Dict[str, Any],
+        ai_decision_id: Optional[int]
+    ) -> None:
+        """Create pending messages from AI analysis for human approval"""
+        message_service = MessageService(session, self.ticketing_client)
+        formatter = MessageFormatter()
+
+        # Parse confidence score from internal note if available
+        confidence_score = analysis.get('confidence', 0.5)
+        if 'internal_note' in analysis:
+            parsed_conf = formatter.parse_confidence_score(analysis['internal_note'])
+            if parsed_conf:
+                confidence_score = parsed_conf
+
+        # Create customer message if AI generated one
+        customer_response = analysis.get('customer_response')
+        if customer_response and customer_response.strip() and customer_response.upper() != 'NO_DRAFT':
+            try:
+                message_service.create_pending_message(
+                    ticket_state=ticket_state,
+                    message_type='customer',
+                    message_body=customer_response,
+                    ticket_data=ticket_data,
+                    ai_decision_id=ai_decision_id,
+                    confidence_score=confidence_score
+                )
+                logger.info("Created pending customer message", ticket_number=ticket_state.ticket_number)
+            except Exception as e:
+                logger.error("Failed to create pending customer message", error=str(e))
+
+        # Create supplier message if AI generated one
+        supplier_action = analysis.get('supplier_action')
+        if supplier_action and isinstance(supplier_action, dict):
+            supplier_message = supplier_action.get('message', '')
+            if supplier_message and supplier_message.strip() and supplier_message.upper() != 'NO_DRAFT':
+                try:
+                    message_service.create_pending_message(
+                        ticket_state=ticket_state,
+                        message_type='supplier',
+                        message_body=supplier_message,
+                        ticket_data=ticket_data,
+                        ai_decision_id=ai_decision_id,
+                        confidence_score=confidence_score
+                    )
+                    logger.info("Created pending supplier message", ticket_number=ticket_state.ticket_number)
+                except Exception as e:
+                    logger.error("Failed to create pending supplier message", error=str(e))
+
+        # Always create internal note with AI analysis
+        internal_note = analysis.get('internal_note') or analysis.get('summary', 'AI Analysis')
+        internal_note += f"\n\nConfidence: {confidence_score*100:.0f}%"
+        try:
+            message_service.create_pending_message(
+                ticket_state=ticket_state,
+                message_type='internal',
+                message_body=internal_note,
+                ticket_data=ticket_data,
+                ai_decision_id=ai_decision_id,
+                confidence_score=confidence_score
+            )
+            logger.info("Created pending internal note", ticket_number=ticket_state.ticket_number)
+        except Exception as e:
+            logger.error("Failed to create pending internal note", error=str(e))
+
+        session.flush()
