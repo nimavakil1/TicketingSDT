@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader } from 'lucide-react';
+import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter } from 'lucide-react';
 import client from '../api/client';
 import ReactDiffViewer from 'react-diff-viewer-continued';
 
@@ -25,13 +25,53 @@ interface User {
   created_at: string;
 }
 
+interface SkipTextBlock {
+  id: number;
+  pattern: string;
+  description: string;
+  is_regex: boolean;
+  enabled: boolean;
+  created_at: string;
+}
+
+interface IgnoreEmailPattern {
+  id: number;
+  pattern: string;
+  description: string;
+  match_subject: boolean;
+  match_body: boolean;
+  is_regex: boolean;
+  enabled: boolean;
+  created_at: string;
+}
+
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters'>('users');
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Text filtering state
+  const [skipBlocks, setSkipBlocks] = useState<SkipTextBlock[]>([]);
+  const [ignorePatterns, setIgnorePatterns] = useState<IgnoreEmailPattern[]>([]);
+  const [showSkipBlockForm, setShowSkipBlockForm] = useState(false);
+  const [showIgnorePatternForm, setShowIgnorePatternForm] = useState(false);
+  const [editingSkipBlock, setEditingSkipBlock] = useState<SkipTextBlock | null>(null);
+  const [editingIgnorePattern, setEditingIgnorePattern] = useState<IgnoreEmailPattern | null>(null);
+  const [skipBlockForm, setSkipBlockForm] = useState({
+    pattern: '',
+    description: '',
+    is_regex: false
+  });
+  const [ignorePatternForm, setIgnorePatternForm] = useState({
+    pattern: '',
+    description: '',
+    match_subject: true,
+    match_body: true,
+    is_regex: false
+  });
 
   // User form state
   const [showUserForm, setShowUserForm] = useState(false);
@@ -59,6 +99,8 @@ const Settings: React.FC = () => {
     loadSettings();
     loadUsers();
     loadFeedbackCount();
+    loadSkipBlocks();
+    loadIgnorePatterns();
   }, []);
 
   const loadSettings = async () => {
@@ -187,6 +229,161 @@ const Settings: React.FC = () => {
       password: '',
       role: user.role,
       full_name: ''
+    });
+  };
+
+  // Text filtering functions
+  const loadSkipBlocks = async () => {
+    try {
+      const response = await client.get('/api/text-filters/skip-blocks');
+      setSkipBlocks(response.data);
+    } catch (error) {
+      console.error('Failed to load skip blocks:', error);
+    }
+  };
+
+  const loadIgnorePatterns = async () => {
+    try {
+      const response = await client.get('/api/text-filters/ignore-patterns');
+      setIgnorePatterns(response.data);
+    } catch (error) {
+      console.error('Failed to load ignore patterns:', error);
+    }
+  };
+
+  const handleCreateSkipBlock = async () => {
+    if (!skipBlockForm.pattern.trim()) {
+      showMessage('error', 'Pattern is required');
+      return;
+    }
+
+    try {
+      await client.post('/api/text-filters/skip-blocks', skipBlockForm);
+      showMessage('success', 'Skip text block created successfully');
+      setShowSkipBlockForm(false);
+      setSkipBlockForm({ pattern: '', description: '', is_regex: false });
+      loadSkipBlocks();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to create skip block');
+    }
+  };
+
+  const handleUpdateSkipBlock = async (blockId: number) => {
+    try {
+      await client.patch(`/api/text-filters/skip-blocks/${blockId}`, skipBlockForm);
+      showMessage('success', 'Skip text block updated successfully');
+      setEditingSkipBlock(null);
+      setSkipBlockForm({ pattern: '', description: '', is_regex: false });
+      loadSkipBlocks();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to update skip block');
+    }
+  };
+
+  const handleDeleteSkipBlock = async (blockId: number) => {
+    if (!confirm('Are you sure you want to delete this skip text block?')) return;
+
+    try {
+      await client.delete(`/api/text-filters/skip-blocks/${blockId}`);
+      showMessage('success', 'Skip text block deleted successfully');
+      loadSkipBlocks();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to delete skip block');
+    }
+  };
+
+  const handleToggleSkipBlock = async (block: SkipTextBlock) => {
+    try {
+      await client.patch(`/api/text-filters/skip-blocks/${block.id}`, {
+        enabled: !block.enabled
+      });
+      loadSkipBlocks();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to toggle skip block');
+    }
+  };
+
+  const startEditSkipBlock = (block: SkipTextBlock) => {
+    setEditingSkipBlock(block);
+    setSkipBlockForm({
+      pattern: block.pattern,
+      description: block.description,
+      is_regex: block.is_regex
+    });
+  };
+
+  const handleCreateIgnorePattern = async () => {
+    if (!ignorePatternForm.pattern.trim()) {
+      showMessage('error', 'Pattern is required');
+      return;
+    }
+
+    try {
+      await client.post('/api/text-filters/ignore-patterns', ignorePatternForm);
+      showMessage('success', 'Ignore email pattern created successfully');
+      setShowIgnorePatternForm(false);
+      setIgnorePatternForm({
+        pattern: '',
+        description: '',
+        match_subject: true,
+        match_body: true,
+        is_regex: false
+      });
+      loadIgnorePatterns();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to create ignore pattern');
+    }
+  };
+
+  const handleUpdateIgnorePattern = async (patternId: number) => {
+    try {
+      await client.patch(`/api/text-filters/ignore-patterns/${patternId}`, ignorePatternForm);
+      showMessage('success', 'Ignore email pattern updated successfully');
+      setEditingIgnorePattern(null);
+      setIgnorePatternForm({
+        pattern: '',
+        description: '',
+        match_subject: true,
+        match_body: true,
+        is_regex: false
+      });
+      loadIgnorePatterns();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to update ignore pattern');
+    }
+  };
+
+  const handleDeleteIgnorePattern = async (patternId: number) => {
+    if (!confirm('Are you sure you want to delete this ignore email pattern?')) return;
+
+    try {
+      await client.delete(`/api/text-filters/ignore-patterns/${patternId}`);
+      showMessage('success', 'Ignore email pattern deleted successfully');
+      loadIgnorePatterns();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to delete ignore pattern');
+    }
+  };
+
+  const handleToggleIgnorePattern = async (pattern: IgnoreEmailPattern) => {
+    try {
+      await client.patch(`/api/text-filters/ignore-patterns/${pattern.id}`, {
+        enabled: !pattern.enabled
+      });
+      loadIgnorePatterns();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to toggle ignore pattern');
+    }
+  };
+
+  const startEditIgnorePattern = (pattern: IgnoreEmailPattern) => {
+    setEditingIgnorePattern(pattern);
+    setIgnorePatternForm({
+      pattern: pattern.pattern,
+      description: pattern.description,
+      match_subject: pattern.match_subject,
+      match_body: pattern.match_body,
+      is_regex: pattern.is_regex
     });
   };
 
@@ -336,6 +533,17 @@ const Settings: React.FC = () => {
           >
             <Sparkles className="inline-block h-5 w-5 mr-2" />
             Prompt Improvement
+          </button>
+          <button
+            onClick={() => setActiveTab('filters')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'filters'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Filter className="inline-block h-5 w-5 mr-2" />
+            Text Filtering
           </button>
         </nav>
       </div>
@@ -817,6 +1025,459 @@ const Settings: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Text Filtering Tab */}
+      {activeTab === 'filters' && (
+        <div className="space-y-6">
+          {/* Skip Text Blocks Section */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Skip Text Blocks</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Remove unnecessary text from emails before AI analysis (saves tokens)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSkipBlockForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Pattern
+              </button>
+            </div>
+
+            {/* Create Skip Block Form */}
+            {showSkipBlockForm && (
+              <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-medium text-gray-900">Add Skip Text Block</h3>
+                  <button onClick={() => setShowSkipBlockForm(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pattern *</label>
+                    <textarea
+                      placeholder="Enter text or regex pattern to skip (e.g., 'Mit freundlichen Grüßen')"
+                      value={skipBlockForm.pattern}
+                      onChange={(e) => setSkipBlockForm({ ...skipBlockForm, pattern: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input
+                      type="text"
+                      placeholder="Optional description (e.g., 'German email signature')"
+                      value={skipBlockForm.description}
+                      onChange={(e) => setSkipBlockForm({ ...skipBlockForm, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                    />
+                  </div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="skipblock-regex"
+                      checked={skipBlockForm.is_regex}
+                      onChange={(e) => setSkipBlockForm({ ...skipBlockForm, is_regex: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="skipblock-regex" className="ml-2 block text-sm text-gray-900">
+                      Use as regex pattern
+                    </label>
+                  </div>
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={handleCreateSkipBlock}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Create Pattern
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Skip Blocks Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Pattern
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Description
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {skipBlocks.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                        No skip text blocks configured. Add patterns to filter out unnecessary text from emails.
+                      </td>
+                    </tr>
+                  ) : (
+                    skipBlocks.map((block) => (
+                      <tr key={block.id}>
+                        {editingSkipBlock?.id === block.id ? (
+                          <>
+                            <td className="px-6 py-4">
+                              <textarea
+                                value={skipBlockForm.pattern}
+                                onChange={(e) => setSkipBlockForm({ ...skipBlockForm, pattern: e.target.value })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                                rows={2}
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="text"
+                                value={skipBlockForm.description}
+                                onChange={(e) => setSkipBlockForm({ ...skipBlockForm, description: e.target.value })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="checkbox"
+                                checked={skipBlockForm.is_regex}
+                                onChange={(e) => setSkipBlockForm({ ...skipBlockForm, is_regex: e.target.checked })}
+                                className="h-4 w-4 text-blue-600"
+                              />
+                              <span className="ml-2 text-sm">Regex</span>
+                            </td>
+                            <td className="px-6 py-4"></td>
+                            <td className="px-6 py-4 text-right space-x-2">
+                              <button
+                                onClick={() => handleUpdateSkipBlock(block.id)}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingSkipBlock(null)}
+                                className="text-gray-600 hover:text-gray-900"
+                              >
+                                Cancel
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-6 py-4 font-mono text-sm text-gray-900 max-w-xs truncate" title={block.pattern}>
+                              {block.pattern}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              {block.description || '-'}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                block.is_regex ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {block.is_regex ? 'Regex' : 'Text'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <button
+                                onClick={() => handleToggleSkipBlock(block)}
+                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  block.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {block.enabled ? 'Enabled' : 'Disabled'}
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 text-right space-x-2">
+                              <button
+                                onClick={() => startEditSkipBlock(block)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit2 className="h-4 w-4 inline" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSkipBlock(block.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4 inline" />
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Ignore Email Patterns Section */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Ignore Email Patterns</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Skip entire emails matching these patterns (auto-replies, out-of-office, etc.)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowIgnorePatternForm(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Pattern
+              </button>
+            </div>
+
+            {/* Create Ignore Pattern Form */}
+            {showIgnorePatternForm && (
+              <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-medium text-gray-900">Add Ignore Email Pattern</h3>
+                  <button onClick={() => setShowIgnorePatternForm(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Pattern *</label>
+                    <textarea
+                      placeholder="Enter text or regex pattern (e.g., 'Auto-Reply', 'Out of Office')"
+                      value={ignorePatternForm.pattern}
+                      onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, pattern: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input
+                      type="text"
+                      placeholder="Optional description (e.g., 'Auto-reply messages')"
+                      value={ignorePatternForm.description}
+                      onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, description: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="ignorepattern-subject"
+                        checked={ignorePatternForm.match_subject}
+                        onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, match_subject: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="ignorepattern-subject" className="ml-2 block text-sm text-gray-900">
+                        Match in subject
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="ignorepattern-body"
+                        checked={ignorePatternForm.match_body}
+                        onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, match_body: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="ignorepattern-body" className="ml-2 block text-sm text-gray-900">
+                        Match in body
+                      </label>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="ignorepattern-regex"
+                        checked={ignorePatternForm.is_regex}
+                        onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, is_regex: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="ignorepattern-regex" className="ml-2 block text-sm text-gray-900">
+                        Use as regex pattern
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={handleCreateIgnorePattern}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Create Pattern
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Ignore Patterns Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Pattern
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Description
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Match In
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {ignorePatterns.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                        No ignore patterns configured. Add patterns to skip auto-replies and other unwanted emails.
+                      </td>
+                    </tr>
+                  ) : (
+                    ignorePatterns.map((pattern) => (
+                      <tr key={pattern.id}>
+                        {editingIgnorePattern?.id === pattern.id ? (
+                          <>
+                            <td className="px-6 py-4">
+                              <textarea
+                                value={ignorePatternForm.pattern}
+                                onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, pattern: e.target.value })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                                rows={2}
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="text"
+                                value={ignorePatternForm.description}
+                                onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, description: e.target.value })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="space-y-1">
+                                <label className="flex items-center text-xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={ignorePatternForm.match_subject}
+                                    onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, match_subject: e.target.checked })}
+                                    className="h-3 w-3 mr-1"
+                                  />
+                                  Subject
+                                </label>
+                                <label className="flex items-center text-xs">
+                                  <input
+                                    type="checkbox"
+                                    checked={ignorePatternForm.match_body}
+                                    onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, match_body: e.target.checked })}
+                                    className="h-3 w-3 mr-1"
+                                  />
+                                  Body
+                                </label>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="checkbox"
+                                checked={ignorePatternForm.is_regex}
+                                onChange={(e) => setIgnorePatternForm({ ...ignorePatternForm, is_regex: e.target.checked })}
+                                className="h-4 w-4 text-blue-600"
+                              />
+                              <span className="ml-2 text-sm">Regex</span>
+                            </td>
+                            <td className="px-6 py-4"></td>
+                            <td className="px-6 py-4 text-right space-x-2">
+                              <button
+                                onClick={() => handleUpdateIgnorePattern(pattern.id)}
+                                className="text-green-600 hover:text-green-900"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingIgnorePattern(null)}
+                                className="text-gray-600 hover:text-gray-900"
+                              >
+                                Cancel
+                              </button>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="px-6 py-4 font-mono text-sm text-gray-900 max-w-xs truncate" title={pattern.pattern}>
+                              {pattern.pattern}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              {pattern.description || '-'}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">
+                              {pattern.match_subject && pattern.match_body ? 'Subject & Body' :
+                               pattern.match_subject ? 'Subject' :
+                               pattern.match_body ? 'Body' : '-'}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                pattern.is_regex ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {pattern.is_regex ? 'Regex' : 'Text'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <button
+                                onClick={() => handleToggleIgnorePattern(pattern)}
+                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  pattern.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {pattern.enabled ? 'Enabled' : 'Disabled'}
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 text-right space-x-2">
+                              <button
+                                onClick={() => startEditIgnorePattern(pattern)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit2 className="h-4 w-4 inline" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteIgnorePattern(pattern.id)}
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4 inline" />
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
