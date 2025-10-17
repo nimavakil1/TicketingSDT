@@ -483,14 +483,6 @@ async def reprocess_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     try:
-        # Get the last processed email for this ticket
-        last_email = db.query(ProcessedMessage).filter(
-            ProcessedMessage.ticket_id == ticket.id
-        ).order_by(ProcessedMessage.processed_at.desc()).first()
-
-        if not last_email:
-            raise HTTPException(status_code=404, detail="No email found for this ticket")
-
         # Fetch ticket data from API
         from src.api.ticketing_client import TicketingAPIClient
         ticketing_client = TicketingAPIClient()
@@ -500,6 +492,39 @@ async def reprocess_ticket(
             raise HTTPException(status_code=404, detail="Ticket not found in ticketing system")
 
         ticket_api_data = ticket_data[0]
+
+        # Get the last email from the ticketing API or from our database
+        last_email = db.query(ProcessedMessage).filter(
+            ProcessedMessage.ticket_id == ticket.id
+        ).order_by(ProcessedMessage.processed_at.desc()).first()
+
+        # If no email in database, try to get from ticketing API
+        if not last_email:
+            ticket_details = ticket_api_data.get("ticketDetails", [])
+            if not ticket_details:
+                raise HTTPException(status_code=404, detail="No messages found for this ticket")
+
+            # Find the first customer email (entrance email)
+            customer_email = None
+            for detail in ticket_details:
+                if detail.get("entranceEmailBody"):
+                    customer_email = {
+                        'subject': detail.get("entranceEmailSubject", ""),
+                        'body': detail.get("entranceEmailBody", ""),
+                        'from': detail.get("entranceEmailSenderAddress", ticket.customer_email)
+                    }
+                    break
+
+            if not customer_email:
+                raise HTTPException(status_code=404, detail="No customer email found in ticket")
+
+            email_data = customer_email
+        else:
+            email_data = {
+                'subject': last_email.subject,
+                'body': last_email.body,
+                'from': ticket.customer_email
+            }
 
         # Get supplier language
         from src.utils.supplier_manager import SupplierManager
@@ -516,11 +541,6 @@ async def reprocess_ticket(
 
         # Re-run AI analysis
         ai_engine = AIEngine()
-        email_data = {
-            'subject': last_email.subject,
-            'body': last_email.body,
-            'from': ticket.customer_email
-        }
 
         analysis = ai_engine.analyze_email(
             email_data=email_data,
