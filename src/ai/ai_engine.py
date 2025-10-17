@@ -33,14 +33,22 @@ class OpenAIProvider(AIProvider):
 
     def generate_response(self, prompt: str, temperature: float = 0.7, system_text: Optional[str] = None) -> str:
         try:
-            messages = []
-            if system_text:
-                messages.append({"role": "system", "content": system_text})
-            messages.append({"role": "user", "content": prompt})
-
             # Determine which token parameter to use based on model
             model_lower = self.model.lower()
             is_reasoning_model = 'o1' in model_lower or 'gpt-5' in model_lower
+
+            messages = []
+
+            # O1 and gpt-5 reasoning models don't support system messages
+            # Prepend system instructions to user message instead
+            if is_reasoning_model and system_text:
+                combined_prompt = f"{system_text}\n\n{prompt}"
+                messages.append({"role": "user", "content": combined_prompt})
+                logger.info("Combining system and user prompts for reasoning model", model=self.model)
+            else:
+                if system_text:
+                    messages.append({"role": "system", "content": system_text})
+                messages.append({"role": "user", "content": prompt})
 
             kwargs = {
                 "model": self.model,
@@ -51,7 +59,7 @@ class OpenAIProvider(AIProvider):
             if is_reasoning_model:
                 # Don't set temperature for reasoning models (defaults to 1)
                 kwargs["max_completion_tokens"] = settings.ai_max_tokens
-                logger.info("Using reasoning model parameters", model=self.model, max_completion_tokens=settings.ai_max_tokens, note="temperature defaults to 1")
+                logger.info("Using reasoning model parameters", model=self.model, max_completion_tokens=settings.ai_max_tokens, note="temperature defaults to 1, no system role")
             else:
                 kwargs["temperature"] = temperature
                 kwargs["max_tokens"] = settings.ai_max_tokens
