@@ -67,7 +67,9 @@ class OpenAIProvider(AIProvider):
 
             logger.debug("Calling OpenAI API", model=self.model, kwargs=kwargs)
             response = self.client.chat.completions.create(**kwargs)
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            logger.info("Received OpenAI response", model=self.model, response_length=len(content) if content else 0, response_preview=content[:200] if content else "EMPTY")
+            return content
         except Exception as e:
             logger.error("OpenAI API error", error=str(e))
             raise
