@@ -2,7 +2,7 @@
 Web API for AI Agent Management UI
 FastAPI application that exposes existing system functionality via REST API
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 import structlog
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Form
@@ -150,6 +150,17 @@ def get_db():
         yield session
     finally:
         session.close()
+
+
+# Helper function to ensure timezone-aware datetimes
+def ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Convert naive datetime to UTC-aware datetime"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Assume naive datetimes from database are UTC
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 # Authentication functions
@@ -324,7 +335,7 @@ async def get_processed_emails(
             "subject": msg.subject or "N/A",
             "from_address": msg.from_address or "N/A",
             "order_number": msg.order_number or "N/A",
-            "processed_at": msg.processed_at,
+            "processed_at": ensure_utc(msg.processed_at),
             "success": getattr(msg, 'success', True),  # Default to True for old records
             "error_message": getattr(msg, 'error_message', None)
         }
@@ -351,7 +362,7 @@ async def get_retry_queue(
             subject=retry.subject,
             from_address=retry.from_address,
             attempts=retry.attempts,
-            next_attempt_at=retry.next_attempt_at,
+            next_attempt_at=ensure_utc(retry.next_attempt_at),
             last_error=retry.last_error
         )
         for retry in retries
@@ -471,14 +482,14 @@ async def get_ticket_detail(
         "owner_id": ticket.owner_id,
         "escalated": ticket.escalated,
         "escalation_reason": ticket.escalation_reason,
-        "escalation_date": ticket.escalation_date,
-        "last_updated": ticket.updated_at,
-        "created_at": ticket.created_at,
+        "escalation_date": ensure_utc(ticket.escalation_date),
+        "last_updated": ensure_utc(ticket.updated_at),
+        "created_at": ensure_utc(ticket.created_at),
         "messages": messages,
         "ai_decisions": [
             {
                 "id": dec.id,
-                "timestamp": dec.timestamp,
+                "timestamp": ensure_utc(dec.timestamp),
                 "detected_language": dec.detected_language,
                 "detected_intent": dec.detected_intent,
                 "confidence_score": dec.confidence_score,
@@ -728,7 +739,7 @@ async def get_feedback(
         {
             "id": dec.id,
             "ticket_number": dec.ticket.ticket_number,
-            "timestamp": dec.timestamp,
+            "timestamp": ensure_utc(dec.timestamp),
             "detected_intent": dec.detected_intent,
             "detected_language": dec.detected_language,
             "response_generated": dec.response_generated,
@@ -1255,7 +1266,7 @@ async def get_users(
             username=user.username,
             email=user.email,
             role=user.role,
-            created_at=user.created_at
+            created_at=ensure_utc(user.created_at)
         )
         for user in users
     ]
@@ -1469,7 +1480,7 @@ async def get_skip_text_blocks(
             "description": block.description,
             "is_regex": block.is_regex,
             "enabled": block.enabled,
-            "created_at": block.created_at
+            "created_at": ensure_utc(block.created_at)
         }
         for block in blocks
     ]
@@ -1560,7 +1571,7 @@ async def get_ignore_email_patterns(
             "match_body": p.match_body,
             "is_regex": p.is_regex,
             "enabled": p.enabled,
-            "created_at": p.created_at
+            "created_at": ensure_utc(p.created_at)
         }
         for p in patterns
     ]
