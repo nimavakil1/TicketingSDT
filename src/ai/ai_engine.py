@@ -37,12 +37,21 @@ class OpenAIProvider(AIProvider):
             if system_text:
                 messages.append({"role": "system", "content": system_text})
             messages.append({"role": "user", "content": prompt})
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=settings.ai_max_tokens
-            )
+
+            # Determine which token parameter to use based on model
+            kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": temperature,
+            }
+
+            # O1 models use max_completion_tokens, others use max_tokens
+            if self.model.startswith('o1-'):
+                kwargs["max_completion_tokens"] = settings.ai_max_tokens
+            else:
+                kwargs["max_tokens"] = settings.ai_max_tokens
+
+            response = self.client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
             logger.error("OpenAI API error", error=str(e))
