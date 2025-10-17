@@ -344,9 +344,10 @@ Provide ONLY the JSON response, no additional text.
         """Parse AI response from JSON format"""
         try:
             # Try to extract JSON from response
-            # Sometimes AI includes markdown code blocks
+            # Sometimes AI includes markdown code blocks or extra text
             response = response.strip()
 
+            # Remove markdown code blocks
             if response.startswith('```json'):
                 response = response[7:]
             if response.startswith('```'):
@@ -355,6 +356,12 @@ Provide ONLY the JSON response, no additional text.
                 response = response[:-3]
 
             response = response.strip()
+
+            # Try to find JSON in the response (look for first { and last })
+            if '{' in response and '}' in response:
+                start = response.find('{')
+                end = response.rfind('}') + 1
+                response = response[start:end]
 
             parsed = json.loads(response)
 
