@@ -158,6 +158,36 @@ class Settings(BaseSettings):
         description="Mapping of supplier name -> language code (JSON or 'Name:code;Name2:code2')"
     )
 
+    # CC Configuration for Messages
+    supplier_cc_config: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Mapping of supplier name -> list of CC emails (JSON format)"
+    )
+    internal_cc_high_priority: list[str] = Field(
+        default_factory=list,
+        description="CC addresses for high-priority internal notifications"
+    )
+    customer_escalation_cc: list[str] = Field(
+        default_factory=list,
+        description="CC addresses for escalated customer messages"
+    )
+    supplier_escalation_cc: str = Field(
+        default="",
+        description="CC address for escalated supplier messages"
+    )
+    vip_support_cc: str = Field(
+        default="",
+        description="CC address for VIP/high-value customer support"
+    )
+    high_value_order_threshold: float = Field(
+        default=500.0,
+        description="Order amount threshold for VIP treatment (in EUR)"
+    )
+    high_priority_ticket_types: list[int] = Field(
+        default_factory=list,
+        description="List of ticket type IDs considered high priority"
+    )
+
     # Logging Configuration
     log_level: str = Field(default="INFO")
     log_file: str = Field(default="logs/support_agent.log")

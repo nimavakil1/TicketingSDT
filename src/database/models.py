@@ -52,6 +52,9 @@ class TicketState(Base):
     customer_email = Column(String(255))
     customer_language = Column(String(10))  # e.g., 'de-DE', 'en-US'
     supplier_name = Column(String(255))
+    supplier_email = Column(String(255))  # Supplier contact email
+    supplier_ticket_references = Column(Text)  # Comma-separated list of supplier's ticket numbers
+    purchase_order_number = Column(String(50), index=True)  # PO number for supplier communication
 
     # Ticket classification
     ticket_type_id = Column(Integer)  # 1=Return, 2=Tracking, etc.
@@ -305,6 +308,65 @@ class IgnoreEmailPattern(Base):
 
     def __repr__(self):
         return f"<IgnoreEmailPattern(id={self.id}, pattern={self.pattern[:50]})>"
+
+
+class MessageTemplate(Base):
+    """
+    Store message templates for customer and supplier communications
+    Templates can be used for consistent messaging and AI-generated content
+    """
+    __tablename__ = 'message_templates'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    template_id = Column(String(100), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    recipient_type = Column(String(20), nullable=False)  # 'supplier', 'customer', 'internal'
+    language = Column(String(10), nullable=False)  # e.g., 'de-DE', 'en-US'
+    subject_template = Column(Text, nullable=False)
+    body_template = Column(Text, nullable=False)
+    variables = Column(JSON, default=[])  # List of variable names used in template
+    use_cases = Column(JSON, default=[])  # List of intents/use cases (e.g., ['tracking_request', 'shipping_inquiry'])
+    requires_attachments = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<MessageTemplate(id={self.id}, name={self.name}, type={self.recipient_type})>"
+
+
+class PendingMessage(Base):
+    """
+    Store messages pending human approval before sending
+    Used in Phase 1 and 2 for manual review workflow
+    """
+    __tablename__ = 'pending_messages'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_id = Column(Integer, ForeignKey('ticket_states.id'), nullable=False)
+    message_type = Column(String(20), nullable=False)  # 'supplier', 'customer', 'internal'
+    recipient_email = Column(String(255))
+    cc_emails = Column(JSON, default=[])  # List of CC email addresses
+    subject = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)
+    attachments = Column(JSON, default=[])  # List of attachment file paths
+    confidence_score = Column(Float)  # AI confidence score (0-1)
+    ai_decision_id = Column(Integer, ForeignKey('ai_decision_log.id'))
+    status = Column(String(20), default='pending', nullable=False)  # 'pending', 'approved', 'rejected', 'sent', 'failed'
+    retry_count = Column(Integer, default=0)  # Number of send attempts
+    last_error = Column(Text)  # Last error message if failed
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    reviewed_at = Column(DateTime)
+    reviewed_by = Column(Integer, ForeignKey('users.id'))  # User who approved/rejected
+    sent_at = Column(DateTime)
+
+    # Relationships
+    ticket = relationship('TicketState', backref='pending_messages')
+    ai_decision = relationship('AIDecisionLog', backref='pending_messages')
+    reviewer = relationship('User', backref='reviewed_messages')
+
+    def __repr__(self):
+        return f"<PendingMessage(id={self.id}, type={self.message_type}, status={self.status})>"
 
 
 # Database initialization
