@@ -330,45 +330,56 @@ const TicketDetail: React.FC = () => {
           {!ticket.messages || ticket.messages.length === 0 ? (
             <p className="text-gray-500 text-sm">No messages found for this ticket.</p>
           ) : (
-            ticket.messages.map((message) => (
-              <div
-                key={message.id}
-                className={`border rounded-lg p-4 ${
-                  message.isInternal ? 'border-yellow-200 bg-yellow-50' : 'border-gray-200 bg-white'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    {message.isInternal ? (
-                      <Lock className="h-4 w-4 text-yellow-600" />
-                    ) : (
-                      <User className="h-4 w-4 text-gray-600" />
-                    )}
-                    <div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {message.authorName || message.authorEmail || 'Unknown'}
+            ticket.messages.map((message) => {
+              const isSupplierMessage = message.messageType === 'supplier' || message.messageType === 'operator_to_supplier';
+
+              return (
+                <div
+                  key={message.id}
+                  className={`border rounded-lg p-4 ${
+                    message.isInternal
+                      ? 'border-yellow-200 bg-yellow-50'
+                      : isSupplierMessage
+                      ? 'border-orange-200 bg-orange-50'
+                      : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {message.isInternal ? (
+                        <Lock className="h-4 w-4 text-yellow-600" />
+                      ) : (
+                        <User className="h-4 w-4 text-gray-600" />
+                      )}
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">
+                          {message.authorName || message.authorEmail || 'Unknown'}
+                        </span>
+                        {message.isInternal && (
+                          <span className="ml-2 text-xs text-yellow-700 font-medium">Internal Note</span>
+                        )}
+                        {isSupplierMessage && (
+                          <span className="ml-2 text-xs text-orange-700 font-medium">Supplier</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {formatInCET(message.createdAt)}
                       </span>
-                      {message.isInternal && (
-                        <span className="ml-2 text-xs text-yellow-700 font-medium">Internal Note</span>
+                      {message.messageType && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                          {message.messageType}
+                        </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {formatInCET(message.createdAt)}
-                    </span>
-                    {message.messageType && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                        {message.messageType}
-                      </span>
-                    )}
+                  <div className="text-sm text-gray-700 pl-6">
+                    {stripHtml(message.messageText)}
                   </div>
                 </div>
-                <div className="text-sm text-gray-700 pl-6">
-                  {stripHtml(message.messageText)}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
