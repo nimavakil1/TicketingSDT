@@ -527,15 +527,14 @@ async def reprocess_ticket(
             }
 
         # Get supplier language
-        from src.utils.supplier_manager import SupplierManager
-        supplier_manager = SupplierManager(db)
         supplier_language = None
-
         purchase_orders = ticket_api_data.get('salesOrder', {}).get('purchaseOrders', [])
         if purchase_orders:
             supplier_name = purchase_orders[0].get('supplierName')
             if supplier_name:
-                supplier = supplier_manager.get_supplier_by_name(supplier_name)
+                # Look up supplier in database
+                from src.database.models import Supplier
+                supplier = db.query(Supplier).filter(Supplier.name == supplier_name).first()
                 if supplier:
                     supplier_language = supplier.language
 
