@@ -253,6 +253,45 @@ class GmailMonitor:
             # Get snippet (preview)
             snippet = message.get('snippet', '')
 
+            # Extract and download attachments
+            attachments = []
+            attachment_texts = []
+            try:
+                from src.email.attachment_handler import AttachmentHandler
+                from src.email.text_extractor import TextExtractor
+
+                attachment_handler = AttachmentHandler()
+                text_extractor = TextExtractor()
+
+                # Download attachments
+                attachment_files = attachment_handler.download_all_attachments(
+                    self.service,
+                    message_id,
+                    message['payload'],
+                    subfolder=message_id  # Organize by message ID
+                )
+                attachments = attachment_files
+
+                # Extract text from attachments
+                for file_path in attachment_files:
+                    if attachment_handler.is_text_extractable(file_path):
+                        text = text_extractor.extract_text(file_path)
+                        if text:
+                            attachment_texts.append({
+                                'filename': os.path.basename(file_path),
+                                'text': text
+                            })
+
+                logger.info("Processed attachments",
+                           message_id=message_id,
+                           attachment_count=len(attachments),
+                           extracted_text_count=len(attachment_texts))
+
+            except Exception as e:
+                logger.warning("Failed to process attachments",
+                             message_id=message_id,
+                             error=str(e))
+
             result = {
                 'id': message_id,
                 'thread_id': thread_id,
@@ -263,14 +302,17 @@ class GmailMonitor:
                 'date': date,
                 'body': body,
                 'snippet': snippet,
-                'label_ids': message.get('labelIds', [])
+                'label_ids': message.get('labelIds', []),
+                'attachments': attachments,
+                'attachment_texts': attachment_texts
             }
 
             logger.debug(
                 "Extracted message details",
                 message_id=message_id,
                 subject=subject,
-                from_addr=from_address
+                from_addr=from_address,
+                has_attachments=len(attachments) > 0
             )
 
             return result
