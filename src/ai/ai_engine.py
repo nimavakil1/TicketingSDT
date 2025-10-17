@@ -49,9 +49,12 @@ class OpenAIProvider(AIProvider):
             # Check for o1 models (o1-mini, o1-preview, o1mini, etc.)
             if 'o1' in self.model.lower():
                 kwargs["max_completion_tokens"] = settings.ai_max_tokens
+                logger.info("Using max_completion_tokens for o1 model", model=self.model, max_completion_tokens=settings.ai_max_tokens)
             else:
                 kwargs["max_tokens"] = settings.ai_max_tokens
+                logger.info("Using max_tokens for non-o1 model", model=self.model, max_tokens=settings.ai_max_tokens)
 
+            logger.debug("Calling OpenAI API", model=self.model, kwargs=kwargs)
             response = self.client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
