@@ -124,21 +124,29 @@ const TicketDetail: React.FC = () => {
 
     try {
       const response = await client.post(`/api/tickets/${ticketNumber}/reprocess`);
+
+      // Show success message
+      const confidence = response.data.confidence ? (response.data.confidence * 100).toFixed(0) : 'N/A';
+      const escalated = response.data.requires_escalation ? ' (Escalated)' : '';
       setReprocessMessage({
         type: 'success',
-        text: `Ticket reprocessed successfully! Confidence: ${(response.data.confidence * 100).toFixed(0)}%`
+        text: `✓ Ticket reprocessed successfully! Confidence: ${confidence}%${escalated}. New AI decision added.`
       });
-      // Reload ticket to show new decision
-      await loadTicket();
-      // Clear message after 5 seconds
-      setTimeout(() => setReprocessMessage(null), 5000);
+
+      // Reload ticket to show new decision - with a small delay to ensure backend is done
+      setTimeout(async () => {
+        await loadTicket();
+      }, 500);
+
+      // Clear message after 7 seconds
+      setTimeout(() => setReprocessMessage(null), 7000);
     } catch (err: any) {
       console.error('Failed to reprocess ticket:', err);
       setReprocessMessage({
         type: 'error',
-        text: err.response?.data?.detail || 'Failed to reprocess ticket'
+        text: `✗ ${err.response?.data?.detail || 'Failed to reprocess ticket'}`
       });
-      setTimeout(() => setReprocessMessage(null), 5000);
+      setTimeout(() => setReprocessMessage(null), 7000);
     } finally {
       setReprocessing(false);
     }
