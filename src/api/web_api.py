@@ -5,7 +5,7 @@ FastAPI application that exposes existing system functionality via REST API
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import structlog
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -1409,9 +1409,9 @@ async def get_skip_text_blocks(
 
 @app.post("/api/text-filters/skip-blocks")
 async def create_skip_text_block(
-    pattern: str,
-    description: str = "",
-    is_regex: bool = False,
+    pattern: str = Form(...),
+    description: str = Form(""),
+    is_regex: bool = Form(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1432,10 +1432,10 @@ async def create_skip_text_block(
 @app.patch("/api/text-filters/skip-blocks/{block_id}")
 async def update_skip_text_block(
     block_id: int,
-    pattern: Optional[str] = None,
-    description: Optional[str] = None,
-    is_regex: Optional[bool] = None,
-    enabled: Optional[bool] = None,
+    pattern: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    is_regex: Optional[bool] = Form(None),
+    enabled: Optional[bool] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1500,11 +1500,11 @@ async def get_ignore_email_patterns(
 
 @app.post("/api/text-filters/ignore-patterns")
 async def create_ignore_email_pattern(
-    pattern: str,
-    description: str = "",
-    match_subject: bool = True,
-    match_body: bool = True,
-    is_regex: bool = False,
+    pattern: str = Form(...),
+    description: str = Form(""),
+    match_subject: bool = Form(True),
+    match_body: bool = Form(True),
+    is_regex: bool = Form(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1527,12 +1527,12 @@ async def create_ignore_email_pattern(
 @app.patch("/api/text-filters/ignore-patterns/{pattern_id}")
 async def update_ignore_email_pattern(
     pattern_id: int,
-    pattern: Optional[str] = None,
-    description: Optional[str] = None,
-    match_subject: Optional[bool] = None,
-    match_body: Optional[bool] = None,
-    is_regex: Optional[bool] = None,
-    enabled: Optional[bool] = None,
+    pattern: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    match_subject: Optional[bool] = Form(None),
+    match_body: Optional[bool] = Form(None),
+    is_regex: Optional[bool] = Form(None),
+    enabled: Optional[bool] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
