@@ -421,12 +421,36 @@ async def get_ticket_detail(
 
             # Transform ticketDetails into a simpler message format
             for detail in ticket_details:
+                source = detail.get("sourceTicketSideTypeId")
+                target = detail.get("targetTicketSideTypeId")
+
+                # Determine message type based on source and target
+                # 1 = System/Operator, 2 = Customer, 3 = Supplier
+                if source == 2 and target == 1:
+                    message_type = "customer"
+                    is_internal = False
+                elif source == 1 and target == 2:
+                    message_type = "operator_to_customer"
+                    is_internal = False
+                elif source == 1 and target == 3:
+                    message_type = "operator_to_supplier"
+                    is_internal = False
+                elif source == 3 and target == 1:
+                    message_type = "supplier"
+                    is_internal = False
+                elif source == 1 and target == 1:
+                    message_type = "internal"
+                    is_internal = True
+                else:
+                    message_type = "unknown"
+                    is_internal = False
+
                 message = {
                     "id": detail.get("id"),
                     "createdAt": detail.get("createdDateTime"),
                     "messageText": detail.get("comment", ""),
-                    "messageType": "internal" if detail.get("visibleToSupplierIND") == False and detail.get("createdByUserId") else "customer",
-                    "isInternal": detail.get("visibleToSupplierIND") == False and detail.get("createdByUserId") is not None,
+                    "messageType": message_type,
+                    "isInternal": is_internal,
                     "authorName": None,  # Not available in this API
                     "authorEmail": detail.get("receiverEmailAddress") or detail.get("entranceEmailSenderAddress"),
                     "sourceType": "email" if detail.get("entranceEmailBody") else "note"
