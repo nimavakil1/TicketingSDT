@@ -46,7 +46,7 @@ interface IgnoreEmailPattern {
 }
 
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters'>('filters');
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -553,6 +553,17 @@ const Settings: React.FC = () => {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('filters')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'filters'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Filter className="inline-block h-5 w-5 mr-2" />
+            Text Filtering
+          </button>
+          <button
             onClick={() => setActiveTab('users')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'users'
@@ -584,17 +595,6 @@ const Settings: React.FC = () => {
           >
             <Sparkles className="inline-block h-5 w-5 mr-2" />
             Prompt Improvement
-          </button>
-          <button
-            onClick={() => setActiveTab('filters')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'filters'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <Filter className="inline-block h-5 w-5 mr-2" />
-            Text Filtering
           </button>
         </nav>
       </div>
