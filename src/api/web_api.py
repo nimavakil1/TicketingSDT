@@ -638,31 +638,38 @@ async def reprocess_ticket(
 
 
 # AI Decision Log endpoints
-@app.get("/api/ai-decisions", response_model=List[AIDecisionInfo])
+@app.get("/api/ai-decisions")
 async def get_ai_decisions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     limit: int = 100,
     offset: int = 0
 ):
-    """Get list of AI decisions"""
+    """Get list of AI decisions with total count"""
+    # Get total count
+    total = db.query(func.count(AIDecisionLog.id)).scalar()
+
+    # Get paginated results
     decisions = db.query(AIDecisionLog).order_by(
         AIDecisionLog.timestamp.desc()
     ).offset(offset).limit(limit).all()
 
-    return [
-        AIDecisionInfo(
-            id=dec.id,
-            ticket_number=dec.ticket.ticket_number,
-            timestamp=dec.timestamp,
-            detected_language=dec.detected_language,
-            detected_intent=dec.detected_intent,
-            confidence_score=dec.confidence_score,
-            action_taken=dec.action_taken,
-            deployment_phase=dec.deployment_phase
-        )
-        for dec in decisions
-    ]
+    return {
+        "total": total,
+        "items": [
+            AIDecisionInfo(
+                id=dec.id,
+                ticket_number=dec.ticket.ticket_number,
+                timestamp=dec.timestamp,
+                detected_language=dec.detected_language,
+                detected_intent=dec.detected_intent,
+                confidence_score=dec.confidence_score,
+                action_taken=dec.action_taken,
+                deployment_phase=dec.deployment_phase
+            )
+            for dec in decisions
+        ]
+    }
 
 
 class FeedbackSubmission(BaseModel):

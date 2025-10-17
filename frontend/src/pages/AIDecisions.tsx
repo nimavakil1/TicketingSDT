@@ -17,13 +17,18 @@ const AIDecisions: React.FC = () => {
 
   const loadDecisions = async () => {
     try {
-      const data = await aiDecisionsApi.getDecisions({
+      const response = await aiDecisionsApi.getDecisions({
         limit: ITEMS_PER_PAGE,
         offset: (currentPage - 1) * ITEMS_PER_PAGE
       });
-      setDecisions(data);
-      // Estimate total based on whether we got a full page
-      setTotalItems(data.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + data.length);
+      // Handle both old format (array) and new format (object with total and items)
+      if (Array.isArray(response)) {
+        setDecisions(response);
+        setTotalItems(response.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + response.length);
+      } else {
+        setDecisions(response.items);
+        setTotalItems(response.total);
+      }
     } catch (error) {
       console.error('Failed to load decisions:', error);
     } finally {
