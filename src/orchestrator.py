@@ -13,6 +13,7 @@ from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
 from src.ai.ai_engine import AIEngine
 from src.dispatcher.action_dispatcher import ActionDispatcher
 from src.utils.supplier_manager import SupplierManager
+from src.utils.text_filter import TextFilter
 from src.database.models import (
     ProcessedEmail,
     TicketState,
@@ -98,6 +99,7 @@ class SupportAgentOrchestrator:
         """
         gmail_message_id = email_data['id']
         subject = email_data.get('subject') or ''
+        body = email_data.get('body', '')
         from_address = email_data.get('from', '')
 
         # Skip emails with no subject (bounce messages, system notifications)
@@ -129,6 +131,48 @@ class SupportAgentOrchestrator:
 
         # Create database session
         session = self.SessionMaker()
+
+        # Initialize text filter
+        text_filter = TextFilter(session)
+
+        # Check if email should be ignored (auto-replies, OOO, etc.)
+        should_ignore, ignore_reason = text_filter.should_ignore_email(subject, body)
+        if should_ignore:
+            logger.info(
+                "Ignoring email based on pattern match",
+                gmail_id=gmail_message_id,
+                reason=ignore_reason,
+                subject=subject[:100]
+            )
+            # Mark as successfully processed (intentional skip)
+            try:
+                self._mark_email_processed(
+                    session, email_data, None, None,
+                    success=True,
+                    error_message=f"Ignored: {ignore_reason}"
+                )
+                self.gmail_monitor.mark_as_processed(gmail_message_id)
+                session.commit()
+            except Exception as e:
+                logger.error("Failed to mark ignored email as processed", error=str(e))
+                session.rollback()
+            finally:
+                session.close()
+            return False
+
+        # Filter email body to remove skip text blocks
+        original_body = body
+        filtered_body = text_filter.filter_email_body(body)
+        if filtered_body != original_body:
+            logger.info(
+                "Email body filtered",
+                gmail_id=gmail_message_id,
+                original_length=len(original_body),
+                filtered_length=len(filtered_body),
+                saved_chars=len(original_body) - len(filtered_body)
+            )
+            # Update email_data with filtered body for AI analysis
+            email_data = {**email_data, 'body': filtered_body}
 
         try:
             # Check if already successfully processed (idempotency)
