@@ -39,21 +39,23 @@ class OpenAIProvider(AIProvider):
             messages.append({"role": "user", "content": prompt})
 
             # Determine which token parameter to use based on model
+            model_lower = self.model.lower()
+            is_reasoning_model = 'o1' in model_lower or 'gpt-5' in model_lower
+
             kwargs = {
                 "model": self.model,
                 "messages": messages,
-                "temperature": temperature,
             }
 
-            # O1 models and some reasoning models use max_completion_tokens, others use max_tokens
-            # Check for o1 models (o1-mini, o1-preview) and gpt-5 models
-            model_lower = self.model.lower()
-            if 'o1' in model_lower or 'gpt-5' in model_lower:
+            # O1 and gpt-5 reasoning models only support temperature=1
+            if is_reasoning_model:
+                # Don't set temperature for reasoning models (defaults to 1)
                 kwargs["max_completion_tokens"] = settings.ai_max_tokens
-                logger.info("Using max_completion_tokens for reasoning model", model=self.model, max_completion_tokens=settings.ai_max_tokens)
+                logger.info("Using reasoning model parameters", model=self.model, max_completion_tokens=settings.ai_max_tokens, note="temperature defaults to 1")
             else:
+                kwargs["temperature"] = temperature
                 kwargs["max_tokens"] = settings.ai_max_tokens
-                logger.info("Using max_tokens for standard model", model=self.model, max_tokens=settings.ai_max_tokens)
+                logger.info("Using standard model parameters", model=self.model, temperature=temperature, max_tokens=settings.ai_max_tokens)
 
             logger.debug("Calling OpenAI API", model=self.model, kwargs=kwargs)
             response = self.client.chat.completions.create(**kwargs)
