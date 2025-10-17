@@ -46,7 +46,8 @@ class OpenAIProvider(AIProvider):
             }
 
             # O1 models use max_completion_tokens, others use max_tokens
-            if self.model.startswith('o1-'):
+            # Check for o1 models (o1-mini, o1-preview, o1mini, etc.)
+            if 'o1' in self.model.lower():
                 kwargs["max_completion_tokens"] = settings.ai_max_tokens
             else:
                 kwargs["max_tokens"] = settings.ai_max_tokens
