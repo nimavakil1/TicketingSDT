@@ -15,7 +15,7 @@ import jwt
 from passlib.context import CryptContext
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedMessage, RetryQueue, User, init_database
+from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, init_database
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 
@@ -493,38 +493,26 @@ async def reprocess_ticket(
 
         ticket_api_data = ticket_data[0]
 
-        # Get the last email from the ticketing API or from our database
-        last_email = db.query(ProcessedMessage).filter(
-            ProcessedMessage.ticket_id == ticket.id
-        ).order_by(ProcessedMessage.processed_at.desc()).first()
+        # Get the email from ticketing API
+        ticket_details = ticket_api_data.get("ticketDetails", [])
+        if not ticket_details:
+            raise HTTPException(status_code=404, detail="No messages found for this ticket")
 
-        # If no email in database, try to get from ticketing API
-        if not last_email:
-            ticket_details = ticket_api_data.get("ticketDetails", [])
-            if not ticket_details:
-                raise HTTPException(status_code=404, detail="No messages found for this ticket")
+        # Find the first customer email (entrance email)
+        customer_email = None
+        for detail in ticket_details:
+            if detail.get("entranceEmailBody"):
+                customer_email = {
+                    'subject': detail.get("entranceEmailSubject", ""),
+                    'body': detail.get("entranceEmailBody", ""),
+                    'from': detail.get("entranceEmailSenderAddress", ticket.customer_email)
+                }
+                break
 
-            # Find the first customer email (entrance email)
-            customer_email = None
-            for detail in ticket_details:
-                if detail.get("entranceEmailBody"):
-                    customer_email = {
-                        'subject': detail.get("entranceEmailSubject", ""),
-                        'body': detail.get("entranceEmailBody", ""),
-                        'from': detail.get("entranceEmailSenderAddress", ticket.customer_email)
-                    }
-                    break
+        if not customer_email:
+            raise HTTPException(status_code=404, detail="No customer email found in ticket")
 
-            if not customer_email:
-                raise HTTPException(status_code=404, detail="No customer email found in ticket")
-
-            email_data = customer_email
-        else:
-            email_data = {
-                'subject': last_email.subject,
-                'body': last_email.body,
-                'from': ticket.customer_email
-            }
+        email_data = customer_email
 
         # Get supplier language
         supplier_language = None
