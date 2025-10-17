@@ -269,6 +269,44 @@ ProcessedMessage = ProcessedEmail
 RetryQueue = PendingEmailRetry
 
 
+class SkipTextBlock(Base):
+    """
+    Text blocks/patterns to skip/remove from emails before processing
+    Used to filter out signatures, disclaimers, boilerplate text
+    """
+    __tablename__ = 'skip_text_blocks'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pattern = Column(Text, nullable=False)
+    description = Column(String(255))
+    is_regex = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SkipTextBlock(id={self.id}, pattern={self.pattern[:50]})>"
+
+
+class IgnoreEmailPattern(Base):
+    """
+    Patterns that indicate an entire email should be ignored
+    Used to filter out auto-replies, out-of-office, confirmation emails
+    """
+    __tablename__ = 'ignore_email_patterns'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pattern = Column(Text, nullable=False)
+    description = Column(String(255))
+    match_subject = Column(Boolean, default=True)  # Match in subject
+    match_body = Column(Boolean, default=True)     # Match in body
+    is_regex = Column(Boolean, default=False)
+    enabled = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<IgnoreEmailPattern(id={self.id}, pattern={self.pattern[:50]})>"
+
+
 # Database initialization
 def init_database(database_url: Optional[str] = None) -> sessionmaker:
     """

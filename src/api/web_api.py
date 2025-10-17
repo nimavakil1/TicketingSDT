@@ -1385,6 +1385,197 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# Text Filter endpoints
+@app.get("/api/text-filters/skip-blocks")
+async def get_skip_text_blocks(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all skip text block patterns"""
+    from src.database.models import SkipTextBlock
+    blocks = db.query(SkipTextBlock).order_by(SkipTextBlock.created_at.desc()).all()
+    return [
+        {
+            "id": block.id,
+            "pattern": block.pattern,
+            "description": block.description,
+            "is_regex": block.is_regex,
+            "enabled": block.enabled,
+            "created_at": block.created_at
+        }
+        for block in blocks
+    ]
+
+
+@app.post("/api/text-filters/skip-blocks")
+async def create_skip_text_block(
+    pattern: str,
+    description: str = "",
+    is_regex: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new skip text block pattern"""
+    from src.database.models import SkipTextBlock
+    block = SkipTextBlock(
+        pattern=pattern,
+        description=description,
+        is_regex=is_regex,
+        enabled=True
+    )
+    db.add(block)
+    db.commit()
+    db.refresh(block)
+    return {"id": block.id, "message": "Skip text block created successfully"}
+
+
+@app.patch("/api/text-filters/skip-blocks/{block_id}")
+async def update_skip_text_block(
+    block_id: int,
+    pattern: Optional[str] = None,
+    description: Optional[str] = None,
+    is_regex: Optional[bool] = None,
+    enabled: Optional[bool] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a skip text block pattern"""
+    from src.database.models import SkipTextBlock
+    block = db.query(SkipTextBlock).filter(SkipTextBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Skip text block not found")
+
+    if pattern is not None:
+        block.pattern = pattern
+    if description is not None:
+        block.description = description
+    if is_regex is not None:
+        block.is_regex = is_regex
+    if enabled is not None:
+        block.enabled = enabled
+
+    db.commit()
+    return {"message": "Skip text block updated successfully"}
+
+
+@app.delete("/api/text-filters/skip-blocks/{block_id}")
+async def delete_skip_text_block(
+    block_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a skip text block pattern"""
+    from src.database.models import SkipTextBlock
+    block = db.query(SkipTextBlock).filter(SkipTextBlock.id == block_id).first()
+    if not block:
+        raise HTTPException(status_code=404, detail="Skip text block not found")
+
+    db.delete(block)
+    db.commit()
+    return {"message": "Skip text block deleted successfully"}
+
+
+@app.get("/api/text-filters/ignore-patterns")
+async def get_ignore_email_patterns(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all ignore email patterns"""
+    from src.database.models import IgnoreEmailPattern
+    patterns = db.query(IgnoreEmailPattern).order_by(IgnoreEmailPattern.created_at.desc()).all()
+    return [
+        {
+            "id": p.id,
+            "pattern": p.pattern,
+            "description": p.description,
+            "match_subject": p.match_subject,
+            "match_body": p.match_body,
+            "is_regex": p.is_regex,
+            "enabled": p.enabled,
+            "created_at": p.created_at
+        }
+        for p in patterns
+    ]
+
+
+@app.post("/api/text-filters/ignore-patterns")
+async def create_ignore_email_pattern(
+    pattern: str,
+    description: str = "",
+    match_subject: bool = True,
+    match_body: bool = True,
+    is_regex: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new ignore email pattern"""
+    from src.database.models import IgnoreEmailPattern
+    ignore_pattern = IgnoreEmailPattern(
+        pattern=pattern,
+        description=description,
+        match_subject=match_subject,
+        match_body=match_body,
+        is_regex=is_regex,
+        enabled=True
+    )
+    db.add(ignore_pattern)
+    db.commit()
+    db.refresh(ignore_pattern)
+    return {"id": ignore_pattern.id, "message": "Ignore email pattern created successfully"}
+
+
+@app.patch("/api/text-filters/ignore-patterns/{pattern_id}")
+async def update_ignore_email_pattern(
+    pattern_id: int,
+    pattern: Optional[str] = None,
+    description: Optional[str] = None,
+    match_subject: Optional[bool] = None,
+    match_body: Optional[bool] = None,
+    is_regex: Optional[bool] = None,
+    enabled: Optional[bool] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an ignore email pattern"""
+    from src.database.models import IgnoreEmailPattern
+    ignore_pattern = db.query(IgnoreEmailPattern).filter(IgnoreEmailPattern.id == pattern_id).first()
+    if not ignore_pattern:
+        raise HTTPException(status_code=404, detail="Ignore email pattern not found")
+
+    if pattern is not None:
+        ignore_pattern.pattern = pattern
+    if description is not None:
+        ignore_pattern.description = description
+    if match_subject is not None:
+        ignore_pattern.match_subject = match_subject
+    if match_body is not None:
+        ignore_pattern.match_body = match_body
+    if is_regex is not None:
+        ignore_pattern.is_regex = is_regex
+    if enabled is not None:
+        ignore_pattern.enabled = enabled
+
+    db.commit()
+    return {"message": "Ignore email pattern updated successfully"}
+
+
+@app.delete("/api/text-filters/ignore-patterns/{pattern_id}")
+async def delete_ignore_email_pattern(
+    pattern_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete an ignore email pattern"""
+    from src.database.models import IgnoreEmailPattern
+    ignore_pattern = db.query(IgnoreEmailPattern).filter(IgnoreEmailPattern.id == pattern_id).first()
+    if not ignore_pattern:
+        raise HTTPException(status_code=404, detail="Ignore email pattern not found")
+
+    db.delete(ignore_pattern)
+    db.commit()
+    return {"message": "Ignore email pattern deleted successfully"}
+
+
 @app.websocket("/ws/logs")
 async def websocket_logs(websocket: WebSocket):
     """WebSocket endpoint for real-time log streaming"""
