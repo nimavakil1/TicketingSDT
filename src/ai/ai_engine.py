@@ -45,14 +45,15 @@ class OpenAIProvider(AIProvider):
                 "temperature": temperature,
             }
 
-            # O1 models use max_completion_tokens, others use max_tokens
-            # Check for o1 models (o1-mini, o1-preview, o1mini, etc.)
-            if 'o1' in self.model.lower():
+            # O1 models and some reasoning models use max_completion_tokens, others use max_tokens
+            # Check for o1 models (o1-mini, o1-preview) and gpt-5 models
+            model_lower = self.model.lower()
+            if 'o1' in model_lower or 'gpt-5' in model_lower:
                 kwargs["max_completion_tokens"] = settings.ai_max_tokens
-                logger.info("Using max_completion_tokens for o1 model", model=self.model, max_completion_tokens=settings.ai_max_tokens)
+                logger.info("Using max_completion_tokens for reasoning model", model=self.model, max_completion_tokens=settings.ai_max_tokens)
             else:
                 kwargs["max_tokens"] = settings.ai_max_tokens
-                logger.info("Using max_tokens for non-o1 model", model=self.model, max_tokens=settings.ai_max_tokens)
+                logger.info("Using max_tokens for standard model", model=self.model, max_tokens=settings.ai_max_tokens)
 
             logger.debug("Calling OpenAI API", model=self.model, kwargs=kwargs)
             response = self.client.chat.completions.create(**kwargs)
