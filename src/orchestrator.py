@@ -616,6 +616,11 @@ class SupportAgentOrchestrator:
         for detail in ticket_details[-5:]:  # Last 5 messages
             comment = detail.get('comment', '')
             sender = detail.get('receiverEmailAddress', 'Internal')
+
+            # Skip AI Agent's own messages to avoid circular context
+            if comment and comment.strip().startswith('AI Agent proposes'):
+                continue
+
             if comment:
                 history_parts.append(f"[{sender}]: {comment[:200]}")
 
