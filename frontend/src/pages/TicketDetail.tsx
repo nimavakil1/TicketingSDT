@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsApi, TicketDetail as TicketDetailType, Ticket } from '../api/tickets';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
 
@@ -16,6 +16,8 @@ const TicketDetail: React.FC = () => {
   const [savingFeedback, setSavingFeedback] = useState(false);
   const [ticketList, setTicketList] = useState<Ticket[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
+  const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessMessage, setReprocessMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -114,6 +116,34 @@ const TicketDetail: React.FC = () => {
     }
   };
 
+  const handleReprocess = async () => {
+    if (!ticketNumber) return;
+
+    setReprocessing(true);
+    setReprocessMessage(null);
+
+    try {
+      const response = await client.post(`/api/tickets/${ticketNumber}/reprocess`);
+      setReprocessMessage({
+        type: 'success',
+        text: `Ticket reprocessed successfully! Confidence: ${(response.data.confidence * 100).toFixed(0)}%`
+      });
+      // Reload ticket to show new decision
+      await loadTicket();
+      // Clear message after 5 seconds
+      setTimeout(() => setReprocessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Failed to reprocess ticket:', err);
+      setReprocessMessage({
+        type: 'error',
+        text: err.response?.data?.detail || 'Failed to reprocess ticket'
+      });
+      setTimeout(() => setReprocessMessage(null), 5000);
+    } finally {
+      setReprocessing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -206,16 +236,34 @@ const TicketDetail: React.FC = () => {
             <p className="text-gray-600 mt-1">{ticket.customer_email}</p>
           </div>
         </div>
-        <span
-          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-            ticket.escalated
-              ? 'bg-red-100 text-red-800'
-              : 'bg-green-100 text-green-800'
-          }`}
-        >
-          {ticket.status}
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleReprocess}
+            disabled={reprocessing}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Re-run AI analysis on this ticket"
+          >
+            <RefreshCw className={`h-4 w-4 ${reprocessing ? 'animate-spin' : ''}`} />
+            {reprocessing ? 'Reprocessing...' : 'Reprocess'}
+          </button>
+          <span
+            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              ticket.escalated
+                ? 'bg-red-100 text-red-800'
+                : 'bg-green-100 text-green-800'
+            }`}
+          >
+            {ticket.status}
+          </span>
+        </div>
       </div>
+
+      {/* Reprocess Message */}
+      {reprocessMessage && (
+        <div className={`p-4 rounded-lg ${reprocessMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+          {reprocessMessage.text}
+        </div>
+      )}
 
       {/* Ticket Info Card */}
       <div className="bg-white rounded-lg shadow p-6">

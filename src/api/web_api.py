@@ -468,6 +468,109 @@ async def get_ticket_detail(
     }
 
 
+@app.post("/api/tickets/{ticket_number}/reprocess")
+async def reprocess_ticket(
+    ticket_number: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reprocess a ticket - run AI analysis again on the last email"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        # Get the last processed email for this ticket
+        last_email = db.query(ProcessedMessage).filter(
+            ProcessedMessage.ticket_id == ticket.id
+        ).order_by(ProcessedMessage.processed_at.desc()).first()
+
+        if not last_email:
+            raise HTTPException(status_code=404, detail="No email found for this ticket")
+
+        # Fetch ticket data from API
+        from src.api.ticketing_client import TicketingAPIClient
+        ticketing_client = TicketingAPIClient()
+        ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
+
+        if not ticket_data or len(ticket_data) == 0:
+            raise HTTPException(status_code=404, detail="Ticket not found in ticketing system")
+
+        ticket_api_data = ticket_data[0]
+
+        # Get supplier language
+        from src.utils.supplier_manager import SupplierManager
+        supplier_manager = SupplierManager(db)
+        supplier_language = None
+
+        purchase_orders = ticket_api_data.get('salesOrder', {}).get('purchaseOrders', [])
+        if purchase_orders:
+            supplier_name = purchase_orders[0].get('supplierName')
+            if supplier_name:
+                supplier = supplier_manager.get_supplier_by_name(supplier_name)
+                if supplier:
+                    supplier_language = supplier.language
+
+        # Re-run AI analysis
+        ai_engine = AIEngine()
+        email_data = {
+            'subject': last_email.subject,
+            'body': last_email.body,
+            'from': ticket.customer_email
+        }
+
+        analysis = ai_engine.analyze_email(
+            email_data=email_data,
+            ticket_data=ticket_api_data,
+            supplier_language=supplier_language
+        )
+
+        # Create new AI decision log
+        new_decision = AIDecisionLog(
+            ticket_id=ticket.id,
+            detected_language=analysis.get('language'),
+            detected_intent=analysis.get('intent'),
+            confidence_score=analysis.get('confidence'),
+            recommended_action=analysis.get('summary'),
+            response_generated=analysis.get('customer_response'),
+            action_taken='reprocessed' if analysis.get('requires_escalation') else 'analyzed',
+            deployment_phase=settings.deployment_phase
+        )
+        db.add(new_decision)
+
+        # Update ticket state if needed
+        if analysis.get('requires_escalation'):
+            ticket.escalated = True
+            ticket.escalation_reason = analysis.get('escalation_reason')
+            ticket.current_state = 'escalated'
+        else:
+            ticket.escalated = False
+            ticket.escalation_reason = None
+
+        ticket.updated_at = datetime.utcnow()
+        db.commit()
+
+        logger.info("Ticket reprocessed", ticket_number=ticket_number, decision_id=new_decision.id)
+
+        return {
+            "success": True,
+            "message": "Ticket reprocessed successfully",
+            "decision_id": new_decision.id,
+            "requires_escalation": analysis.get('requires_escalation'),
+            "confidence": analysis.get('confidence')
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to reprocess ticket", ticket_number=ticket_number, error=str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to reprocess ticket: {str(e)}")
+
+
 # AI Decision Log endpoints
 @app.get("/api/ai-decisions", response_model=List[AIDecisionInfo])
 async def get_ai_decisions(
