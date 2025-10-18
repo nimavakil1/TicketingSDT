@@ -589,6 +589,26 @@ async def get_ticket_detail(
         "ticket_id": ticket.ticket_id,
         "status": ticket.current_state or "unknown",
         "customer_email": ticket.customer_email,
+        "customer_name": ticket.customer_name,
+        "customer_address": ticket.customer_address,
+        "customer_city": ticket.customer_city,
+        "customer_postal_code": ticket.customer_postal_code,
+        "customer_country": ticket.customer_country,
+        "customer_phone": ticket.customer_phone,
+        "order_number": ticket.order_number,
+        "order_total": ticket.order_total,
+        "order_currency": ticket.order_currency,
+        "order_date": ticket.order_date,
+        "purchase_order_number": ticket.purchase_order_number,
+        "tracking_number": ticket.tracking_number,
+        "carrier_name": ticket.carrier_name,
+        "delivery_status": ticket.delivery_status,
+        "expected_delivery_date": ticket.expected_delivery_date,
+        "product_details": ticket.product_details,
+        "supplier_name": ticket.supplier_name,
+        "supplier_email": ticket.supplier_email,
+        "supplier_phone": ticket.supplier_phone,
+        "supplier_contact_person": ticket.supplier_contact_person,
         "ticket_status_id": ticket.ticket_status_id,
         "owner_id": ticket.owner_id,
         "escalated": ticket.escalated,
@@ -797,6 +817,38 @@ async def refresh_ticket(
             ticket.order_number = sales_order.get("customerNumber") or ticket.order_number
             ticket.customer_email = sales_order.get("customerEmail") or ticket.customer_email
 
+            # Extract customer address
+            ticket.customer_address = sales_order.get("customerAddress") or ticket.customer_address
+            ticket.customer_city = sales_order.get("customerCity") or ticket.customer_city
+            ticket.customer_postal_code = sales_order.get("customerPostalCode") or ticket.customer_postal_code
+            ticket.customer_country = sales_order.get("customerCountry") or ticket.customer_country
+            ticket.customer_phone = sales_order.get("customerPhone") or ticket.customer_phone
+
+            # Extract tracking information
+            ticket.tracking_number = sales_order.get("trackingNumber") or ticket.tracking_number
+            ticket.carrier_name = sales_order.get("carrierName") or ticket.carrier_name
+            ticket.delivery_status = sales_order.get("deliveryStatus") or ticket.delivery_status
+            ticket.expected_delivery_date = sales_order.get("expectedDeliveryDate") or ticket.expected_delivery_date
+
+            # Extract order financial details
+            ticket.order_total = sales_order.get("totalAmount") or ticket.order_total
+            ticket.order_currency = sales_order.get("currency") or ticket.order_currency
+            ticket.order_date = sales_order.get("orderDate") or ticket.order_date
+
+            # Extract product details
+            import json
+            sales_order_items = sales_order.get("salesOrderItems", [])
+            if sales_order_items:
+                products = []
+                for item in sales_order_items:
+                    products.append({
+                        'sku': item.get('sku', ''),
+                        'title': item.get('productTitle', ''),
+                        'quantity': item.get('quantity', 1),
+                        'price': item.get('unitPrice', 0)
+                    })
+                ticket.product_details = json.dumps(products)
+
             # Extract purchase order data
             purchase_orders = sales_order.get("purchaseOrders", [])
             if purchase_orders and len(purchase_orders) > 0:
@@ -804,6 +856,8 @@ async def refresh_ticket(
                 ticket.purchase_order_number = po_data.get("purchaseOrderNumber")
                 ticket.supplier_name = po_data.get("supplierName") or ticket.supplier_name
                 ticket.supplier_email = po_data.get("supplierEmail") or ticket.supplier_email
+                ticket.supplier_phone = po_data.get("supplierPhone") or ticket.supplier_phone
+                ticket.supplier_contact_person = po_data.get("supplierContactPerson") or ticket.supplier_contact_person
 
         db.commit()
         db.refresh(ticket)

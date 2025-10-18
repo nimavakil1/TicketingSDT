@@ -28,6 +28,26 @@ export interface TicketDetail {
   ticket_id: number;
   status: string;
   customer_email: string;
+  customer_name?: string;
+  customer_address?: string;
+  customer_city?: string;
+  customer_postal_code?: string;
+  customer_country?: string;
+  customer_phone?: string;
+  order_number?: string;
+  order_total?: number;
+  order_currency?: string;
+  order_date?: string;
+  purchase_order_number?: string;
+  tracking_number?: string;
+  carrier_name?: string;
+  delivery_status?: string;
+  expected_delivery_date?: string;
+  product_details?: string; // JSON string
+  supplier_name?: string;
+  supplier_email?: string;
+  supplier_phone?: string;
+  supplier_contact_person?: string;
   ticket_status_id: number;
   owner_id: number | null;
   escalated: boolean;

@@ -392,6 +392,166 @@ const TicketDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* Customer Information */}
+      {(ticket.customer_name || ticket.customer_address || ticket.customer_phone) && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer Information</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {ticket.customer_name && (
+              <div>
+                <p className="text-sm text-gray-500">Name</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.customer_name}</p>
+              </div>
+            )}
+            {ticket.customer_phone && (
+              <div>
+                <p className="text-sm text-gray-500">Phone</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.customer_phone}</p>
+              </div>
+            )}
+            {ticket.customer_address && (
+              <div className="col-span-2">
+                <p className="text-sm text-gray-500">Address</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {ticket.customer_address}
+                  {ticket.customer_city && `, ${ticket.customer_city}`}
+                  {ticket.customer_postal_code && ` ${ticket.customer_postal_code}`}
+                  {ticket.customer_country && `, ${ticket.customer_country}`}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Order Information */}
+      {(ticket.order_number || ticket.purchase_order_number || ticket.order_total) && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Information</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {ticket.order_number && (
+              <div>
+                <p className="text-sm text-gray-500">Order Number</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.order_number}</p>
+              </div>
+            )}
+            {ticket.purchase_order_number && (
+              <div>
+                <p className="text-sm text-gray-500">PO Number</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.purchase_order_number}</p>
+              </div>
+            )}
+            {ticket.order_date && (
+              <div>
+                <p className="text-sm text-gray-500">Order Date</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.order_date}</p>
+              </div>
+            )}
+            {ticket.order_total !== undefined && ticket.order_total !== null && (
+              <div>
+                <p className="text-sm text-gray-500">Order Total</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {ticket.order_total.toFixed(2)} {ticket.order_currency || 'EUR'}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delivery & Tracking */}
+      {(ticket.tracking_number || ticket.carrier_name || ticket.delivery_status) && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Delivery & Tracking</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {ticket.tracking_number && (
+              <div>
+                <p className="text-sm text-gray-500">Tracking Number</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.tracking_number}</p>
+              </div>
+            )}
+            {ticket.carrier_name && (
+              <div>
+                <p className="text-sm text-gray-500">Carrier</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.carrier_name}</p>
+              </div>
+            )}
+            {ticket.delivery_status && (
+              <div>
+                <p className="text-sm text-gray-500">Delivery Status</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.delivery_status}</p>
+              </div>
+            )}
+            {ticket.expected_delivery_date && (
+              <div>
+                <p className="text-sm text-gray-500">Expected Delivery</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.expected_delivery_date}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Product Details */}
+      {ticket.product_details && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Products</h2>
+          <div className="space-y-3">
+            {JSON.parse(ticket.product_details).map((product: any, index: number) => (
+              <div key={index} className="border border-gray-200 rounded p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{product.title}</p>
+                    <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">
+                      Qty: {product.quantity}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      €{product.price.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Supplier Information */}
+      {(ticket.supplier_name || ticket.supplier_email || ticket.supplier_phone) && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Supplier Information</h2>
+          <div className="grid grid-cols-2 gap-4">
+            {ticket.supplier_name && (
+              <div>
+                <p className="text-sm text-gray-500">Supplier Name</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.supplier_name}</p>
+              </div>
+            )}
+            {ticket.supplier_contact_person && (
+              <div>
+                <p className="text-sm text-gray-500">Contact Person</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.supplier_contact_person}</p>
+              </div>
+            )}
+            {ticket.supplier_email && (
+              <div>
+                <p className="text-sm text-gray-500">Email</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.supplier_email}</p>
+              </div>
+            )}
+            {ticket.supplier_phone && (
+              <div>
+                <p className="text-sm text-gray-500">Phone</p>
+                <p className="text-sm font-medium text-gray-900">{ticket.supplier_phone}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Message Composition */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Send Message</h2>
