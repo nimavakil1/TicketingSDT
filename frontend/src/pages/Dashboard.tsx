@@ -35,7 +35,26 @@ const Dashboard: React.FC = () => {
       setMessageCount(messageData);
       setError('');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load dashboard stats');
+      console.error('Dashboard error:', err);
+      console.error('Error response:', err.response);
+
+      let errorMsg = 'Failed to load dashboard stats';
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMsg = err.response.data;
+        } else if (err.response.data.detail) {
+          errorMsg = typeof err.response.data.detail === 'string'
+            ? err.response.data.detail
+            : JSON.stringify(err.response.data.detail);
+        } else if (Array.isArray(err.response.data)) {
+          errorMsg = JSON.stringify(err.response.data);
+        } else {
+          errorMsg = JSON.stringify(err.response.data);
+        }
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

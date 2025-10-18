@@ -162,20 +162,34 @@ def main():
     # Find database files
     db_files = [
         "ticketing.db",
-        "ticketing_agent.db"
+        "ticketing_agent.db",
+        "data/support_agent.db"  # Backend API database
     ]
 
     migrated = 0
     for db_file in db_files:
         if Path(db_file).exists():
-            file_size = Path(db_file).stat().st_size
-            if file_size == 0:
-                print(f"⚠ Skipping empty database: {db_file}")
-                continue
+            # Check if database has ticket_states table (indicates it needs migration)
+            try:
+                conn = sqlite3.connect(db_file)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_states'")
+                has_table = cursor.fetchone() is not None
+                conn.close()
 
-            migrate_database(db_file)
-            migrated += 1
-            print()
+                if has_table:
+                    migrate_database(db_file)
+                    migrated += 1
+                    print()
+                else:
+                    file_size = Path(db_file).stat().st_size
+                    if file_size == 0:
+                        print(f"⚠ Skipping empty database: {db_file}")
+                    else:
+                        print(f"⚠ Database {db_file} exists but has no ticket_states table - skipping")
+            except sqlite3.Error as e:
+                print(f"⚠ Error checking database {db_file}: {e}")
+                continue
 
     if migrated == 0:
         print("⚠ No databases found to migrate. Run the application first to create the database.")

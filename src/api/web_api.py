@@ -286,8 +286,7 @@ async def startup_event():
     """Initialize services on application startup"""
     logger.info("Starting AI Support Agent API...")
 
-    # Initialize database
-    init_database()
+    # Database already initialized at module level
     logger.info("Database initialized")
 
     # Start message retry scheduler
