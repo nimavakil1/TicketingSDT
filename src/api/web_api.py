@@ -292,11 +292,7 @@ async def startup_event():
 
     # Start message retry scheduler
     try:
-        ticketing_client = TicketingAPIClient(
-            base_url=settings.ticketing_api_base_url,
-            username=settings.ticketing_api_username,
-            password=settings.ticketing_api_password
-        )
+        ticketing_client = TicketingAPIClient()
         start_scheduler(ticketing_client)
         logger.info("Message retry scheduler started")
     except Exception as e:
@@ -1865,11 +1861,7 @@ async def approve_pending_message(
         raise HTTPException(status_code=404, detail="Message not found")
 
     # Initialize services
-    ticketing_client = TicketingAPIClient(
-        base_url=settings.ticketing_api_base_url,
-        username=settings.ticketing_api_username,
-        password=settings.ticketing_api_password
-    )
+    ticketing_client = TicketingAPIClient()
     message_service = MessageService(db, ticketing_client)
 
     if approval.action == "approve":
@@ -1917,11 +1909,7 @@ async def retry_pending_message(
     db: Session = Depends(get_db)
 ):
     """Retry a failed message"""
-    ticketing_client = TicketingAPIClient(
-        base_url=settings.ticketing_api_base_url,
-        username=settings.ticketing_api_username,
-        password=settings.ticketing_api_password
-    )
+    ticketing_client = TicketingAPIClient()
     message_service = MessageService(db, ticketing_client)
 
     success = message_service.retry_failed_message(message_id)
