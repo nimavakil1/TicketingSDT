@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsApi, TicketDetail as TicketDetailType, Ticket } from '../api/tickets';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
+import ComposeMessageModal from '../components/ComposeMessageModal';
+import { messagesApi, PendingMessage } from '../api/messages';
 
 const TicketDetail: React.FC = () => {
   const { ticketNumber } = useParams<{ ticketNumber: string }>();
@@ -18,6 +20,9 @@ const TicketDetail: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessMessage, setReprocessMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [composeModalOpen, setComposeModalOpen] = useState(false);
+  const [composeRecipientType, setComposeRecipientType] = useState<'customer' | 'supplier'>('customer');
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -26,6 +31,28 @@ const TicketDetail: React.FC = () => {
     const text = tmp.textContent || tmp.innerText || '';
     // Clean up excessive whitespace
     return text.replace(/\s+/g, ' ').trim();
+  };
+
+  const loadPendingMessages = async () => {
+    if (!ticket) return;
+    try {
+      const messages = await messagesApi.getPendingMessages({
+        status: 'pending',
+      });
+      // Filter messages for this ticket
+      setPendingMessages(messages.filter(msg => msg.ticket_number === ticket.ticket_number));
+    } catch (err) {
+      console.error('Failed to load pending messages:', err);
+    }
+  };
+
+  const handleComposeMessage = (recipientType: 'customer' | 'supplier') => {
+    setComposeRecipientType(recipientType);
+    setComposeModalOpen(true);
+  };
+
+  const handleMessageSent = () => {
+    loadPendingMessages();
   };
 
   const handleFeedback = async (decisionId: number, feedbackType: 'correct' | 'incorrect') => {
@@ -75,6 +102,12 @@ const TicketDetail: React.FC = () => {
       updateCurrentIndex();
     }
   }, [ticketNumber, ticketList]);
+
+  useEffect(() => {
+    if (ticket) {
+      loadPendingMessages();
+    }
+  }, [ticket]);
 
   const loadTicketList = async () => {
     try {
@@ -320,6 +353,66 @@ const TicketDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* Message Composition */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Send Message</h2>
+        <div className="flex gap-3">
+          <button
+            onClick={() => handleComposeMessage('customer')}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Send className="h-4 w-4" />
+            Send to Customer
+          </button>
+          <button
+            onClick={() => handleComposeMessage('supplier')}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            <Send className="h-4 w-4" />
+            Send to Supplier
+          </button>
+        </div>
+      </div>
+
+      {/* Pending Messages */}
+      {pendingMessages.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Pending Messages</h2>
+          <div className="space-y-4">
+            {pendingMessages.map((msg) => (
+              <div key={msg.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      To: {msg.message_type.charAt(0).toUpperCase() + msg.message_type.slice(1)}
+                    </span>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      msg.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      msg.status === 'sent' ? 'bg-green-100 text-green-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {msg.status}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {formatInCET(msg.created_at)}
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-gray-900 mb-1">{msg.subject}</p>
+                <p className="text-sm text-gray-600 line-clamp-2">{msg.body}</p>
+                {msg.confidence_score !== null && (
+                  <div className="mt-2">
+                    <span className="text-xs text-gray-500">
+                      Confidence: {(msg.confidence_score * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Ticket Message History */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -532,6 +625,17 @@ const TicketDetail: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Compose Message Modal */}
+      <ComposeMessageModal
+        isOpen={composeModalOpen}
+        onClose={() => setComposeModalOpen(false)}
+        ticketNumber={ticket.ticket_number}
+        ticketId={ticket.id}
+        recipientType={composeRecipientType}
+        recipientEmail={composeRecipientType === 'customer' ? ticket.customer_email : undefined}
+        onMessageSent={handleMessageSent}
+      />
     </div>
   );
 };
