@@ -115,22 +115,27 @@ class TextFilter:
                     # Use regex pattern
                     new_body = re.sub(pattern_text, '', filtered_body, flags=re.IGNORECASE | re.DOTALL)
                 else:
-                    # Use simple case-insensitive text replacement
-                    # Replace all occurrences
-                    pattern_lower = pattern_text.lower()
-                    body_lower = filtered_body.lower()
+                    # Normalize whitespace for matching (replace multiple whitespace with single space)
+                    # This makes matching work even when line breaks differ
+                    pattern_normalized = re.sub(r'\s+', ' ', pattern_text).strip().lower()
+                    body_normalized = re.sub(r'\s+', ' ', filtered_body).strip().lower()
 
-                    # Find all occurrences
-                    while pattern_lower in body_lower:
-                        # Find position in original case-preserving text
-                        start_idx = body_lower.find(pattern_lower)
-                        end_idx = start_idx + len(pattern_text)
+                    # Check if normalized pattern exists in normalized body
+                    if pattern_normalized in body_normalized:
+                        # Find the start position in normalized text
+                        norm_start = body_normalized.find(pattern_normalized)
 
-                        # Remove the matching text
-                        filtered_body = filtered_body[:start_idx] + filtered_body[end_idx:]
-                        body_lower = filtered_body.lower()
+                        # Now we need to find corresponding position in original text
+                        # We'll use a different approach: create a regex that matches the pattern with flexible whitespace
+                        # Escape special regex characters in the pattern
+                        pattern_escaped = re.escape(pattern_text)
+                        # Replace any whitespace sequence in the pattern with flexible whitespace matcher
+                        pattern_regex = re.sub(r'\\\s+', r'\\s+', pattern_escaped)
 
-                    new_body = filtered_body
+                        # Remove all occurrences using the flexible regex
+                        new_body = re.sub(pattern_regex, '', filtered_body, flags=re.IGNORECASE)
+                    else:
+                        new_body = filtered_body
 
                 if new_body != filtered_body:
                     removed_count += 1
