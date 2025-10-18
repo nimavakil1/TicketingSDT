@@ -814,7 +814,8 @@ async def refresh_ticket(
         # Extract data from salesOrder
         sales_order = ticket_api_data.get("salesOrder", {})
         if sales_order:
-            ticket.order_number = sales_order.get("customerNumber") or ticket.order_number
+            # Use 'reference' field for Amazon order number (e.g., 303-5532872-4861939)
+            ticket.order_number = sales_order.get("reference") or ticket.order_number
             ticket.customer_email = sales_order.get("customerEmail") or ticket.customer_email
 
             # Extract customer address
