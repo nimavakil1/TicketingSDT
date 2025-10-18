@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { dashboardApi, DashboardStats } from '../api/dashboard';
+import { messagesApi, MessageCount } from '../api/messages';
 import {
   Mail,
   Ticket,
@@ -8,10 +9,12 @@ import {
   TrendingUp,
   Clock,
   Activity,
+  Send,
 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [messageCount, setMessageCount] = useState<MessageCount | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -24,8 +27,12 @@ const Dashboard: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      const data = await dashboardApi.getStats();
-      setStats(data);
+      const [statsData, messageData] = await Promise.all([
+        dashboardApi.getStats(),
+        messagesApi.getMessageCount(),
+      ]);
+      setStats(statsData);
+      setMessageCount(messageData);
       setError('');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to load dashboard stats');
@@ -150,7 +157,24 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <a
+            href="/messages"
+            className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+          >
+            <Send className="h-5 w-5 text-indigo-500" />
+            <div>
+              <p className="font-medium text-gray-900">Pending Messages</p>
+              <p className="text-sm text-gray-600">
+                {messageCount?.total_pending || 0} messages to review
+              </p>
+              {messageCount && messageCount.low_confidence > 0 && (
+                <p className="text-xs text-red-600 mt-1">
+                  {messageCount.low_confidence} low confidence
+                </p>
+              )}
+            </div>
+          </a>
           <a
             href="/tickets?escalated=true"
             className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors"

@@ -10,6 +10,8 @@ from .models import (
     PendingEmailRetry,
     ProcessedMessage,
     RetryQueue,
+    MessageTemplate,
+    PendingMessage,
     init_database,
     get_session
 )
@@ -25,6 +27,8 @@ __all__ = [
     'PendingEmailRetry',
     'ProcessedMessage',
     'RetryQueue',
+    'MessageTemplate',
+    'PendingMessage',
     'init_database',
     'get_session'
 ]

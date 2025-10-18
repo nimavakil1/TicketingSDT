@@ -15,9 +15,11 @@ import jwt
 from passlib.context import CryptContext
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, init_database
+from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, init_database
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
+from src.utils.message_service import MessageService
+from src.scheduler.message_retry_scheduler import start_scheduler, stop_scheduler
 
 logger = structlog.get_logger(__name__)
 
@@ -118,6 +120,70 @@ class SettingsUpdate(BaseModel):
     system_prompt: Optional[str]
 
 
+class PendingMessageInfo(BaseModel):
+    id: int
+    ticket_number: str
+    message_type: str  # 'supplier', 'customer', 'internal'
+    recipient_email: Optional[str]
+    cc_emails: List[str]
+    subject: str
+    body: str
+    attachments: List[str]
+    confidence_score: Optional[float]
+    status: str  # 'pending', 'approved', 'rejected', 'sent', 'failed'
+    retry_count: int
+    last_error: Optional[str]
+    created_at: datetime
+    reviewed_at: Optional[datetime]
+    sent_at: Optional[datetime]
+
+
+class PendingMessageUpdate(BaseModel):
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    cc_emails: Optional[List[str]] = None
+    attachments: Optional[List[str]] = None
+
+
+class MessageApproval(BaseModel):
+    action: str  # 'approve' or 'reject'
+    rejection_reason: Optional[str] = None
+    updated_data: Optional[PendingMessageUpdate] = None
+
+
+class MessageTemplateInfo(BaseModel):
+    id: int
+    template_id: str
+    name: str
+    recipient_type: str  # 'supplier', 'customer', 'internal'
+    language: str
+    subject_template: str
+    body_template: str
+    variables: List[str]
+    use_cases: List[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class MessageTemplateCreate(BaseModel):
+    template_id: str
+    name: str
+    recipient_type: str
+    language: str
+    subject_template: str
+    body_template: str
+    variables: Optional[List[str]] = []
+    use_cases: Optional[List[str]] = []
+
+
+class MessageTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    subject_template: Optional[str] = None
+    body_template: Optional[str] = None
+    variables: Optional[List[str]] = None
+    use_cases: Optional[List[str]] = None
+
+
 class PromptApprovalRequest(BaseModel):
     new_prompt: str
     change_summary: str
@@ -212,6 +278,42 @@ def get_current_user(
         raise credentials_exception
 
     return user
+
+
+# Startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on application startup"""
+    logger.info("Starting AI Support Agent API...")
+
+    # Initialize database
+    init_database()
+    logger.info("Database initialized")
+
+    # Start message retry scheduler
+    try:
+        ticketing_client = TicketingAPIClient(
+            base_url=settings.ticketing_api_base_url,
+            username=settings.ticketing_api_username,
+            password=settings.ticketing_api_password
+        )
+        start_scheduler(ticketing_client)
+        logger.info("Message retry scheduler started")
+    except Exception as e:
+        logger.error(f"Failed to start message retry scheduler: {e}", exc_info=True)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on application shutdown"""
+    logger.info("Shutting down AI Support Agent API...")
+
+    # Stop message retry scheduler
+    try:
+        stop_scheduler()
+        logger.info("Message retry scheduler stopped")
+    except Exception as e:
+        logger.error(f"Error stopping scheduler: {e}", exc_info=True)
 
 
 # Health check
@@ -1665,6 +1767,406 @@ async def websocket_logs(websocket: WebSocket):
             data = await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+# Pending Messages endpoints
+@app.get("/api/messages/pending", response_model=List[PendingMessageInfo])
+async def get_pending_messages(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    status: Optional[str] = None,
+    message_type: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """Get list of pending messages for approval"""
+    query = db.query(PendingMessage).join(TicketState)
+
+    # Filter by status if provided
+    if status:
+        query = query.filter(PendingMessage.status == status)
+    else:
+        # Default to pending only
+        query = query.filter(PendingMessage.status == 'pending')
+
+    # Filter by message type if provided
+    if message_type:
+        query = query.filter(PendingMessage.message_type == message_type)
+
+    # Order by confidence (low confidence first for review) then creation time
+    messages = query.order_by(
+        PendingMessage.confidence_score.asc(),
+        PendingMessage.created_at.desc()
+    ).offset(offset).limit(limit).all()
+
+    return [
+        PendingMessageInfo(
+            id=msg.id,
+            ticket_number=msg.ticket.ticket_number,
+            message_type=msg.message_type,
+            recipient_email=msg.recipient_email,
+            cc_emails=msg.cc_emails or [],
+            subject=msg.subject,
+            body=msg.body,
+            attachments=msg.attachments or [],
+            confidence_score=msg.confidence_score,
+            status=msg.status,
+            retry_count=msg.retry_count,
+            last_error=msg.last_error,
+            created_at=ensure_utc(msg.created_at),
+            reviewed_at=ensure_utc(msg.reviewed_at),
+            sent_at=ensure_utc(msg.sent_at)
+        )
+        for msg in messages
+    ]
+
+
+@app.get("/api/messages/pending/{message_id}", response_model=PendingMessageInfo)
+async def get_pending_message(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific pending message"""
+    msg = db.query(PendingMessage).filter(PendingMessage.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    return PendingMessageInfo(
+        id=msg.id,
+        ticket_number=msg.ticket.ticket_number,
+        message_type=msg.message_type,
+        recipient_email=msg.recipient_email,
+        cc_emails=msg.cc_emails or [],
+        subject=msg.subject,
+        body=msg.body,
+        attachments=msg.attachments or [],
+        confidence_score=msg.confidence_score,
+        status=msg.status,
+        retry_count=msg.retry_count,
+        last_error=msg.last_error,
+        created_at=ensure_utc(msg.created_at),
+        reviewed_at=ensure_utc(msg.reviewed_at),
+        sent_at=ensure_utc(msg.sent_at)
+    )
+
+
+@app.post("/api/messages/pending/{message_id}/approve")
+async def approve_pending_message(
+    message_id: int,
+    approval: MessageApproval,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Approve and send or reject a pending message"""
+    # Get message
+    pending_message = db.query(PendingMessage).filter(PendingMessage.id == message_id).first()
+    if not pending_message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    # Initialize services
+    ticketing_client = TicketingAPIClient(
+        base_url=settings.ticketing_api_base_url,
+        username=settings.ticketing_api_username,
+        password=settings.ticketing_api_password
+    )
+    message_service = MessageService(db, ticketing_client)
+
+    if approval.action == "approve":
+        # Extract updated data if provided
+        updated_body = approval.updated_data.body if approval.updated_data and approval.updated_data.body else None
+        updated_subject = approval.updated_data.subject if approval.updated_data and approval.updated_data.subject else None
+        updated_cc = approval.updated_data.cc_emails if approval.updated_data and approval.updated_data.cc_emails is not None else None
+        updated_attachments = approval.updated_data.attachments if approval.updated_data and approval.updated_data.attachments is not None else None
+
+        # Send message
+        success = message_service.send_pending_message(
+            pending_message_id=message_id,
+            reviewed_by_user_id=current_user.id,
+            updated_body=updated_body,
+            updated_subject=updated_subject,
+            updated_cc=updated_cc,
+            updated_attachments=updated_attachments
+        )
+
+        if success:
+            return {"message": "Message sent successfully", "status": "sent"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to send message")
+
+    elif approval.action == "reject":
+        success = message_service.reject_pending_message(
+            pending_message_id=message_id,
+            reviewed_by_user_id=current_user.id,
+            rejection_reason=approval.rejection_reason
+        )
+
+        if success:
+            return {"message": "Message rejected", "status": "rejected"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to reject message")
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action. Use 'approve' or 'reject'")
+
+
+@app.post("/api/messages/pending/{message_id}/retry")
+async def retry_pending_message(
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Retry a failed message"""
+    ticketing_client = TicketingAPIClient(
+        base_url=settings.ticketing_api_base_url,
+        username=settings.ticketing_api_username,
+        password=settings.ticketing_api_password
+    )
+    message_service = MessageService(db, ticketing_client)
+
+    success = message_service.retry_failed_message(message_id)
+
+    if success:
+        return {"message": "Message queued for retry"}
+    else:
+        raise HTTPException(status_code=400, detail="Cannot retry message")
+
+
+@app.get("/api/messages/pending/count")
+async def get_pending_message_count(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get count of pending messages for dashboard"""
+    count = db.query(PendingMessage).filter(PendingMessage.status == 'pending').count()
+    low_confidence_count = db.query(PendingMessage).filter(
+        PendingMessage.status == 'pending',
+        PendingMessage.confidence_score < 0.8
+    ).count()
+
+    return {
+        "total_pending": count,
+        "low_confidence": low_confidence_count,
+        "high_priority": low_confidence_count
+    }
+
+
+@app.get("/api/messages/scheduler/status")
+async def get_scheduler_status(
+    current_user: User = Depends(get_current_user)
+):
+    """Get message retry scheduler status"""
+    from src.scheduler.message_retry_scheduler import get_scheduler
+
+    try:
+        scheduler = get_scheduler()
+        return scheduler.get_status()
+    except ValueError:
+        return {
+            "running": False,
+            "error": "Scheduler not initialized"
+        }
+
+
+# ============================================================================
+# Message Template Endpoints
+# ============================================================================
+
+@app.get("/api/templates", response_model=List[MessageTemplateInfo])
+async def get_templates(
+    recipient_type: Optional[str] = None,
+    language: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all message templates with optional filters"""
+    query = db.query(MessageTemplate)
+
+    if recipient_type:
+        query = query.filter(MessageTemplate.recipient_type == recipient_type)
+
+    if language:
+        query = query.filter(MessageTemplate.language == language)
+
+    templates = query.order_by(MessageTemplate.recipient_type, MessageTemplate.name).all()
+
+    return [
+        MessageTemplateInfo(
+            id=t.id,
+            template_id=t.template_id,
+            name=t.name,
+            recipient_type=t.recipient_type,
+            language=t.language,
+            subject_template=t.subject_template,
+            body_template=t.body_template,
+            variables=t.variables if isinstance(t.variables, list) else [],
+            use_cases=t.use_cases if isinstance(t.use_cases, list) else [],
+            created_at=t.created_at,
+            updated_at=t.updated_at
+        )
+        for t in templates
+    ]
+
+
+@app.get("/api/templates/{template_id}", response_model=MessageTemplateInfo)
+async def get_template(
+    template_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific message template by template_id"""
+    template = db.query(MessageTemplate).filter(
+        MessageTemplate.template_id == template_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    return MessageTemplateInfo(
+        id=template.id,
+        template_id=template.template_id,
+        name=template.name,
+        recipient_type=template.recipient_type,
+        language=template.language,
+        subject_template=template.subject_template,
+        body_template=template.body_template,
+        variables=template.variables if isinstance(template.variables, list) else [],
+        use_cases=template.use_cases if isinstance(template.use_cases, list) else [],
+        created_at=template.created_at,
+        updated_at=template.updated_at
+    )
+
+
+@app.post("/api/templates", response_model=MessageTemplateInfo, status_code=201)
+async def create_template(
+    template: MessageTemplateCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new message template"""
+    # Check if template_id already exists
+    existing = db.query(MessageTemplate).filter(
+        MessageTemplate.template_id == template.template_id
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Template with ID '{template.template_id}' already exists"
+        )
+
+    # Validate recipient_type
+    valid_types = ['supplier', 'customer', 'internal']
+    if template.recipient_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid recipient_type. Must be one of: {', '.join(valid_types)}"
+        )
+
+    # Create new template
+    new_template = MessageTemplate(
+        template_id=template.template_id,
+        name=template.name,
+        recipient_type=template.recipient_type,
+        language=template.language,
+        subject_template=template.subject_template,
+        body_template=template.body_template,
+        variables=template.variables,
+        use_cases=template.use_cases,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+
+    db.add(new_template)
+    db.commit()
+    db.refresh(new_template)
+
+    logger.info(f"Template created: {template.template_id} by user {current_user.username}")
+
+    return MessageTemplateInfo(
+        id=new_template.id,
+        template_id=new_template.template_id,
+        name=new_template.name,
+        recipient_type=new_template.recipient_type,
+        language=new_template.language,
+        subject_template=new_template.subject_template,
+        body_template=new_template.body_template,
+        variables=new_template.variables if isinstance(new_template.variables, list) else [],
+        use_cases=new_template.use_cases if isinstance(new_template.use_cases, list) else [],
+        created_at=new_template.created_at,
+        updated_at=new_template.updated_at
+    )
+
+
+@app.put("/api/templates/{template_id}", response_model=MessageTemplateInfo)
+async def update_template(
+    template_id: str,
+    updates: MessageTemplateUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing message template"""
+    template = db.query(MessageTemplate).filter(
+        MessageTemplate.template_id == template_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Apply updates
+    if updates.name is not None:
+        template.name = updates.name
+    if updates.subject_template is not None:
+        template.subject_template = updates.subject_template
+    if updates.body_template is not None:
+        template.body_template = updates.body_template
+    if updates.variables is not None:
+        template.variables = updates.variables
+    if updates.use_cases is not None:
+        template.use_cases = updates.use_cases
+
+    template.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(template)
+
+    logger.info(f"Template updated: {template_id} by user {current_user.username}")
+
+    return MessageTemplateInfo(
+        id=template.id,
+        template_id=template.template_id,
+        name=template.name,
+        recipient_type=template.recipient_type,
+        language=template.language,
+        subject_template=template.subject_template,
+        body_template=template.body_template,
+        variables=template.variables if isinstance(template.variables, list) else [],
+        use_cases=template.use_cases if isinstance(template.use_cases, list) else [],
+        created_at=template.created_at,
+        updated_at=template.updated_at
+    )
+
+
+@app.delete("/api/templates/{template_id}")
+async def delete_template(
+    template_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a message template"""
+    template = db.query(MessageTemplate).filter(
+        MessageTemplate.template_id == template_id
+    ).first()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    db.delete(template)
+    db.commit()
+
+    logger.info(f"Template deleted: {template_id} by user {current_user.username}")
+
+    return {"message": "Template deleted successfully"}
 
 
 if __name__ == "__main__":

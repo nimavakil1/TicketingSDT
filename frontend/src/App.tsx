@@ -10,6 +10,8 @@ import TicketDetail from './pages/TicketDetail';
 import AIDecisions from './pages/AIDecisions';
 import Feedback from './pages/Feedback';
 import Settings from './pages/Settings';
+import Messages from './pages/Messages';
+import Templates from './pages/Templates';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -95,6 +97,26 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <Settings />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/messages"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Messages />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/templates"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Templates />
             </Layout>
           </PrivateRoute>
         }
