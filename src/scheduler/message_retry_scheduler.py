@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from src.database.models import PendingMessage, get_session
 from src.utils.message_service import MessageService
-from src.clients.ticketing_client import TicketingClient
+from src.api.ticketing_client import TicketingAPIClient
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class MessageRetryScheduler:
     """Scheduler for retrying failed message deliveries"""
 
-    def __init__(self, ticketing_client: TicketingClient):
+    def __init__(self, ticketing_client: TicketingAPIClient):
         """
         Initialize the retry scheduler
 
@@ -209,7 +209,7 @@ class MessageRetryScheduler:
 _scheduler_instance: Optional[MessageRetryScheduler] = None
 
 
-def get_scheduler(ticketing_client: Optional[TicketingClient] = None) -> MessageRetryScheduler:
+def get_scheduler(ticketing_client: Optional[TicketingAPIClient] = None) -> MessageRetryScheduler:
     """
     Get or create the global scheduler instance
 
@@ -229,7 +229,7 @@ def get_scheduler(ticketing_client: Optional[TicketingClient] = None) -> Message
     return _scheduler_instance
 
 
-def start_scheduler(ticketing_client: TicketingClient):
+def start_scheduler(ticketing_client: TicketingAPIClient):
     """
     Start the global message retry scheduler
 
