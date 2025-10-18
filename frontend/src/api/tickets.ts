@@ -4,6 +4,8 @@ export interface Ticket {
   ticket_number: string;
   status: string;
   customer_email: string;
+  order_number: string | null;
+  purchase_order_number: string | null;
   last_updated: string;
   escalated: boolean;
   ai_decision_count: number;
@@ -63,6 +65,11 @@ export const ticketsApi = {
 
   getTicketDetail: async (ticketNumber: string): Promise<TicketDetail> => {
     const response = await client.get(`/api/tickets/${ticketNumber}`);
+    return response.data;
+  },
+
+  refreshTicket: async (ticketNumber: string): Promise<any> => {
+    const response = await client.post(`/api/tickets/${ticketNumber}/refresh`);
     return response.data;
   },
 };

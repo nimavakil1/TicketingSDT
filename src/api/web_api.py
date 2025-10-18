@@ -83,6 +83,8 @@ class TicketInfo(BaseModel):
     ticket_number: str
     status: str
     customer_email: str
+    order_number: Optional[str]
+    purchase_order_number: Optional[str]
     last_updated: datetime
     escalated: bool
     ai_decision_count: int
@@ -498,6 +500,8 @@ async def get_tickets(
             ticket_number=ticket.ticket_number,
             status=ticket.current_state or "unknown",
             customer_email=ticket.customer_email or "N/A",
+            order_number=ticket.order_number,
+            purchase_order_number=ticket.purchase_order_number,
             last_updated=ticket.updated_at,
             escalated=ticket.escalated,
             ai_decision_count=len(ticket.ai_decisions),
@@ -753,6 +757,69 @@ async def reprocess_ticket(
         logger.error("Failed to reprocess ticket", ticket_number=ticket_number, error=str(e))
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to reprocess ticket: {str(e)}")
+
+
+@app.post("/api/tickets/{ticket_number}/refresh")
+async def refresh_ticket(
+    ticket_number: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Refresh ticket data from ticketing system"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found in local database")
+
+    try:
+        # Fetch fresh ticket data from API
+        from src.api.ticketing_client import TicketingAPIClient
+        ticketing_client = TicketingAPIClient()
+        ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
+
+        if not ticket_data or len(ticket_data) == 0:
+            raise HTTPException(status_code=404, detail="Ticket not found in ticketing system")
+
+        ticket_api_data = ticket_data[0]
+
+        # Update ticket fields from API
+        ticket.ticket_status_id = ticket_api_data.get("ticketStatusId")
+        ticket.owner_id = ticket_api_data.get("ownerId")
+        ticket.current_state = ticket_api_data.get("ticketStatusName", "unknown")
+        ticket.customer_email = ticket_api_data.get("customerEmail", ticket.customer_email)
+        ticket.customer_name = ticket_api_data.get("customerName")
+        ticket.order_number = ticket_api_data.get("orderNumber")
+
+        # Extract purchase order number from custom fields or other sources
+        custom_fields = ticket_api_data.get("customFields", {})
+        if "purchaseOrderNumber" in custom_fields:
+            ticket.purchase_order_number = custom_fields.get("purchaseOrderNumber")
+
+        db.commit()
+        db.refresh(ticket)
+
+        logger.info("Ticket refreshed from ticketing system", ticket_number=ticket_number)
+
+        return {
+            "success": True,
+            "message": "Ticket refreshed successfully",
+            "ticket": {
+                "ticket_number": ticket.ticket_number,
+                "status": ticket.current_state,
+                "customer_email": ticket.customer_email,
+                "order_number": ticket.order_number,
+                "updated_at": ensure_utc(ticket.updated_at)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to refresh ticket", ticket_number=ticket_number, error=str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to refresh ticket: {str(e)}")
 
 
 # AI Decision Log endpoints

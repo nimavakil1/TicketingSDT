@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsApi, Ticket } from '../api/tickets';
 import { AlertTriangle } from 'lucide-react';
@@ -7,13 +7,49 @@ import Pagination from '../components/Pagination';
 
 const ITEMS_PER_PAGE = 50;
 
+interface ColumnWidths {
+  ticketNumber: number;
+  status: number;
+  amazonOrder: number;
+  transaction: number;
+  poNumber: number;
+  aiDecisions: number;
+  lastUpdated: number;
+}
+
+const DEFAULT_WIDTHS: ColumnWidths = {
+  ticketNumber: 150,
+  status: 120,
+  amazonOrder: 180,
+  transaction: 150,
+  poNumber: 150,
+  aiDecisions: 120,
+  lastUpdated: 180,
+};
+
 const Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEscalated, setShowEscalated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(DEFAULT_WIDTHS);
+  const [resizing, setResizing] = useState<string | null>(null);
+  const startXRef = useRef<number>(0);
+  const startWidthRef = useRef<number>(0);
   const navigate = useNavigate();
+
+  // Load column widths from localStorage
+  useEffect(() => {
+    const savedWidths = localStorage.getItem('ticketColumnWidths');
+    if (savedWidths) {
+      try {
+        setColumnWidths(JSON.parse(savedWidths));
+      } catch (e) {
+        console.error('Failed to parse saved column widths:', e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     loadTickets();
@@ -35,6 +71,41 @@ const Tickets: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleMouseDown = (e: React.MouseEvent, column: keyof ColumnWidths) => {
+    e.preventDefault();
+    setResizing(column);
+    startXRef.current = e.clientX;
+    startWidthRef.current = columnWidths[column];
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!resizing) return;
+    const diff = e.clientX - startXRef.current;
+    const newWidth = Math.max(80, startWidthRef.current + diff);
+    setColumnWidths((prev) => ({
+      ...prev,
+      [resizing]: newWidth,
+    }));
+  };
+
+  const handleMouseUp = () => {
+    if (resizing) {
+      localStorage.setItem('ticketColumnWidths', JSON.stringify(columnWidths));
+      setResizing(null);
+    }
+  };
+
+  useEffect(() => {
+    if (resizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [resizing, columnWidths]);
 
   if (loading) {
     return (
@@ -62,24 +133,79 @@ const Tickets: React.FC = () => {
         </label>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.ticketNumber}px` }}
+              >
                 Ticket #
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'ticketNumber')}
+                />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.status}px` }}
+              >
                 Status
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'status')}
+                />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Customer
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.amazonOrder}px` }}
+              >
+                Amazon Order Nr
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'amazonOrder')}
+                />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.transaction}px` }}
+              >
+                Transaction Nr
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'transaction')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.poNumber}px` }}
+              >
+                PO Number
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.aiDecisions}px` }}
+              >
                 AI Decisions
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'aiDecisions')}
+                />
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.lastUpdated}px` }}
+              >
                 Last Updated
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'lastUpdated')}
+                />
               </th>
             </tr>
           </thead>
@@ -90,7 +216,7 @@ const Tickets: React.FC = () => {
                 onClick={() => navigate(`/tickets/${ticket.ticket_number}`)}
                 className="hover:bg-gray-50 cursor-pointer"
               >
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.ticketNumber}px` }}>
                   <div className="flex items-center gap-2">
                     {ticket.escalated && (
                       <AlertTriangle className="h-4 w-4 text-red-500" />
@@ -100,7 +226,7 @@ const Tickets: React.FC = () => {
                     </span>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.status}px` }}>
                   <span
                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       ticket.escalated
@@ -111,15 +237,21 @@ const Tickets: React.FC = () => {
                     {ticket.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {ticket.customer_email}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.amazonOrder}px` }}>
+                  {ticket.order_number || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.transaction}px` }}>
+                  {ticket.ticket_number}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.poNumber}px` }}>
+                  {ticket.purchase_order_number || '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.aiDecisions}px` }}>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                     {ticket.ai_decision_count}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.lastUpdated}px` }}>
                   {formatInCET(ticket.last_updated)}
                 </td>
               </tr>

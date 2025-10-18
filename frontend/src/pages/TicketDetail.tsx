@@ -20,6 +20,7 @@ const TicketDetail: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessMessage, setReprocessMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [composeModalOpen, setComposeModalOpen] = useState(false);
   const [composeRecipientType, setComposeRecipientType] = useState<'customer' | 'supplier'>('customer');
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
@@ -185,6 +186,35 @@ const TicketDetail: React.FC = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!ticketNumber) return;
+
+    setRefreshing(true);
+    try {
+      await ticketsApi.refreshTicket(ticketNumber);
+
+      // Reload ticket to show updated data
+      await loadTicket();
+
+      setReprocessMessage({
+        type: 'success',
+        text: '✓ Ticket refreshed successfully'
+      });
+
+      // Clear message after 3 seconds
+      setTimeout(() => setReprocessMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to refresh ticket:', err);
+      setReprocessMessage({
+        type: 'error',
+        text: `✗ ${err.response?.data?.detail || 'Failed to refresh ticket'}`
+      });
+      setTimeout(() => setReprocessMessage(null), 5000);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -278,6 +308,15 @@ const TicketDetail: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Refresh ticket data from ticketing system"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
           <button
             onClick={handleReprocess}
             disabled={reprocessing}
