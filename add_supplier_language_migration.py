@@ -48,6 +48,17 @@ def run_migration(db_path: str):
             else:
                 print("✓ language_code column already exists")
 
+            if 'contact_fields' not in columns:
+                print("Adding contact_fields column to suppliers table...")
+                cursor.execute("""
+                    ALTER TABLE suppliers
+                    ADD COLUMN contact_fields JSON
+                """)
+                conn.commit()
+                print("✓ Added contact_fields column")
+            else:
+                print("✓ contact_fields column already exists")
+
     except Exception as e:
         print(f"Error running migration: {e}")
         conn.rollback()
@@ -56,7 +67,7 @@ def run_migration(db_path: str):
         conn.close()
 
 if __name__ == "__main__":
-    db_path = "ticketing.db"
+    db_path = "data/support_agent.db"
 
     if not Path(db_path).exists():
         print(f"Error: Database file '{db_path}' not found")
