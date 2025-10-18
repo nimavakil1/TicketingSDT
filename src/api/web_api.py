@@ -293,7 +293,7 @@ async def startup_event():
     # Start message retry scheduler
     try:
         ticketing_client = TicketingAPIClient()
-        start_scheduler(ticketing_client)
+        start_scheduler(ticketing_client, SessionMaker)
         logger.info("Message retry scheduler started")
     except Exception as e:
         logger.error(f"Failed to start message retry scheduler: {e}", exc_info=True)

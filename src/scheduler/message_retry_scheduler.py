@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from src.database.models import PendingMessage, get_session
+from src.database.models import PendingMessage, init_database
 from src.utils.message_service import MessageService
 from src.api.ticketing_client import TicketingAPIClient
 from config.settings import settings
@@ -22,14 +22,16 @@ logger = logging.getLogger(__name__)
 class MessageRetryScheduler:
     """Scheduler for retrying failed message deliveries"""
 
-    def __init__(self, ticketing_client: TicketingAPIClient):
+    def __init__(self, ticketing_client: TicketingAPIClient, session_maker):
         """
         Initialize the retry scheduler
 
         Args:
             ticketing_client: Client for sending messages via ticketing API
+            session_maker: SQLAlchemy sessionmaker for database access
         """
         self.ticketing_client = ticketing_client
+        self.session_maker = session_maker
         self.running = False
         self.thread: Optional[threading.Thread] = None
         self.retry_interval_minutes = 15
@@ -80,7 +82,7 @@ class MessageRetryScheduler:
         """Retry all failed messages that haven't exceeded max retries"""
         logger.info("Starting failed message retry job")
 
-        session = next(get_session())
+        session = self.session_maker()
         try:
             # Find failed messages eligible for retry
             failed_messages = session.query(PendingMessage).filter(
@@ -209,12 +211,13 @@ class MessageRetryScheduler:
 _scheduler_instance: Optional[MessageRetryScheduler] = None
 
 
-def get_scheduler(ticketing_client: Optional[TicketingAPIClient] = None) -> MessageRetryScheduler:
+def get_scheduler(ticketing_client: Optional[TicketingAPIClient] = None, session_maker=None) -> MessageRetryScheduler:
     """
     Get or create the global scheduler instance
 
     Args:
         ticketing_client: Ticketing client (required on first call)
+        session_maker: SQLAlchemy sessionmaker (required on first call)
 
     Returns:
         MessageRetryScheduler instance
@@ -222,21 +225,22 @@ def get_scheduler(ticketing_client: Optional[TicketingAPIClient] = None) -> Mess
     global _scheduler_instance
 
     if _scheduler_instance is None:
-        if ticketing_client is None:
-            raise ValueError("ticketing_client required to initialize scheduler")
-        _scheduler_instance = MessageRetryScheduler(ticketing_client)
+        if ticketing_client is None or session_maker is None:
+            raise ValueError("ticketing_client and session_maker required to initialize scheduler")
+        _scheduler_instance = MessageRetryScheduler(ticketing_client, session_maker)
 
     return _scheduler_instance
 
 
-def start_scheduler(ticketing_client: TicketingAPIClient):
+def start_scheduler(ticketing_client: TicketingAPIClient, session_maker):
     """
     Start the global message retry scheduler
 
     Args:
         ticketing_client: Ticketing client for sending messages
+        session_maker: SQLAlchemy sessionmaker for database access
     """
-    scheduler = get_scheduler(ticketing_client)
+    scheduler = get_scheduler(ticketing_client, session_maker)
     scheduler.start()
 
 
