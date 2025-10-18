@@ -697,9 +697,12 @@ class SupportAgentOrchestrator:
             source = detail.get('sourceTicketSideTypeId')
             target = detail.get('targetTicketSideTypeId')
 
-            # Skip AI Agent's own messages to avoid circular context
-            if comment and comment.strip().startswith('AI Agent proposes'):
-                continue
+            # Skip AI Agent's own messages to avoid circular context (old prompts)
+            if comment:
+                comment_lower = comment.strip().lower()
+                # Check if this is an old AI-generated internal message
+                if 'ai agent proposes' in comment_lower or 'ai agent suggests' in comment_lower or comment_lower.startswith('ai agent'):
+                    continue
 
             if not comment:
                 continue
