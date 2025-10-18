@@ -120,6 +120,7 @@ class Supplier(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), unique=True, nullable=False, index=True)
     default_email = Column(String(255), nullable=False)
+    language_code = Column(String(10), default='de-DE')  # Supplier's preferred language
 
     # Additional contact fields (flexible schema using JSON)
     # Example: {"returns": "returns@supplier.com", "tracking": "tracking@supplier.com"}

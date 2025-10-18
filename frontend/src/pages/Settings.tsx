@@ -45,10 +45,20 @@ interface IgnoreEmailPattern {
   created_at: string;
 }
 
+interface Supplier {
+  id: number;
+  name: string;
+  default_email: string;
+  language_code: string;
+  contact_fields: Record<string, string>;
+  created_at: string;
+}
+
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters'>('filters');
+  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters' | 'suppliers'>('filters');
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -84,6 +94,16 @@ const Settings: React.FC = () => {
     full_name: ''
   });
 
+  // Supplier form state
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [supplierForm, setSupplierForm] = useState({
+    name: '',
+    default_email: '',
+    language_code: 'de-DE',
+    email_list: '' // Comma-separated list
+  });
+
   // Prompt improvement state
   const [feedbackCount, setFeedbackCount] = useState<number>(0);
   const [analyzing, setAnalyzing] = useState(false);
@@ -98,6 +118,7 @@ const Settings: React.FC = () => {
   useEffect(() => {
     loadSettings();
     loadUsers();
+    loadSuppliers();
     loadFeedbackCount();
     loadSkipBlocks();
     loadIgnorePatterns();
@@ -136,6 +157,15 @@ const Settings: React.FC = () => {
       setUsers(response.data);
     } catch (error) {
       console.error('Failed to load users:', error);
+    }
+  };
+
+  const loadSuppliers = async () => {
+    try {
+      const response = await client.get('/api/suppliers');
+      setSuppliers(response.data);
+    } catch (error) {
+      console.error('Failed to load suppliers:', error);
     }
   };
 
@@ -229,6 +259,89 @@ const Settings: React.FC = () => {
       password: '',
       role: user.role,
       full_name: ''
+    });
+  };
+
+  // Supplier management functions
+  const handleCreateSupplier = async () => {
+    if (!supplierForm.name || !supplierForm.default_email) {
+      showMessage('error', 'Please fill in all required fields');
+      return;
+    }
+
+    try {
+      // Convert email list to contact_fields JSON
+      const emailList = supplierForm.email_list.split(',').map(e => e.trim()).filter(e => e);
+      const contactFields: Record<string, string> = {};
+      emailList.forEach((email, idx) => {
+        contactFields[`email_${idx + 1}`] = email;
+      });
+
+      const formData = new URLSearchParams();
+      formData.append('name', supplierForm.name);
+      formData.append('default_email', supplierForm.default_email);
+      formData.append('language_code', supplierForm.language_code);
+      formData.append('contact_fields', JSON.stringify(contactFields));
+
+      await client.post('/api/suppliers', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      showMessage('success', `Supplier ${supplierForm.name} created successfully`);
+      setShowSupplierForm(false);
+      setSupplierForm({ name: '', default_email: '', language_code: 'de-DE', email_list: '' });
+      loadSuppliers();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to create supplier');
+    }
+  };
+
+  const handleUpdateSupplier = async (supplierId: number) => {
+    try {
+      // Convert email list to contact_fields JSON
+      const emailList = supplierForm.email_list.split(',').map(e => e.trim()).filter(e => e);
+      const contactFields: Record<string, string> = {};
+      emailList.forEach((email, idx) => {
+        contactFields[`email_${idx + 1}`] = email;
+      });
+
+      const formData = new URLSearchParams();
+      formData.append('default_email', supplierForm.default_email);
+      formData.append('language_code', supplierForm.language_code);
+      formData.append('contact_fields', JSON.stringify(contactFields));
+
+      await client.patch(`/api/suppliers/${supplierId}`, formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      showMessage('success', 'Supplier updated successfully');
+      setEditingSupplier(null);
+      setSupplierForm({ name: '', default_email: '', language_code: 'de-DE', email_list: '' });
+      loadSuppliers();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to update supplier');
+    }
+  };
+
+  const handleDeleteSupplier = async (supplierId: number, supplierName: string) => {
+    if (!confirm(`Are you sure you want to delete supplier "${supplierName}"?`)) return;
+
+    try {
+      await client.delete(`/api/suppliers/${supplierId}`);
+      showMessage('success', `Supplier ${supplierName} deleted successfully`);
+      loadSuppliers();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to delete supplier');
+    }
+  };
+
+  const startEditSupplier = (supplier: Supplier) => {
+    setEditingSupplier(supplier);
+    // Convert contact_fields back to comma-separated list
+    const emailList = Object.values(supplier.contact_fields || {}).join(', ');
+    setSupplierForm({
+      name: supplier.name,
+      default_email: supplier.default_email,
+      language_code: supplier.language_code,
+      email_list: emailList
     });
   };
 
@@ -595,6 +708,17 @@ const Settings: React.FC = () => {
           >
             <Sparkles className="inline-block h-5 w-5 mr-2" />
             Prompt Improvement
+          </button>
+          <button
+            onClick={() => setActiveTab('suppliers')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'suppliers'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Users className="inline-block h-5 w-5 mr-2" />
+            Suppliers
           </button>
         </nav>
       </div>
@@ -1530,6 +1654,198 @@ const Settings: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suppliers Tab */}
+      {activeTab === 'suppliers' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Suppliers</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Manage supplier language codes and email addresses for communication
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSupplierForm(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Supplier
+            </button>
+          </div>
+
+          {/* Create Supplier Form */}
+          {showSupplierForm && (
+            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium text-gray-900">Create New Supplier</h3>
+                <button onClick={() => setShowSupplierForm(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="Supplier Name *"
+                  value={supplierForm.name}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+                <input
+                  type="email"
+                  placeholder="Default Email *"
+                  value={supplierForm.default_email}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, default_email: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+                <select
+                  value={supplierForm.language_code}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, language_code: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                >
+                  <option value="de-DE">German (de-DE)</option>
+                  <option value="en-US">English (en-US)</option>
+                  <option value="en-GB">English UK (en-GB)</option>
+                  <option value="fr-FR">French (fr-FR)</option>
+                  <option value="es-ES">Spanish (es-ES)</option>
+                  <option value="it-IT">Italian (it-IT)</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Additional Emails (comma-separated)"
+                  value={supplierForm.email_list}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, email_list: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleCreateSupplier}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Create Supplier
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Suppliers Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Supplier Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Default Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Language
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Additional Emails
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                      No suppliers configured. Add suppliers to manage their language preferences and email addresses.
+                    </td>
+                  </tr>
+                ) : (
+                  suppliers.map((supplier) => (
+                    <tr key={supplier.id}>
+                      {editingSupplier?.id === supplier.id ? (
+                        <>
+                          <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="email"
+                              value={supplierForm.default_email}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, default_email: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900 w-full"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={supplierForm.language_code}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, language_code: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                            >
+                              <option value="de-DE">German</option>
+                              <option value="en-US">English (US)</option>
+                              <option value="en-GB">English (UK)</option>
+                              <option value="fr-FR">French</option>
+                              <option value="es-ES">Spanish</option>
+                              <option value="it-IT">Italian</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="text"
+                              value={supplierForm.email_list}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, email_list: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900 w-full"
+                              placeholder="email1@example.com, email2@example.com"
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button
+                              onClick={() => handleUpdateSupplier(supplier.id)}
+                              className="text-green-600 hover:text-green-900"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingSupplier(null)}
+                              className="text-gray-600 hover:text-gray-900"
+                            >
+                              Cancel
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500">{supplier.default_email}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {supplier.language_code}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {Object.values(supplier.contact_fields || {}).join(', ') || '-'}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button
+                              onClick={() => startEditSupplier(supplier)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              <Edit2 className="h-4 w-4 inline" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSupplier(supplier.id, supplier.name)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="h-4 w-4 inline" />
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

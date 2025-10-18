@@ -815,15 +815,35 @@ async def refresh_ticket(
         sales_order = ticket_api_data.get("salesOrder", {})
         if sales_order:
             # Use 'reference' field for Amazon order number (e.g., 303-5532872-4861939)
-            ticket.order_number = sales_order.get("reference") or ticket.order_number
+            # Always overwrite if reference exists
+            if sales_order.get("reference"):
+                ticket.order_number = sales_order.get("reference")
             ticket.customer_email = sales_order.get("customerEmail") or ticket.customer_email
 
-            # Extract customer address
-            ticket.customer_address = sales_order.get("customerAddress") or ticket.customer_address
-            ticket.customer_city = sales_order.get("customerCity") or ticket.customer_city
-            ticket.customer_postal_code = sales_order.get("customerPostalCode") or ticket.customer_postal_code
-            ticket.customer_country = sales_order.get("customerCountry") or ticket.customer_country
-            ticket.customer_phone = sales_order.get("customerPhone") or ticket.customer_phone
+            # Extract delivery customer information
+            delivery_name_parts = []
+            if sales_order.get("deliveryCustomerName"):
+                delivery_name_parts.append(sales_order.get("deliveryCustomerName"))
+            if sales_order.get("deliveryCustomerName2"):
+                delivery_name_parts.append(sales_order.get("deliveryCustomerName2"))
+            if sales_order.get("deliveryCustomerName3"):
+                delivery_name_parts.append(sales_order.get("deliveryCustomerName3"))
+            if delivery_name_parts:
+                ticket.customer_name = " ".join(delivery_name_parts)
+
+            # Extract delivery address
+            address_parts = []
+            if sales_order.get("deliveryCustomerStreet"):
+                address_parts.append(sales_order.get("deliveryCustomerStreet"))
+            if sales_order.get("deliveryCustomerStreet2"):
+                address_parts.append(sales_order.get("deliveryCustomerStreet2"))
+            if address_parts:
+                ticket.customer_address = ", ".join(address_parts)
+
+            ticket.customer_city = sales_order.get("deliveryCustomerCity") or ticket.customer_city
+            ticket.customer_postal_code = sales_order.get("deliveryCustomerZipCode") or ticket.customer_postal_code
+            ticket.customer_country = sales_order.get("deliveryCustomerCountryName") or ticket.customer_country
+            ticket.customer_phone = sales_order.get("deliveryCustomerPhoneNumber") or ticket.customer_phone
 
             # Extract tracking information
             ticket.tracking_number = sales_order.get("trackingNumber") or ticket.tracking_number
@@ -854,7 +874,7 @@ async def refresh_ticket(
             purchase_orders = sales_order.get("purchaseOrders", [])
             if purchase_orders and len(purchase_orders) > 0:
                 po_data = purchase_orders[0]
-                ticket.purchase_order_number = po_data.get("purchaseOrderNumber")
+                ticket.purchase_order_number = po_data.get("purchaseOrderNumber") or po_data.get("orderNumber")
                 ticket.supplier_name = po_data.get("supplierName") or ticket.supplier_name
                 ticket.supplier_email = po_data.get("supplierEmail") or ticket.supplier_email
                 ticket.supplier_phone = po_data.get("supplierPhone") or ticket.supplier_phone
@@ -1628,6 +1648,153 @@ async def delete_user(
     return {
         "success": True,
         "message": f"User {username} deleted successfully"
+    }
+
+
+# Supplier Management Endpoints
+
+@app.get("/api/suppliers")
+async def get_suppliers(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all suppliers"""
+    from src.database.models import Supplier
+
+    suppliers = db.query(Supplier).order_by(Supplier.name).all()
+
+    return [{
+        "id": s.id,
+        "name": s.name,
+        "default_email": s.default_email,
+        "language_code": s.language_code,
+        "contact_fields": s.contact_fields or {},
+        "created_at": s.created_at.isoformat() if s.created_at else None
+    } for s in suppliers]
+
+
+@app.post("/api/suppliers")
+async def create_supplier(
+    name: str = Form(...),
+    default_email: str = Form(...),
+    language_code: str = Form("de-DE"),
+    contact_fields: str = Form("{}"),  # JSON string
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new supplier (requires operator or admin role)"""
+    if current_user.role not in ['operator', 'admin']:
+        raise HTTPException(status_code=403, detail="Operator or admin access required")
+
+    from src.database.models import Supplier
+    import json
+
+    # Check if supplier already exists
+    existing = db.query(Supplier).filter(Supplier.name == name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Supplier with this name already exists")
+
+    # Parse contact_fields JSON
+    try:
+        contact_fields_dict = json.loads(contact_fields)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON for contact_fields")
+
+    supplier = Supplier(
+        name=name,
+        default_email=default_email,
+        language_code=language_code,
+        contact_fields=contact_fields_dict
+    )
+
+    db.add(supplier)
+    db.commit()
+    db.refresh(supplier)
+
+    logger.info("Supplier created", supplier_name=name, by=current_user.username)
+
+    return {
+        "success": True,
+        "message": f"Supplier {name} created successfully",
+        "supplier": {
+            "id": supplier.id,
+            "name": supplier.name,
+            "default_email": supplier.default_email,
+            "language_code": supplier.language_code,
+            "contact_fields": supplier.contact_fields or {}
+        }
+    }
+
+
+@app.patch("/api/suppliers/{supplier_id}")
+async def update_supplier(
+    supplier_id: int,
+    default_email: str = Form(None),
+    language_code: str = Form(None),
+    contact_fields: str = Form(None),  # JSON string
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update supplier information (requires operator or admin role)"""
+    if current_user.role not in ['operator', 'admin']:
+        raise HTTPException(status_code=403, detail="Operator or admin access required")
+
+    from src.database.models import Supplier
+    import json
+
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    # Update fields if provided
+    if default_email is not None:
+        supplier.default_email = default_email
+
+    if language_code is not None:
+        supplier.language_code = language_code
+
+    if contact_fields is not None:
+        try:
+            contact_fields_dict = json.loads(contact_fields)
+            supplier.contact_fields = contact_fields_dict
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON for contact_fields")
+
+    db.commit()
+
+    logger.info("Supplier updated", supplier_id=supplier_id, supplier_name=supplier.name, by=current_user.username)
+
+    return {
+        "success": True,
+        "message": f"Supplier {supplier.name} updated successfully"
+    }
+
+
+@app.delete("/api/suppliers/{supplier_id}")
+async def delete_supplier(
+    supplier_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a supplier (requires admin role)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from src.database.models import Supplier
+
+    supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    supplier_name = supplier.name
+    db.delete(supplier)
+    db.commit()
+
+    logger.info("Supplier deleted", supplier_id=supplier_id, supplier_name=supplier_name, by=current_user.username)
+
+    return {
+        "success": True,
+        "message": f"Supplier {supplier_name} deleted successfully"
     }
 
 
