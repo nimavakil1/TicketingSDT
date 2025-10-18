@@ -62,8 +62,16 @@ def main():
         failed_count = 0
 
         for i, message in enumerate(messages, 1):
-            gmail_id = message.get('id')
-            subject = message.get('subject', '(no subject)')[:50]
+            # Skip None messages
+            if message is None:
+                failed_count += 1
+                logger.warning(f"✗ Skipping None message {i}/{len(messages)}")
+                continue
+
+            gmail_id = message.get('id', 'unknown')
+            subject = message.get('subject', '(no subject)')
+            if subject:
+                subject = subject[:50]
 
             logger.info(
                 f"Processing message {i}/{len(messages)}",
@@ -72,8 +80,8 @@ def main():
             )
 
             try:
-                # Process the email
-                success = orchestrator.process_email(message)
+                # Process the email using the internal method
+                success = orchestrator._process_single_email(message)
                 if success:
                     processed_count += 1
                     logger.info(f"✓ Successfully processed message {i}/{len(messages)}")
@@ -84,7 +92,8 @@ def main():
                 failed_count += 1
                 logger.error(
                     f"✗ Error processing message {i}/{len(messages)}",
-                    error=str(e)
+                    error=str(e),
+                    exc_info=True
                 )
 
         # Summary
