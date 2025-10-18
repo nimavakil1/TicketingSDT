@@ -1717,12 +1717,10 @@ const Settings: React.FC = () => {
                   onChange={(e) => setSupplierForm({ ...supplierForm, language_code: e.target.value })}
                   className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
                 >
-                  <option value="de-DE">German (de-DE)</option>
-                  <option value="en-US">English (en-US)</option>
-                  <option value="en-GB">English UK (en-GB)</option>
-                  <option value="fr-FR">French (fr-FR)</option>
-                  <option value="es-ES">Spanish (es-ES)</option>
-                  <option value="it-IT">Italian (it-IT)</option>
+                  <option value="de-DE">🇩🇪 German (DE)</option>
+                  <option value="fr-FR">🇫🇷 French (FR)</option>
+                  <option value="en-US">🇬🇧 English (EN)</option>
+                  <option value="nl-NL">🇳🇱 Dutch (NL)</option>
                 </select>
                 <input
                   type="text"
@@ -1796,12 +1794,10 @@ const Settings: React.FC = () => {
                               onChange={(e) => setSupplierForm({ ...supplierForm, language_code: e.target.value })}
                               className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
                             >
-                              <option value="de-DE">German</option>
-                              <option value="en-US">English (US)</option>
-                              <option value="en-GB">English (UK)</option>
-                              <option value="fr-FR">French</option>
-                              <option value="es-ES">Spanish</option>
-                              <option value="it-IT">Italian</option>
+                              <option value="de-DE">🇩🇪 DE</option>
+                              <option value="fr-FR">🇫🇷 FR</option>
+                              <option value="en-US">🇬🇧 EN</option>
+                              <option value="nl-NL">🇳🇱 NL</option>
                             </select>
                           </td>
                           <td className="px-6 py-4">

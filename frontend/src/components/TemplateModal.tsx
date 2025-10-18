@@ -209,9 +209,9 @@ const TemplateModal: React.FC<TemplateModalProps> = ({ template, isCreating, onC
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
                 >
                   <option value="de">🇩🇪 German</option>
-                  <option value="en">🇬🇧 English</option>
                   <option value="fr">🇫🇷 French</option>
-                  <option value="es">🇪🇸 Spanish</option>
+                  <option value="en">🇬🇧 English</option>
+                  <option value="nl">🇳🇱 Dutch</option>
                 </select>
               </div>
             </div>

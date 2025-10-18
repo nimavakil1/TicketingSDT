@@ -81,12 +81,12 @@ const Templates: React.FC = () => {
     switch (lang.toLowerCase()) {
       case 'de':
         return '🇩🇪';
-      case 'en':
-        return '🇬🇧';
       case 'fr':
         return '🇫🇷';
-      case 'es':
-        return '🇪🇸';
+      case 'en':
+        return '🇬🇧';
+      case 'nl':
+        return '🇳🇱';
       default:
         return '🌐';
     }
@@ -148,9 +148,9 @@ const Templates: React.FC = () => {
               >
                 <option value="all">All Languages</option>
                 <option value="de">🇩🇪 German</option>
-                <option value="en">🇬🇧 English</option>
                 <option value="fr">🇫🇷 French</option>
-                <option value="es">🇪🇸 Spanish</option>
+                <option value="en">🇬🇧 English</option>
+                <option value="nl">🇳🇱 Dutch</option>
               </select>
             </div>
           </div>
