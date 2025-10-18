@@ -39,6 +39,16 @@ export interface MessageCount {
   high_priority: number;
 }
 
+export interface PendingMessageCreate {
+  ticket_id: number;
+  message_type: 'customer' | 'supplier' | 'internal';
+  recipient_email: string;
+  subject: string;
+  body: string;
+  cc_emails?: string[];
+  attachments?: string[];
+}
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   return {
@@ -106,6 +116,18 @@ export const messagesApi = {
   getMessageCount: async (): Promise<MessageCount> => {
     const response = await axios.get(
       `${API_URL}/api/messages/pending/count`,
+      getAuthHeaders()
+    );
+    return response.data;
+  },
+
+  /**
+   * Create a new pending message
+   */
+  createPendingMessage: async (message: PendingMessageCreate): Promise<PendingMessage> => {
+    const response = await axios.post(
+      `${API_URL}/api/messages/pending`,
+      message,
       getAuthHeaders()
     );
     return response.data;

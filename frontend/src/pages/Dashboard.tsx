@@ -178,12 +178,12 @@ const Dashboard: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <a
-            href="/messages"
+            href="/tickets"
             className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
           >
             <Send className="h-5 w-5 text-indigo-500" />
             <div>
-              <p className="font-medium text-gray-900">Pending Messages</p>
+              <p className="font-medium text-gray-900">Tickets with Pending Messages</p>
               <p className="text-sm text-gray-600">
                 {messageCount?.total_pending || 0} messages to review
               </p>

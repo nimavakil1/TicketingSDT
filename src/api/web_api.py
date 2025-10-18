@@ -145,6 +145,16 @@ class PendingMessageUpdate(BaseModel):
     attachments: Optional[List[str]] = None
 
 
+class PendingMessageCreate(BaseModel):
+    ticket_id: int
+    message_type: str  # 'customer', 'supplier', 'internal'
+    recipient_email: str
+    subject: str
+    body: str
+    cc_emails: Optional[List[str]] = None
+    attachments: Optional[List[str]] = None
+
+
 class MessageApproval(BaseModel):
     action: str  # 'approve' or 'reject'
     rejection_reason: Optional[str] = None
@@ -1814,6 +1824,54 @@ async def get_pending_messages(
         )
         for msg in messages
     ]
+
+
+@app.post("/api/messages/pending", response_model=PendingMessageInfo)
+async def create_pending_message(
+    message_data: PendingMessageCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new pending message for a ticket"""
+    # Verify ticket exists
+    ticket = db.query(TicketState).filter(TicketState.id == message_data.ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Create pending message
+    pending_message = PendingMessage(
+        ticket_id=message_data.ticket_id,
+        message_type=message_data.message_type,
+        recipient_email=message_data.recipient_email,
+        cc_emails=message_data.cc_emails or [],
+        subject=message_data.subject,
+        body=message_data.body,
+        attachments=message_data.attachments or [],
+        status='pending',
+        retry_count=0
+    )
+
+    db.add(pending_message)
+    db.commit()
+    db.refresh(pending_message)
+
+    return PendingMessageInfo(
+        id=pending_message.id,
+        ticket_number=ticket.ticket_number,
+        message_type=pending_message.message_type,
+        recipient_email=pending_message.recipient_email,
+        cc_emails=pending_message.cc_emails or [],
+        subject=pending_message.subject,
+        body=pending_message.body,
+        attachments=pending_message.attachments or [],
+        confidence_score=pending_message.confidence_score,
+        status=pending_message.status,
+        retry_count=pending_message.retry_count,
+        last_error=pending_message.last_error,
+        created_at=ensure_utc(pending_message.created_at),
+        reviewed_at=ensure_utc(pending_message.reviewed_at),
+        sent_at=ensure_utc(pending_message.sent_at)
+    )
 
 
 @app.get("/api/messages/pending/count")

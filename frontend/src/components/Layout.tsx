@@ -9,7 +9,6 @@ import {
   Settings,
   LogOut,
   Bot,
-  ScrollText,
   MessageSquare,
   FileText,
 } from 'lucide-react';
@@ -31,7 +30,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/emails', icon: Mail, label: 'Email Queue' },
     { to: '/tickets', icon: Ticket, label: 'Tickets' },
-    { to: '/messages', icon: ScrollText, label: 'Messages' },
     { to: '/templates', icon: FileText, label: 'Templates' },
     { to: '/ai-decisions', icon: Brain, label: 'AI Decisions' },
     { to: '/feedback', icon: MessageSquare, label: 'Feedback' },
