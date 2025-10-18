@@ -8,25 +8,45 @@ import sys
 from pathlib import Path
 
 def run_migration(db_path: str):
-    """Add language_code column to suppliers table"""
+    """Create suppliers table and add language_code column"""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
-        # Check if column already exists
-        cursor.execute("PRAGMA table_info(suppliers)")
-        columns = [row[1] for row in cursor.fetchall()]
+        # Check if suppliers table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='suppliers'")
+        table_exists = cursor.fetchone()
 
-        if 'language_code' not in columns:
-            print("Adding language_code column to suppliers table...")
+        if not table_exists:
+            print("Creating suppliers table...")
             cursor.execute("""
-                ALTER TABLE suppliers
-                ADD COLUMN language_code VARCHAR(10) DEFAULT 'de-DE'
+                CREATE TABLE suppliers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(255) UNIQUE NOT NULL,
+                    default_email VARCHAR(255) NOT NULL,
+                    language_code VARCHAR(10) DEFAULT 'de-DE',
+                    contact_fields JSON,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """)
             conn.commit()
-            print("✓ Added language_code column")
+            print("✓ Created suppliers table with language_code column")
         else:
-            print("✓ language_code column already exists")
+            # Check if language_code column exists
+            cursor.execute("PRAGMA table_info(suppliers)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'language_code' not in columns:
+                print("Adding language_code column to suppliers table...")
+                cursor.execute("""
+                    ALTER TABLE suppliers
+                    ADD COLUMN language_code VARCHAR(10) DEFAULT 'de-DE'
+                """)
+                conn.commit()
+                print("✓ Added language_code column")
+            else:
+                print("✓ language_code column already exists")
 
     except Exception as e:
         print(f"Error running migration: {e}")
