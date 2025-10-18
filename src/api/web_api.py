@@ -19,6 +19,7 @@ from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, Retr
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
+from src.utils.text_filter import TextFilter
 from src.scheduler.message_retry_scheduler import start_scheduler, stop_scheduler
 
 logger = structlog.get_logger(__name__)
@@ -541,6 +542,9 @@ async def get_ticket_detail(
             # The API returns ticketDetails array with message objects
             ticket_details = ticket_data[0].get("ticketDetails", [])
 
+            # Initialize text filter for cleaning message text
+            text_filter = TextFilter(db)
+
             # Transform ticketDetails into a simpler message format
             for detail in ticket_details:
                 source = detail.get("sourceTicketSideTypeId")
@@ -567,10 +571,16 @@ async def get_ticket_detail(
                     message_type = "unknown"
                     is_internal = False
 
+                # Get raw message text
+                raw_message_text = detail.get("comment", "")
+
+                # Apply text filtering to remove skip blocks
+                filtered_message_text = text_filter.filter_email_body(raw_message_text)
+
                 message = {
                     "id": detail.get("id"),
                     "createdAt": detail.get("createdDateTime"),
-                    "messageText": detail.get("comment", ""),
+                    "messageText": filtered_message_text,
                     "messageType": message_type,
                     "isInternal": is_internal,
                     "authorName": None,  # Not available in this API
