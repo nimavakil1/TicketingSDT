@@ -1816,6 +1816,25 @@ async def get_pending_messages(
     ]
 
 
+@app.get("/api/messages/pending/count")
+async def get_pending_message_count(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get count of pending messages for dashboard"""
+    count = db.query(PendingMessage).filter(PendingMessage.status == 'pending').count()
+    low_confidence_count = db.query(PendingMessage).filter(
+        PendingMessage.status == 'pending',
+        PendingMessage.confidence_score < 0.8
+    ).count()
+
+    return {
+        "total_pending": count,
+        "low_confidence": low_confidence_count,
+        "high_priority": low_confidence_count
+    }
+
+
 @app.get("/api/messages/pending/{message_id}", response_model=PendingMessageInfo)
 async def get_pending_message(
     message_id: int,
@@ -1917,25 +1936,6 @@ async def retry_pending_message(
         return {"message": "Message queued for retry"}
     else:
         raise HTTPException(status_code=400, detail="Cannot retry message")
-
-
-@app.get("/api/messages/pending/count")
-async def get_pending_message_count(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get count of pending messages for dashboard"""
-    count = db.query(PendingMessage).filter(PendingMessage.status == 'pending').count()
-    low_confidence_count = db.query(PendingMessage).filter(
-        PendingMessage.status == 'pending',
-        PendingMessage.confidence_score < 0.8
-    ).count()
-
-    return {
-        "total_pending": count,
-        "low_confidence": low_confidence_count,
-        "high_priority": low_confidence_count
-    }
 
 
 @app.get("/api/messages/scheduler/status")
