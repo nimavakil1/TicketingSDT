@@ -596,10 +596,48 @@ class SupportAgentOrchestrator:
         purchase_orders = sales_order.get('purchaseOrders', [])
         po_number = None
         supplier_name = ''
+        supplier_email = ''
+        supplier_phone = ''
 
         if purchase_orders and len(purchase_orders) > 0:
-            po_number = purchase_orders[0].get('purchaseOrderNumber')
-            supplier_name = purchase_orders[0].get('supplierName', '')
+            po_data = purchase_orders[0]
+            po_number = po_data.get('purchaseOrderNumber')
+            supplier_name = po_data.get('supplierName', '')
+            supplier_email = po_data.get('supplierEmail', '')
+            supplier_phone = po_data.get('supplierPhone', '')
+
+        # Extract customer address
+        customer_address = sales_order.get('customerAddress', '')
+        customer_city = sales_order.get('customerCity', '')
+        customer_postal_code = sales_order.get('customerPostalCode', '')
+        customer_country = sales_order.get('customerCountry', '')
+        customer_phone = sales_order.get('customerPhone', '')
+
+        # Extract tracking information
+        tracking_number = sales_order.get('trackingNumber', '')
+        carrier_name = sales_order.get('carrierName', '')
+        delivery_status = sales_order.get('deliveryStatus', '')
+        expected_delivery_date = sales_order.get('expectedDeliveryDate', '')
+
+        # Extract product details
+        import json
+        product_details = None
+        sales_order_items = sales_order.get('salesOrderItems', [])
+        if sales_order_items:
+            products = []
+            for item in sales_order_items:
+                products.append({
+                    'sku': item.get('sku', ''),
+                    'title': item.get('productTitle', ''),
+                    'quantity': item.get('quantity', 1),
+                    'price': item.get('unitPrice', 0)
+                })
+            product_details = json.dumps(products)
+
+        # Extract order financial details
+        order_total = sales_order.get('totalAmount', 0)
+        order_currency = sales_order.get('currency', 'EUR')
+        order_date = sales_order.get('orderDate', '')
 
         ticket_state = TicketState(
             ticket_number=ticket_data.get('ticketNumber'),
@@ -614,7 +652,22 @@ class SupportAgentOrchestrator:
             customer_name=ticket_data.get('contactName'),
             customer_email=sales_order.get('customerEmail', ''),
             customer_language=ticket_data.get('customerLanguageCultureName', 'en-US'),
+            customer_address=customer_address,
+            customer_city=customer_city,
+            customer_postal_code=customer_postal_code,
+            customer_country=customer_country,
+            customer_phone=customer_phone,
             supplier_name=supplier_name,
+            supplier_email=supplier_email,
+            supplier_phone=supplier_phone,
+            tracking_number=tracking_number,
+            carrier_name=carrier_name,
+            delivery_status=delivery_status,
+            expected_delivery_date=expected_delivery_date,
+            product_details=product_details,
+            order_total=order_total,
+            order_currency=order_currency,
+            order_date=order_date,
             ticket_type_id=ticket_data.get('ticketTypeId', 0),
             ticket_status_id=ticket_data.get('ticketStatusId', 1),
             owner_id=ticket_data.get('ownerId') or settings.default_owner_id,

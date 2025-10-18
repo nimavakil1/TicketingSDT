@@ -51,10 +51,34 @@ class TicketState(Base):
     customer_name = Column(String(255))
     customer_email = Column(String(255))
     customer_language = Column(String(10))  # e.g., 'de-DE', 'en-US'
+
+    # Customer address details
+    customer_address = Column(Text)
+    customer_city = Column(String(100))
+    customer_postal_code = Column(String(20))
+    customer_country = Column(String(50))
+    customer_phone = Column(String(50))
+
     supplier_name = Column(String(255))
     supplier_email = Column(String(255))  # Supplier contact email
     supplier_ticket_references = Column(Text)  # Comma-separated list of supplier's ticket numbers
+    supplier_phone = Column(String(50))
+    supplier_contact_person = Column(String(255))
     purchase_order_number = Column(String(50), index=True)  # PO number for supplier communication
+
+    # Delivery/Tracking information
+    tracking_number = Column(String(100))
+    carrier_name = Column(String(100))
+    delivery_status = Column(String(50))
+    expected_delivery_date = Column(String(50))
+
+    # Product information (JSON for multiple items)
+    product_details = Column(Text)  # JSON: [{sku, title, quantity, price}]
+
+    # Order financial details
+    order_total = Column(Float)
+    order_currency = Column(String(10))
+    order_date = Column(String(50))
 
     # Ticket classification
     ticket_type_id = Column(Integer)  # 1=Return, 2=Tracking, etc.
