@@ -351,7 +351,7 @@ class PendingMessage(Base):
     body = Column(Text, nullable=False)
     attachments = Column(JSON, default=[])  # List of attachment file paths
     confidence_score = Column(Float)  # AI confidence score (0-1)
-    ai_decision_id = Column(Integer, ForeignKey('ai_decision_log.id'))
+    ai_decision_id = Column(Integer, ForeignKey('ai_decision_logs.id'))
     status = Column(String(20), default='pending', nullable=False)  # 'pending', 'approved', 'rejected', 'sent', 'failed'
     retry_count = Column(Integer, default=0)  # Number of send attempts
     last_error = Column(Text)  # Last error message if failed

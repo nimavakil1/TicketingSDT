@@ -111,7 +111,7 @@ def migrate_database(db_path: str):
                 reviewed_by INTEGER,
                 sent_at TIMESTAMP,
                 FOREIGN KEY (ticket_id) REFERENCES ticket_states(id),
-                FOREIGN KEY (ai_decision_id) REFERENCES ai_decision_log(id),
+                FOREIGN KEY (ai_decision_id) REFERENCES ai_decision_logs(id),
                 FOREIGN KEY (reviewed_by) REFERENCES users(id)
             )
         """)
