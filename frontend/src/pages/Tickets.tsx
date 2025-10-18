@@ -29,12 +29,20 @@ const DEFAULT_WIDTHS: ColumnWidths = {
 
 const Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEscalated, setShowEscalated] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(DEFAULT_WIDTHS);
   const [resizing, setResizing] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    ticketNumber: '',
+    status: '',
+    amazonOrder: '',
+    transaction: '',
+    poNumber: '',
+  });
   const startXRef = useRef<number>(0);
   const startWidthRef = useRef<number>(0);
   const navigate = useNavigate();
@@ -63,6 +71,7 @@ const Tickets: React.FC = () => {
         escalated_only: showEscalated,
       });
       setTickets(data);
+      setFilteredTickets(data);
       // Estimate total based on whether we got a full page
       setTotalItems(data.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + data.length);
     } catch (error) {
@@ -70,6 +79,50 @@ const Tickets: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Apply filters
+  useEffect(() => {
+    let filtered = tickets;
+
+    if (filters.ticketNumber) {
+      filtered = filtered.filter(ticket =>
+        ticket.ticket_number.toLowerCase().includes(filters.ticketNumber.toLowerCase())
+      );
+    }
+
+    if (filters.status) {
+      filtered = filtered.filter(ticket =>
+        ticket.status.toLowerCase().includes(filters.status.toLowerCase())
+      );
+    }
+
+    if (filters.amazonOrder) {
+      filtered = filtered.filter(ticket =>
+        ticket.order_number?.toLowerCase().includes(filters.amazonOrder.toLowerCase())
+      );
+    }
+
+    if (filters.transaction) {
+      filtered = filtered.filter(ticket =>
+        ticket.ticket_number.toLowerCase().includes(filters.transaction.toLowerCase())
+      );
+    }
+
+    if (filters.poNumber) {
+      filtered = filtered.filter(ticket =>
+        ticket.purchase_order_number?.toLowerCase().includes(filters.poNumber.toLowerCase())
+      );
+    }
+
+    setFilteredTickets(filtered);
+  }, [tickets, filters]);
+
+  const handleFilterChange = (column: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [column]: value,
+    }));
   };
 
   const handleMouseDown = (e: React.MouseEvent, column: keyof ColumnWidths) => {
@@ -141,7 +194,15 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.ticketNumber}px` }}
               >
-                Ticket #
+                <div className="mb-1">Ticket #</div>
+                <input
+                  type="text"
+                  value={filters.ticketNumber}
+                  onChange={(e) => handleFilterChange('ticketNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'ticketNumber')}
@@ -151,7 +212,15 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.status}px` }}
               >
-                Status
+                <div className="mb-1">Status</div>
+                <input
+                  type="text"
+                  value={filters.status}
+                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'status')}
@@ -161,7 +230,15 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.amazonOrder}px` }}
               >
-                Amazon Order Nr
+                <div className="mb-1">Amazon Order Nr</div>
+                <input
+                  type="text"
+                  value={filters.amazonOrder}
+                  onChange={(e) => handleFilterChange('amazonOrder', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'amazonOrder')}
@@ -171,7 +248,15 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.transaction}px` }}
               >
-                Transaction Nr
+                <div className="mb-1">Transaction Nr</div>
+                <input
+                  type="text"
+                  value={filters.transaction}
+                  onChange={(e) => handleFilterChange('transaction', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'transaction')}
@@ -181,7 +266,15 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.poNumber}px` }}
               >
-                PO Number
+                <div className="mb-1">PO Number</div>
+                <input
+                  type="text"
+                  value={filters.poNumber}
+                  onChange={(e) => handleFilterChange('poNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
@@ -191,7 +284,7 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.aiDecisions}px` }}
               >
-                AI Decisions
+                <div className="mb-1">AI Decisions</div>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'aiDecisions')}
@@ -201,7 +294,7 @@ const Tickets: React.FC = () => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.lastUpdated}px` }}
               >
-                Last Updated
+                <div className="mb-1">Last Updated</div>
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'lastUpdated')}
@@ -210,7 +303,7 @@ const Tickets: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {tickets.map((ticket) => (
+            {filteredTickets.map((ticket) => (
               <tr
                 key={ticket.ticket_number}
                 onClick={() => navigate(`/tickets/${ticket.ticket_number}`)}
