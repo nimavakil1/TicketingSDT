@@ -592,6 +592,15 @@ class SupportAgentOrchestrator:
             ticket_number=ticket_data.get('ticketNumber')
         )
 
+        # Extract purchase order data
+        purchase_orders = sales_order.get('purchaseOrders', [])
+        po_number = None
+        supplier_name = ''
+
+        if purchase_orders and len(purchase_orders) > 0:
+            po_number = purchase_orders[0].get('purchaseOrderNumber')
+            supplier_name = purchase_orders[0].get('supplierName', '')
+
         ticket_state = TicketState(
             ticket_number=ticket_data.get('ticketNumber'),
             ticket_id=(
@@ -601,10 +610,11 @@ class SupportAgentOrchestrator:
                 or ticket_data.get('ticketNumber')
             ),
             order_number=order_number,
+            purchase_order_number=po_number,
             customer_name=ticket_data.get('contactName'),
             customer_email=sales_order.get('customerEmail', ''),
             customer_language=ticket_data.get('customerLanguageCultureName', 'en-US'),
-            supplier_name=sales_order.get('purchaseOrders', [{}])[0].get('supplierName', '') if sales_order.get('purchaseOrders') else '',
+            supplier_name=supplier_name,
             ticket_type_id=ticket_data.get('ticketTypeId', 0),
             ticket_status_id=ticket_data.get('ticketStatusId', 1),
             owner_id=ticket_data.get('ownerId') or settings.default_owner_id,

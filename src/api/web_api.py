@@ -784,18 +784,26 @@ async def refresh_ticket(
 
         ticket_api_data = ticket_data[0]
 
-        # Update ticket fields from API
+        # Update basic ticket fields from API
         ticket.ticket_status_id = ticket_api_data.get("ticketStatusId")
         ticket.owner_id = ticket_api_data.get("ownerId")
         ticket.current_state = ticket_api_data.get("ticketStatusName", "unknown")
-        ticket.customer_email = ticket_api_data.get("customerEmail", ticket.customer_email)
-        ticket.customer_name = ticket_api_data.get("customerName")
-        ticket.order_number = ticket_api_data.get("orderNumber")
+        ticket.customer_name = ticket_api_data.get("contactName")
+        ticket.customer_language = ticket_api_data.get("customerLanguageCultureName", ticket.customer_language)
 
-        # Extract purchase order number from custom fields or other sources
-        custom_fields = ticket_api_data.get("customFields", {})
-        if "purchaseOrderNumber" in custom_fields:
-            ticket.purchase_order_number = custom_fields.get("purchaseOrderNumber")
+        # Extract data from salesOrder
+        sales_order = ticket_api_data.get("salesOrder", {})
+        if sales_order:
+            ticket.order_number = sales_order.get("customerNumber") or ticket.order_number
+            ticket.customer_email = sales_order.get("customerEmail") or ticket.customer_email
+
+            # Extract purchase order data
+            purchase_orders = sales_order.get("purchaseOrders", [])
+            if purchase_orders and len(purchase_orders) > 0:
+                po_data = purchase_orders[0]
+                ticket.purchase_order_number = po_data.get("purchaseOrderNumber")
+                ticket.supplier_name = po_data.get("supplierName") or ticket.supplier_name
+                ticket.supplier_email = po_data.get("supplierEmail") or ticket.supplier_email
 
         db.commit()
         db.refresh(ticket)
