@@ -684,22 +684,80 @@ class SupportAgentOrchestrator:
         return ticket_state
 
     def _build_ticket_history(self, ticket_data: Dict[str, Any]) -> str:
-        """Build a summary of ticket history for AI context"""
-        history_parts = []
+        """Build a summary of ticket history for AI context with clear message labeling"""
+        customer_messages = []
+        supplier_messages = []
+        internal_messages = []
 
         ticket_details = ticket_data.get('ticketDetails', [])
-        for detail in ticket_details[-5:]:  # Last 5 messages
+
+        for detail in ticket_details:
             comment = detail.get('comment', '')
-            sender = detail.get('receiverEmailAddress', 'Internal')
+            created_at = detail.get('createdDateTime', 'Unknown time')
+            source = detail.get('sourceTicketSideTypeId')
+            target = detail.get('targetTicketSideTypeId')
 
             # Skip AI Agent's own messages to avoid circular context
             if comment and comment.strip().startswith('AI Agent proposes'):
                 continue
 
-            if comment:
-                history_parts.append(f"[{sender}]: {comment[:200]}")
+            if not comment:
+                continue
 
-        return "\n".join(history_parts) if history_parts else "No previous history"
+            # Determine message type based on source and target
+            # 1 = System/Operator, 2 = Customer, 3 = Supplier
+            if source == 2 and target == 1:
+                # Customer to us
+                customer_messages.append({
+                    'time': created_at,
+                    'text': comment[:300]  # Limit length
+                })
+            elif source == 1 and target == 2:
+                # Us to customer
+                customer_messages.append({
+                    'time': created_at,
+                    'text': f"[OUR RESPONSE] {comment[:300]}"
+                })
+            elif source == 1 and target == 3:
+                # Us to supplier
+                supplier_messages.append({
+                    'time': created_at,
+                    'text': f"[OUR REQUEST] {comment[:300]}"
+                })
+            elif source == 3 and target == 1:
+                # Supplier to us
+                supplier_messages.append({
+                    'time': created_at,
+                    'text': f"[SUPPLIER RESPONSE] {comment[:300]}"
+                })
+            elif source == 1 and target == 1:
+                # Internal note
+                internal_messages.append({
+                    'time': created_at,
+                    'text': comment[:200]
+                })
+
+        # Build structured history
+        history_parts = []
+
+        if customer_messages:
+            history_parts.append("=== CUSTOMER CONVERSATION THREAD ===")
+            for i, msg in enumerate(customer_messages[-3:], 1):  # Last 3 customer messages
+                history_parts.append(f"{i}. [{msg['time']}] {msg['text']}")
+            history_parts.append("")
+
+        if supplier_messages:
+            history_parts.append("=== SUPPLIER CONVERSATION THREAD ===")
+            for i, msg in enumerate(supplier_messages[-3:], 1):  # Last 3 supplier messages
+                history_parts.append(f"{i}. [{msg['time']}] {msg['text']}")
+            history_parts.append("")
+
+        if internal_messages:
+            history_parts.append("=== INTERNAL NOTES ===")
+            for i, msg in enumerate(internal_messages[-2:], 1):  # Last 2 internal notes
+                history_parts.append(f"{i}. [{msg['time']}] {msg['text']}")
+
+        return "\n".join(history_parts) if history_parts else "No previous conversation history"
 
 
     def _resolve_supplier_language(self, ticket_data: dict) -> str:
@@ -728,6 +786,14 @@ class SupportAgentOrchestrator:
         ticket_state.last_action = analysis.get('intent', 'analyzed')
         ticket_state.last_action_date = datetime.utcnow()
         ticket_state.conversation_summary = analysis.get('summary', '')
+
+        # Update conversation summaries from AI reasoning
+        conversation_updates = analysis.get('conversation_updates', {})
+        if conversation_updates:
+            ticket_state.customer_conversation_summary = conversation_updates.get('customer_summary')
+            ticket_state.supplier_conversation_summary = conversation_updates.get('supplier_summary')
+            ticket_state.pending_customer_promises = conversation_updates.get('customer_promises')
+            ticket_state.pending_supplier_requests = conversation_updates.get('supplier_requests')
 
         session.commit()
 

@@ -92,6 +92,10 @@ class TicketState(Base):
 
     # Conversation summary (for AI context)
     conversation_summary = Column(Text)  # JSON or text summary of conversation
+    customer_conversation_summary = Column(Text)  # Summary of customer-facing conversation
+    supplier_conversation_summary = Column(Text)  # Summary of supplier-facing conversation
+    pending_customer_promises = Column(Text)  # What we promised the customer (e.g., "Will provide tracking within 24h")
+    pending_supplier_requests = Column(Text)  # What we're waiting for from supplier (e.g., "Requested tracking on Oct 15")
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -437,9 +437,36 @@ Previous Conversation History:
 """
 
         prompt += """
-Task: Analyze this email and provide your response in the following JSON format:
+Task: Analyze this email step by step and provide your response.
+
+STEP 1: SITUATION ANALYSIS
+Before deciding on an action, answer these questions:
+
+1. What is the customer's main concern or request?
+2. What have we already communicated to the customer? (Check CUSTOMER CONVERSATION THREAD)
+3. What information have we received from the supplier? (Check SUPPLIER CONVERSATION THREAD)
+4. What are we currently waiting for? (Check pending requests/promises)
+5. Are we about to contradict something we already told the customer?
+6. Are we about to ask the supplier for information they already provided?
+
+STEP 2: DETERMINE NEXT ACTION
+Based on your analysis:
+- What is the logical next step?
+- Do we have enough information to help the customer, or do we need more from the supplier?
+- Should this be escalated to a human?
+
+STEP 3: PROVIDE STRUCTURED RESPONSE
+Now provide your response in the following JSON format:
 
 {
+  "reasoning": {
+    "customer_main_concern": "brief description",
+    "what_we_told_customer": "summary or null if first contact",
+    "what_supplier_told_us": "summary or null if no supplier communication",
+    "pending_items": "what we're waiting for or null",
+    "contradiction_check": "any contradictions detected? true/false",
+    "logical_next_step": "description of next action"
+  },
   "intent": "one of: tracking_inquiry, return_request, price_question, general_info, tech_support, complaint, transport_damage, other",
   "ticket_type_id": integer (1=Return, 2=Tracking, 3=Price, 4=GeneralInfo, 5=TechSupport, 6=SupportEnquiry, 7=TransportDamage, 0=Unknown),
   "confidence": float between 0.0 and 1.0,
@@ -450,18 +477,26 @@ Task: Analyze this email and provide your response in the following JSON format:
     "action": "request_tracking / request_return / notify_issue / null",
     "message": "email to send to supplier in English"
   } or null,
-  "summary": "brief summary of the issue and action taken"
+  "summary": "brief summary of the issue and action taken",
+  "conversation_updates": {
+    "customer_summary": "updated summary of customer conversation state",
+    "supplier_summary": "updated summary of supplier conversation state",
+    "customer_promises": "what we promised the customer (if any)",
+    "supplier_requests": "what we're waiting for from supplier (if any)"
+  }
 }
 
 Guidelines:
 1. Respond in the SAME language as the customer email ({language})
 2. Be polite, professional, and helpful
-3. For tracking inquiries: Request tracking from supplier or provide tracking if available in ticket data
-4. For returns: Provide return instructions and request return authorization from supplier if needed
-5. For complaints or damage: Apologize, gather details, escalate if needed
-6. If uncertain or complex issue: Set requires_escalation to true
-7. Reference order numbers and ticket numbers in responses
-8. Keep customer responses concise but complete
+3. NEVER contradict what we already told the customer
+4. NEVER ask supplier for information they already provided
+5. For tracking inquiries: Request tracking from supplier or provide tracking if available in ticket data
+6. For returns: Provide return instructions and request return authorization from supplier if needed
+7. For complaints or damage: Apologize, gather details, escalate if needed
+8. If uncertain or complex issue: Set requires_escalation to true
+9. Reference order numbers and ticket numbers in responses
+10. Keep customer responses concise but complete
 
 Provide ONLY the JSON response, no additional text.
 """
