@@ -1665,6 +1665,7 @@ async def get_suppliers(
 
     return [{
         "id": s.id,
+        "supplier_number": s.supplier_number,
         "name": s.name,
         "default_email": s.default_email,
         "language_code": s.language_code,
@@ -1675,6 +1676,7 @@ async def get_suppliers(
 
 @app.post("/api/suppliers")
 async def create_supplier(
+    supplier_number: int = Form(...),
     name: str = Form(...),
     default_email: str = Form(...),
     language_code: str = Form("de-DE"),
@@ -1690,9 +1692,9 @@ async def create_supplier(
     import json
 
     # Check if supplier already exists
-    existing = db.query(Supplier).filter(Supplier.name == name).first()
+    existing = db.query(Supplier).filter(Supplier.supplier_number == supplier_number).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Supplier with this name already exists")
+        raise HTTPException(status_code=400, detail="Supplier with this number already exists")
 
     # Parse contact_fields JSON
     try:
@@ -1701,6 +1703,7 @@ async def create_supplier(
         raise HTTPException(status_code=400, detail="Invalid JSON for contact_fields")
 
     supplier = Supplier(
+        supplier_number=supplier_number,
         name=name,
         default_email=default_email,
         language_code=language_code,
@@ -1711,13 +1714,14 @@ async def create_supplier(
     db.commit()
     db.refresh(supplier)
 
-    logger.info("Supplier created", supplier_name=name, by=current_user.username)
+    logger.info("Supplier created", supplier_number=supplier_number, supplier_name=name, by=current_user.username)
 
     return {
         "success": True,
         "message": f"Supplier {name} created successfully",
         "supplier": {
             "id": supplier.id,
+            "supplier_number": supplier.supplier_number,
             "name": supplier.name,
             "default_email": supplier.default_email,
             "language_code": supplier.language_code,

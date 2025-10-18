@@ -47,6 +47,7 @@ interface IgnoreEmailPattern {
 
 interface Supplier {
   id: number;
+  supplier_number: number;
   name: string;
   default_email: string;
   language_code: string;
@@ -98,6 +99,7 @@ const Settings: React.FC = () => {
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [supplierForm, setSupplierForm] = useState({
+    supplier_number: '',
     name: '',
     default_email: '',
     language_code: 'de-DE',
@@ -264,7 +266,7 @@ const Settings: React.FC = () => {
 
   // Supplier management functions
   const handleCreateSupplier = async () => {
-    if (!supplierForm.name || !supplierForm.default_email) {
+    if (!supplierForm.supplier_number || !supplierForm.name || !supplierForm.default_email) {
       showMessage('error', 'Please fill in all required fields');
       return;
     }
@@ -278,6 +280,7 @@ const Settings: React.FC = () => {
       });
 
       const formData = new URLSearchParams();
+      formData.append('supplier_number', supplierForm.supplier_number);
       formData.append('name', supplierForm.name);
       formData.append('default_email', supplierForm.default_email);
       formData.append('language_code', supplierForm.language_code);
@@ -288,7 +291,7 @@ const Settings: React.FC = () => {
       });
       showMessage('success', `Supplier ${supplierForm.name} created successfully`);
       setShowSupplierForm(false);
-      setSupplierForm({ name: '', default_email: '', language_code: 'de-DE', email_list: '' });
+      setSupplierForm({ supplier_number: '', name: '', default_email: '', language_code: 'de-DE', email_list: '' });
       loadSuppliers();
     } catch (error: any) {
       showMessage('error', error.response?.data?.detail || 'Failed to create supplier');
@@ -314,7 +317,7 @@ const Settings: React.FC = () => {
       });
       showMessage('success', 'Supplier updated successfully');
       setEditingSupplier(null);
-      setSupplierForm({ name: '', default_email: '', language_code: 'de-DE', email_list: '' });
+      setSupplierForm({ supplier_number: '', name: '', default_email: '', language_code: 'de-DE', email_list: '' });
       loadSuppliers();
     } catch (error: any) {
       showMessage('error', error.response?.data?.detail || 'Failed to update supplier');
@@ -338,6 +341,7 @@ const Settings: React.FC = () => {
     // Convert contact_fields back to comma-separated list
     const emailList = Object.values(supplier.contact_fields || {}).join(', ');
     setSupplierForm({
+      supplier_number: supplier.supplier_number.toString(),
       name: supplier.name,
       default_email: supplier.default_email,
       language_code: supplier.language_code,
@@ -1688,6 +1692,13 @@ const Settings: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
+                  type="number"
+                  placeholder="Supplier Number *"
+                  value={supplierForm.supplier_number}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, supplier_number: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+                <input
                   type="text"
                   placeholder="Supplier Name *"
                   value={supplierForm.name}
@@ -1738,6 +1749,9 @@ const Settings: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Number
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Supplier Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1757,7 +1771,7 @@ const Settings: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                       No suppliers configured. Add suppliers to manage their language preferences and email addresses.
                     </td>
                   </tr>
@@ -1766,6 +1780,7 @@ const Settings: React.FC = () => {
                     <tr key={supplier.id}>
                       {editingSupplier?.id === supplier.id ? (
                         <>
+                          <td className="px-6 py-4 text-sm text-gray-500">{supplier.supplier_number}</td>
                           <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
                           <td className="px-6 py-4">
                             <input
@@ -1815,6 +1830,7 @@ const Settings: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          <td className="px-6 py-4 text-sm font-medium text-gray-600">{supplier.supplier_number}</td>
                           <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
                           <td className="px-6 py-4 text-sm text-gray-500">{supplier.default_email}</td>
                           <td className="px-6 py-4">
