@@ -16,18 +16,18 @@ def list_tickets():
     session = SessionMaker()
 
     try:
-        tickets = session.query(TicketState).order_by(TicketState.last_updated.desc()).all()
+        tickets = session.query(TicketState).order_by(TicketState.updated_at.desc()).all()
 
         if not tickets:
             print("No tickets found in database")
             return
 
         print(f"\nTotal tickets: {len(tickets)}\n")
-        print(f"{'Ticket Number':<15} {'Order Number':<20} {'Status':<15} {'Last Updated'}")
-        print("-" * 80)
+        print(f"{'Ticket Number':<15} {'Order Number':<20} {'State':<20} {'Last Updated'}")
+        print("-" * 85)
 
         for ticket in tickets:
-            print(f"{ticket.ticket_number:<15} {ticket.order_number or 'N/A':<20} {ticket.status:<15} {ticket.last_updated}")
+            print(f"{ticket.ticket_number:<15} {ticket.order_number or 'N/A':<20} {ticket.current_state or 'N/A':<20} {ticket.updated_at}")
 
         # Print just the ticket numbers for easy copying
         print("\n" + "="*80)
