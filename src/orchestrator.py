@@ -702,16 +702,16 @@ class SupportAgentOrchestrator:
             source = detail.get('sourceTicketSideTypeId')
             target = detail.get('targetTicketSideTypeId')
 
-            # Skip AI Agent's own messages
-            if comment:
-                comment_lower = comment.strip().lower()
-                if 'ai agent proposes' in comment_lower or 'ai agent suggests' in comment_lower or comment_lower.startswith('ai agent'):
-                    continue
-                # Skip AI Agent escalation messages
-                if comment.strip().startswith('🚨 AI Agent'):
-                    continue
-
             if not comment:
+                continue
+
+            # Skip ALL AI Agent messages (case-insensitive)
+            comment_lower = comment.strip().lower()
+            # Check for any AI Agent related message
+            if (comment_lower.startswith('ai agent') or
+                'ai agent proposes' in comment_lower or
+                'ai agent suggests' in comment_lower or
+                comment.strip().startswith('🚨')):  # Escalation emoji
                 continue
 
             # Parse date to simpler format
