@@ -129,8 +129,9 @@ def import_ticket(ticket_number: str):
 
         analysis = ai_engine.analyze_email(
             email_data=entrance_email,
+            ticket_data=ticket_data,
             ticket_history=ticket_history,
-            target_language=supplier_language
+            supplier_language=supplier_language
         )
 
         if analysis:
