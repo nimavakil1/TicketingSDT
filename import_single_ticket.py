@@ -44,6 +44,10 @@ def import_ticket(ticket_number: str):
         SessionMaker = init_database()
         session = SessionMaker()
 
+        # Generate unique ID for this import
+        import uuid
+        unique_id = f"manual_import_{ticket_number}_{uuid.uuid4().hex[:8]}"
+
         # Get ticket from API
         ticketing_client = TicketingAPIClient()
         logger.info("Fetching ticket from API...")
@@ -66,7 +70,7 @@ def import_ticket(ticket_number: str):
             if detail.get('entranceEmailBody'):
                 subject = detail.get('entranceEmailSubject', '') or f"Ticket {ticket_number}"
                 entrance_email = {
-                    'id': 'manual_import',
+                    'id': unique_id,
                     'subject': subject,
                     'body': detail.get('entranceEmailBody', ''),
                     'from': detail.get('entranceEmailSenderAddress', ''),
@@ -79,7 +83,7 @@ def import_ticket(ticket_number: str):
         if not entrance_email:
             logger.warning("No entrance email found, will process without it")
             entrance_email = {
-                'id': 'manual_import',
+                'id': unique_id,
                 'subject': f"Ticket {ticket_number}",
                 'body': "No entrance email found",
                 'from': ticket_data.get('customer', {}).get('emailAdress', ''),
