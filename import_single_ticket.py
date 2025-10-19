@@ -64,14 +64,15 @@ def import_ticket(ticket_number: str):
 
         for detail in ticket_details:
             if detail.get('entranceEmailBody'):
+                subject = detail.get('entranceEmailSubject', '') or f"Ticket {ticket_number}"
                 entrance_email = {
                     'id': 'manual_import',
-                    'subject': detail.get('entranceEmailSubject', ''),
+                    'subject': subject,
                     'body': detail.get('entranceEmailBody', ''),
                     'from': detail.get('entranceEmailSenderAddress', ''),
                     'to': '',
                     'date': detail.get('createdDateTime', ''),
-                    'snippet': detail.get('entranceEmailSubject', '')[:100]
+                    'snippet': subject[:100]
                 }
                 break
 
