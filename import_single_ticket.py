@@ -135,25 +135,36 @@ def import_ticket(ticket_number: str):
         )
 
         if analysis:
-            logger.info("AI analysis complete",
-                       action=analysis.get('action'),
-                       confidence=analysis.get('confidence'))
-
-            # Dispatch actions
-            from src.dispatcher.action_dispatcher import ActionDispatcher
-            dispatcher = ActionDispatcher(ticketing_client)
-            success = dispatcher.dispatch(analysis, ticket_state, session)
+            logger.info("=" * 60)
+            logger.info("AI ANALYSIS RESULT:")
+            logger.info("=" * 60)
+            logger.info(f"Intent: {analysis.get('intent')}")
+            logger.info(f"Confidence: {analysis.get('confidence')}")
+            logger.info(f"Requires Escalation: {analysis.get('requires_escalation')}")
+            if analysis.get('escalation_reason'):
+                logger.info(f"Escalation Reason: {analysis.get('escalation_reason')}")
+            logger.info(f"Summary: {analysis.get('summary')}")
+            logger.info("")
+            logger.info("Customer Response:")
+            logger.info(analysis.get('customer_response', 'None'))
+            logger.info("")
+            if analysis.get('supplier_action'):
+                logger.info("Supplier Action:")
+                logger.info(f"  Action: {analysis['supplier_action'].get('action')}")
+                logger.info(f"  Message: {analysis['supplier_action'].get('message')}")
+            logger.info("=" * 60)
 
             session.commit()
-
-            if success:
-                logger.info("✓ Ticket imported and processed successfully!")
-                return True
-            else:
-                logger.error("✗ Failed to dispatch actions")
-                return False
+            logger.info("✓ Ticket imported and AI analysis complete!")
+            logger.info("")
+            logger.info("NOTE: This is a test import. No actual messages were sent.")
+            logger.info("Review the AI's decision above and adjust the prompt if needed.")
+            return True
         else:
             logger.error("✗ AI analysis returned None")
+            logger.info("")
+            logger.info("This ticket may have already been fully resolved.")
+            logger.info("Check the ticket history in the web interface.")
             return False
 
     except Exception as e:
