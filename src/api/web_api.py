@@ -701,8 +701,8 @@ async def reprocess_ticket(
                 # Look up supplier in database
                 from src.database.models import Supplier
                 supplier = db.query(Supplier).filter(Supplier.name == supplier_name).first()
-                if supplier and supplier.language:
-                    supplier_language = supplier.language
+                if supplier and supplier.language_code:
+                    supplier_language = supplier.language_code
 
         # Re-run AI analysis
         ai_engine = AIEngine()
