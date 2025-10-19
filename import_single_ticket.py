@@ -92,11 +92,13 @@ def import_ticket(ticket_number: str):
             logger.info("✓ Ticket imported and processed successfully!")
             return True
         else:
-            logger.error("✗ Failed to process ticket")
+            logger.error("✗ Failed to process ticket - orchestrator returned False")
             return False
 
     except Exception as e:
         logger.error("Error importing ticket", error=str(e), exc_info=True)
+        import traceback
+        traceback.print_exc()
         return False
     finally:
         session.close()
