@@ -734,11 +734,12 @@ class SupportAgentOrchestrator:
                     'text': f"[SUPPLIER RESPONSE] {comment[:300]}"
                 })
             elif source == 1 and target == 1:
-                # Internal note
-                internal_messages.append({
-                    'time': created_at,
-                    'text': comment[:200]
-                })
+                # Internal note - skip AI Agent escalation messages
+                if not comment.strip().startswith('🚨 AI Agent'):
+                    internal_messages.append({
+                        'time': created_at,
+                        'text': comment[:200]
+                    })
 
         # Build structured history
         history_parts = []
