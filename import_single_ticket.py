@@ -13,7 +13,10 @@ from src.api.ticketing_client import TicketingAPIClient
 from src.orchestrator import SupportAgentOrchestrator
 from src.database.models import init_database
 
-# Configure logging
+# Configure logging with more verbose output
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 structlog.configure(
     processors=[
         structlog.stdlib.add_logger_name,
@@ -22,6 +25,9 @@ structlog.configure(
         structlog.dev.ConsoleRenderer()
     ],
     logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    context_class=dict,
+    cache_logger_on_first_use=True,
 )
 
 logger = structlog.get_logger(__name__)
