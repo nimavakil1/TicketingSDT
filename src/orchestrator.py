@@ -683,85 +683,88 @@ class SupportAgentOrchestrator:
 
         return ticket_state
 
-    def _build_ticket_history(self, ticket_data: Dict[str, Any]) -> str:
-        """Build a summary of ticket history for AI context with clear message labeling"""
+    def _build_ticket_history(self, ticket_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Build structured ticket history for AI context
+        Returns a clean JSON structure instead of text blobs
+        """
+        import json
+
         customer_messages = []
         supplier_messages = []
-        internal_messages = []
+        internal_notes = []
 
         ticket_details = ticket_data.get('ticketDetails', [])
 
         for detail in ticket_details:
             comment = detail.get('comment', '')
-            created_at = detail.get('createdDateTime', 'Unknown time')
+            created_at = detail.get('createdDateTime', '')
             source = detail.get('sourceTicketSideTypeId')
             target = detail.get('targetTicketSideTypeId')
 
-            # Skip AI Agent's own messages to avoid circular context (old prompts)
+            # Skip AI Agent's own messages
             if comment:
                 comment_lower = comment.strip().lower()
-                # Check if this is an old AI-generated internal message
                 if 'ai agent proposes' in comment_lower or 'ai agent suggests' in comment_lower or comment_lower.startswith('ai agent'):
+                    continue
+                # Skip AI Agent escalation messages
+                if comment.strip().startswith('🚨 AI Agent'):
                     continue
 
             if not comment:
                 continue
+
+            # Parse date to simpler format
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                timestamp = dt.strftime('%Y-%m-%d %H:%M')
+            except:
+                timestamp = created_at[:16] if len(created_at) >= 16 else created_at
 
             # Determine message type based on source and target
             # 1 = System/Operator, 2 = Customer, 3 = Supplier
             if source == 2 and target == 1:
                 # Customer to us
                 customer_messages.append({
-                    'time': created_at,
-                    'text': comment[:300]  # Limit length
+                    'timestamp': timestamp,
+                    'direction': 'inbound',
+                    'message': comment[:400]  # Slightly longer for context
                 })
             elif source == 1 and target == 2:
                 # Us to customer
                 customer_messages.append({
-                    'time': created_at,
-                    'text': f"[OUR RESPONSE] {comment[:300]}"
+                    'timestamp': timestamp,
+                    'direction': 'outbound',
+                    'message': comment[:400]
                 })
             elif source == 1 and target == 3:
                 # Us to supplier
                 supplier_messages.append({
-                    'time': created_at,
-                    'text': f"[OUR REQUEST] {comment[:300]}"
+                    'timestamp': timestamp,
+                    'direction': 'outbound',
+                    'message': comment[:400]
                 })
             elif source == 3 and target == 1:
                 # Supplier to us
                 supplier_messages.append({
-                    'time': created_at,
-                    'text': f"[SUPPLIER RESPONSE] {comment[:300]}"
+                    'timestamp': timestamp,
+                    'direction': 'inbound',
+                    'message': comment[:400]
                 })
             elif source == 1 and target == 1:
-                # Internal note - skip AI Agent escalation messages
-                if not comment.strip().startswith('🚨 AI Agent'):
-                    internal_messages.append({
-                        'time': created_at,
-                        'text': comment[:200]
-                    })
+                # Internal note
+                internal_notes.append({
+                    'timestamp': timestamp,
+                    'note': comment[:250]
+                })
 
-        # Build structured history
-        history_parts = []
-
-        if customer_messages:
-            history_parts.append("=== CUSTOMER CONVERSATION THREAD ===")
-            for i, msg in enumerate(customer_messages[-3:], 1):  # Last 3 customer messages
-                history_parts.append(f"{i}. [{msg['time']}] {msg['text']}")
-            history_parts.append("")
-
-        if supplier_messages:
-            history_parts.append("=== SUPPLIER CONVERSATION THREAD ===")
-            for i, msg in enumerate(supplier_messages[-3:], 1):  # Last 3 supplier messages
-                history_parts.append(f"{i}. [{msg['time']}] {msg['text']}")
-            history_parts.append("")
-
-        if internal_messages:
-            history_parts.append("=== INTERNAL NOTES ===")
-            for i, msg in enumerate(internal_messages[-2:], 1):  # Last 2 internal notes
-                history_parts.append(f"{i}. [{msg['time']}] {msg['text']}")
-
-        return "\n".join(history_parts) if history_parts else "No previous conversation history"
+        # Return structured data (keep last N messages for each thread)
+        return {
+            'customer_thread': customer_messages[-4:],  # Last 4 customer exchanges
+            'supplier_thread': supplier_messages[-4:],  # Last 4 supplier exchanges
+            'internal_notes': internal_notes[-3:]  # Last 3 internal notes
+        }
 
 
     def _resolve_supplier_language(self, ticket_data: dict) -> str:

@@ -289,7 +289,7 @@ class AIEngine:
         self,
         email_data: Dict[str, Any],
         ticket_data: Optional[Dict[str, Any]] = None,
-        ticket_history: Optional[str] = None,
+        ticket_history: Optional[Dict[str, Any]] = None,
         supplier_language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -298,7 +298,8 @@ class AIEngine:
         Args:
             email_data: Email details (subject, body, from, etc.)
             ticket_data: Existing ticket data from API (if available)
-            ticket_history: Summary of previous interactions
+            ticket_history: Structured conversation history (dict with customer_thread, supplier_thread, internal_notes)
+            supplier_language: Language code for supplier communication (e.g., 'de-DE')
 
         Returns:
             Dictionary with analysis results:
@@ -401,10 +402,11 @@ class AIEngine:
         from_address: str,
         language: str,
         ticket_data: Optional[Dict[str, Any]],
-        ticket_history: Optional[str],
+        ticket_history: Optional[Dict[str, Any]],
         supplier_language: Optional[str]
     ) -> str:
         """Build the analysis prompt for the AI"""
+        import json
 
         prompt = f"""You are an expert customer support AI assistant for a dropshipping company. Analyze the following customer email and provide a structured response.
 
@@ -430,21 +432,28 @@ Existing Ticket Information:
 - Product: {ticket_data.get('salesOrder', {}).get('salesOrderItems', [{}])[0].get('productTitle', 'N/A') if ticket_data.get('salesOrder', {}).get('salesOrderItems') else 'N/A'}
 """
 
-        if ticket_history:
-            prompt += f"""
-Previous Conversation History:
-{ticket_history}
-"""
+        if ticket_history and (ticket_history.get('customer_thread') or ticket_history.get('supplier_thread') or ticket_history.get('internal_notes')):
+            prompt += "\nPrevious Conversation History (JSON format):\n"
+            prompt += json.dumps(ticket_history, ensure_ascii=False, indent=2)
+            prompt += "\n"
 
         prompt += """
 Task: Analyze this email step by step and provide your response.
+
+UNDERSTANDING THE CONVERSATION HISTORY:
+The "Previous Conversation History" above is in JSON format with three threads:
+- customer_thread: Array of messages between us and the customer. Each has {timestamp, direction (inbound/outbound), message}
+- supplier_thread: Array of messages between us and the supplier. Each has {timestamp, direction (inbound/outbound), message}
+- internal_notes: Array of internal notes. Each has {timestamp, note}
+
+"inbound" means they sent to us. "outbound" means we sent to them.
 
 STEP 1: SITUATION ANALYSIS
 Before deciding on an action, answer these questions:
 
 1. What is the customer's main concern or request?
-2. What have we already communicated to the customer? (Check CUSTOMER CONVERSATION THREAD)
-3. What information have we received from the supplier? (Check SUPPLIER CONVERSATION THREAD)
+2. What have we already communicated to the customer? (Check customer_thread for outbound messages)
+3. What information have we received from the supplier? (Check supplier_thread for inbound messages)
 4. What are we currently waiting for? (Check pending requests/promises)
 5. Are we about to contradict something we already told the customer?
 6. Are we about to ask the supplier for information they already provided?
