@@ -92,18 +92,67 @@ def import_ticket(ticket_number: str):
                 'snippet': ''
             }
 
-        # Initialize orchestrator
-        orchestrator = SupportAgentOrchestrator()
+        # Create or get ticket state directly from ticket_data
+        from src.database.models import TicketState
 
-        # Process the ticket
-        logger.info("Processing ticket with AI...")
-        success = orchestrator._process_single_email(entrance_email)
+        logger.info("Creating/updating ticket state in database...")
+        ticket_state = session.query(TicketState).filter_by(ticket_number=ticket_number).first()
 
-        if success:
-            logger.info("✓ Ticket imported and processed successfully!")
-            return True
+        if not ticket_state:
+            # Initialize orchestrator to use its _create_ticket_state method
+            orchestrator = SupportAgentOrchestrator()
+            order_number = ticket_data.get('amazonOrderNumber')
+            ticket_state = orchestrator._create_ticket_state(session, ticket_data, order_number)
+            session.add(ticket_state)
+            session.commit()
+            logger.info("Created new ticket state", ticket_number=ticket_number)
         else:
-            logger.error("✗ Failed to process ticket - orchestrator returned False")
+            logger.info("Ticket state already exists", ticket_number=ticket_number)
+
+        # Now process with AI - build ticket history and analyze
+        logger.info("Processing ticket with AI...")
+        orchestrator = SupportAgentOrchestrator()
+        ticket_history = orchestrator._build_ticket_history(ticket_data)
+
+        # Get supplier language if available
+        from src.database.models import Supplier
+        supplier_name = ticket_data.get('salesOrder', {}).get('purchaseOrders', [{}])[0].get('supplierName', '')
+        supplier_language = 'de-DE'  # Default
+        if supplier_name:
+            supplier = session.query(Supplier).filter(Supplier.name == supplier_name).first()
+            if supplier and supplier.language_code:
+                supplier_language = supplier.language_code
+
+        # Call AI analysis
+        from src.ai.ai_engine import AIEngine
+        ai_engine = AIEngine()
+
+        analysis = ai_engine.analyze_email(
+            email_data=entrance_email,
+            ticket_history=ticket_history,
+            target_language=supplier_language
+        )
+
+        if analysis:
+            logger.info("AI analysis complete",
+                       action=analysis.get('action'),
+                       confidence=analysis.get('confidence'))
+
+            # Dispatch actions
+            from src.dispatcher.action_dispatcher import ActionDispatcher
+            dispatcher = ActionDispatcher()
+            success = dispatcher.dispatch(analysis, ticket_state, session)
+
+            session.commit()
+
+            if success:
+                logger.info("✓ Ticket imported and processed successfully!")
+                return True
+            else:
+                logger.error("✗ Failed to dispatch actions")
+                return False
+        else:
+            logger.error("✗ AI analysis returned None")
             return False
 
     except Exception as e:
