@@ -141,7 +141,7 @@ def import_ticket(ticket_number: str):
 
             # Dispatch actions
             from src.dispatcher.action_dispatcher import ActionDispatcher
-            dispatcher = ActionDispatcher()
+            dispatcher = ActionDispatcher(ticketing_client)
             success = dispatcher.dispatch(analysis, ticket_state, session)
 
             session.commit()
