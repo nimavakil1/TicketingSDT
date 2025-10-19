@@ -370,6 +370,11 @@ class GmailMonitor:
         Returns:
             True if successful, False otherwise
         """
+        # Skip marking for manual imports
+        if message_id == 'manual_import':
+            logger.debug("Skipping Gmail marking for manual import")
+            return True
+
         try:
             self.service.users().messages().modify(
                 userId='me',
