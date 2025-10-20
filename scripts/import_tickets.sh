@@ -9,7 +9,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv()
+load_dotenv('.env')
 
 # Set up paths
 sys.path.insert(0, os.getcwd())
