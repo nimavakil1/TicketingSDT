@@ -3,10 +3,15 @@
 Migration script to add system_settings table
 """
 import sys
+import os
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+# Change to project directory
+os.chdir(project_root)
 
 from src.database.db import SessionLocal, engine
 from sqlalchemy import text
