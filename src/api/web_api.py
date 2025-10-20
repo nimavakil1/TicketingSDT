@@ -13,6 +13,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 import jwt
 from passlib.context import CryptContext
+from dotenv import load_dotenv
+
+# Load environment variables at startup
+load_dotenv()
 
 from config.settings import settings
 from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, init_database
