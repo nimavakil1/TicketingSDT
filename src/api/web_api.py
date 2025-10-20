@@ -532,76 +532,98 @@ async def get_ticket_detail(
         AIDecisionLog.ticket_id == ticket.id
     ).order_by(AIDecisionLog.timestamp.desc()).all()
 
-    # Fetch ticket messages from ticketing system API
-    from src.api.ticketing_client import TicketingAPIClient
+    # For imported tickets, get messages from database
+    # For live tickets, fetch from ticketing system API
     messages = []
-    try:
-        ticketing_client = TicketingAPIClient()
-        ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
-        if ticket_data and len(ticket_data) > 0:
-            # The API returns ticketDetails array with message objects
-            ticket_details = ticket_data[0].get("ticketDetails", [])
 
-            # Initialize text filter for cleaning message text
-            text_filter = TextFilter(db)
+    if ticket.current_state == 'imported':
+        # Get messages from processed_emails table
+        processed_emails = db.query(ProcessedEmail).filter(
+            ProcessedEmail.ticket_id == ticket.id
+        ).order_by(ProcessedEmail.processed_at.asc()).all()
 
-            # Transform ticketDetails into a simpler message format
-            for detail in ticket_details:
-                # Get raw message text
-                raw_message_text = detail.get("comment", "")
+        for email in processed_emails:
+            message = {
+                "id": email.id,
+                "createdAt": email.processed_at.isoformat() if email.processed_at else None,
+                "messageText": f"From: {email.from_address}\nSubject: {email.subject}\n\n(Message content stored separately)",
+                "messageType": "imported",
+                "isInternal": False,
+                "authorName": None,
+                "authorEmail": email.from_address,
+                "sourceType": "email"
+            }
+            messages.append(message)
+    else:
+        # Fetch ticket messages from ticketing system API
+        from src.api.ticketing_client import TicketingAPIClient
+        try:
+            ticketing_client = TicketingAPIClient()
+            ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
+            if ticket_data and len(ticket_data) > 0:
+                # The API returns ticketDetails array with message objects
+                ticket_details = ticket_data[0].get("ticketDetails", [])
 
-                # Skip ALL AI Agent messages (case-insensitive) - same logic as orchestrator
-                if raw_message_text:
-                    comment_lower = raw_message_text.strip().lower()
-                    if (comment_lower.startswith('ai agent') or
-                        'ai agent proposes' in comment_lower or
-                        'ai agent suggests' in comment_lower or
-                        raw_message_text.strip().startswith('🚨')):
-                        continue
+                # Initialize text filter for cleaning message text
+                text_filter = TextFilter(db)
 
-                source = detail.get("sourceTicketSideTypeId")
-                target = detail.get("targetTicketSideTypeId")
+                # Transform ticketDetails into a simpler message format
+                for detail in ticket_details:
+                    # Get raw message text
+                    raw_message_text = detail.get("comment", "")
 
-                # Determine message type based on source and target
-                # 1 = System/Operator, 2 = Customer, 3 = Supplier
-                if source == 2 and target == 1:
-                    message_type = "customer"
-                    is_internal = False
-                elif source == 1 and target == 2:
-                    message_type = "operator_to_customer"
-                    is_internal = False
-                elif source == 1 and target == 3:
-                    message_type = "operator_to_supplier"
-                    is_internal = False
-                elif source == 3 and target == 1:
-                    message_type = "supplier"
-                    is_internal = False
-                elif source == 1 and target == 1:
-                    message_type = "internal"
-                    is_internal = True
-                else:
-                    message_type = "unknown"
-                    is_internal = False
+                    # Skip ALL AI Agent messages (case-insensitive) - same logic as orchestrator
+                    if raw_message_text:
+                        comment_lower = raw_message_text.strip().lower()
+                        if (comment_lower.startswith('ai agent') or
+                            'ai agent proposes' in comment_lower or
+                            'ai agent suggests' in comment_lower or
+                            raw_message_text.strip().startswith('🚨')):
+                            continue
 
-                # Apply text filtering to remove skip blocks
-                filtered_message_text = text_filter.filter_email_body(raw_message_text)
+                    source = detail.get("sourceTicketSideTypeId")
+                    target = detail.get("targetTicketSideTypeId")
 
-                message = {
-                    "id": detail.get("id"),
-                    "createdAt": detail.get("createdDateTime"),
-                    "messageText": filtered_message_text,
-                    "messageType": message_type,
-                    "isInternal": is_internal,
-                    "authorName": None,  # Not available in this API
-                    "authorEmail": detail.get("receiverEmailAddress") or detail.get("entranceEmailSenderAddress"),
-                    "sourceType": "email" if detail.get("entranceEmailBody") else "note"
-                }
-                messages.append(message)
+                    # Determine message type based on source and target
+                    # 1 = System/Operator, 2 = Customer, 3 = Supplier
+                    if source == 2 and target == 1:
+                        message_type = "customer"
+                        is_internal = False
+                    elif source == 1 and target == 2:
+                        message_type = "operator_to_customer"
+                        is_internal = False
+                    elif source == 1 and target == 3:
+                        message_type = "operator_to_supplier"
+                        is_internal = False
+                    elif source == 3 and target == 1:
+                        message_type = "supplier"
+                        is_internal = False
+                    elif source == 1 and target == 1:
+                        message_type = "internal"
+                        is_internal = True
+                    else:
+                        message_type = "unknown"
+                        is_internal = False
 
-            logger.info("Fetched ticket messages", ticket_number=ticket_number, message_count=len(messages))
-    except Exception as e:
-        logger.warning("Failed to fetch ticket messages from ticketing API", error=str(e), ticket_number=ticket_number)
-        # Continue without messages rather than failing
+                    # Apply text filtering to remove skip blocks
+                    filtered_message_text = text_filter.filter_email_body(raw_message_text)
+
+                    message = {
+                        "id": detail.get("id"),
+                        "createdAt": detail.get("createdDateTime"),
+                        "messageText": filtered_message_text,
+                        "messageType": message_type,
+                        "isInternal": is_internal,
+                        "authorName": None,  # Not available in this API
+                        "authorEmail": detail.get("receiverEmailAddress") or detail.get("entranceEmailSenderAddress"),
+                        "sourceType": "email" if detail.get("entranceEmailBody") else "note"
+                    }
+                    messages.append(message)
+
+                logger.info("Fetched ticket messages", ticket_number=ticket_number, message_count=len(messages))
+        except Exception as e:
+            logger.warning("Failed to fetch ticket messages from ticketing API", error=str(e), ticket_number=ticket_number)
+            # Continue without messages rather than failing
 
     return {
         "ticket_number": ticket.ticket_number,
