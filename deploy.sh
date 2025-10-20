@@ -6,6 +6,13 @@ set -e  # Exit on error
 
 echo "🚀 Starting deployment..."
 
+# Activate virtual environment if it exists
+if [ -d "venv" ]; then
+    source venv/bin/activate
+elif [ -d "$HOME/TicketingSDT/venv" ]; then
+    source "$HOME/TicketingSDT/venv/bin/activate"
+fi
+
 # 1. Build frontend
 echo "📦 Building frontend..."
 cd ~/TicketingSDT/frontend
