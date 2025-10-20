@@ -877,37 +877,45 @@ async def analyze_ticket(
         """), {"ticket_id": ticket.id}).fetchall()
 
         # Build conversation history, excluding ignored messages
-        conversation = []
+        customer_messages = []
         for msg_id, body, from_addr, created_at in result:
             if msg_id not in request.ignored_message_ids:
-                conversation.append({
-                    'from': from_addr or 'unknown',
-                    'body': body or '',
-                    'created_at': created_at
-                })
+                customer_messages.append(body or '')
 
-        if not conversation:
+        if not customer_messages:
             raise HTTPException(status_code=400, detail="No messages to analyze (all messages ignored)")
+
+        # Combine all messages for analysis
+        combined_body = '\n\n---\n\n'.join(customer_messages)
+
+        # Build email data for AI analysis
+        email_data = {
+            'subject': f'Ticket {ticket.ticket_number}',
+            'body': combined_body,
+            'from': ticket.customer_email
+        }
+
+        # Build ticket data
+        ticket_data_dict = {
+            'ticketNumber': ticket.ticket_number,
+            'customerName': ticket.customer_name,
+            'customerEmail': ticket.customer_email,
+            'orderNumber': ticket.order_number,
+            'trackingNumber': ticket.tracking_number,
+            'carrierName': ticket.carrier_name,
+            'supplierName': ticket.supplier_name,
+            'items': ticket.product_details
+        }
 
         # Run AI analysis
         from src.ai.ai_engine import AIEngine
         ai_engine = AIEngine()
 
-        analysis = ai_engine.analyze_ticket(
-            ticket_number=ticket.ticket_number,
-            customer_name=ticket.customer_name,
-            customer_email=ticket.customer_email,
-            customer_language=ticket.customer_language,
-            order_number=ticket.order_number,
-            conversation_history=conversation,
-            ticket_context={
-                'product_details': ticket.product_details,
-                'tracking_number': ticket.tracking_number,
-                'carrier_name': ticket.carrier_name,
-                'order_total': ticket.order_total,
-                'order_currency': ticket.order_currency,
-                'supplier_name': ticket.supplier_name
-            }
+        analysis = ai_engine.analyze_email(
+            email_data=email_data,
+            ticket_data=ticket_data_dict,
+            ticket_history=None,
+            supplier_language=ticket.customer_language
         )
 
         # Log AI decision
