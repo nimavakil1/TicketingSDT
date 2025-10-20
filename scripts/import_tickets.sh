@@ -35,6 +35,10 @@ def import_ticket(ticket_number, session, ticketing_client):
 
         ticket_data = tickets[0]
 
+        # Debug: print ticket data structure
+        print(f"  📋 Ticket data keys: {list(ticket_data.keys())}")
+        print(f"  📋 Sample data: {str(ticket_data)[:500]}")
+
         # Check if exists
         existing = session.query(TicketState).filter_by(ticket_number=ticket_number).first()
         if existing:
