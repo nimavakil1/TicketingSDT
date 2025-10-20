@@ -550,19 +550,20 @@ async def get_ticket_detail(
             email_id, processed_at, subject, from_address, message_body = row
 
             # Determine message type from subject
-            if "from customer" in subject.lower():
+            subject_lower = (subject or "").lower()
+            if "from customer" in subject_lower:
                 message_type = "customer"
                 is_internal = False
-            elif "to customer" in subject.lower():
+            elif "to customer" in subject_lower:
                 message_type = "operator_to_customer"
                 is_internal = False
-            elif "to supplier" in subject.lower():
+            elif "to supplier" in subject_lower:
                 message_type = "operator_to_supplier"
                 is_internal = False
-            elif "from supplier" in subject.lower():
+            elif "from supplier" in subject_lower:
                 message_type = "supplier"
                 is_internal = False
-            elif "internal" in subject.lower():
+            elif "internal" in subject_lower:
                 message_type = "internal"
                 is_internal = True
             else:
@@ -571,7 +572,7 @@ async def get_ticket_detail(
 
             message = {
                 "id": email_id,
-                "createdAt": processed_at.isoformat() if processed_at else None,
+                "createdAt": processed_at if processed_at else None,  # Already a string from DB
                 "messageText": message_body or "(No content)",
                 "messageType": message_type,
                 "isInternal": is_internal,
