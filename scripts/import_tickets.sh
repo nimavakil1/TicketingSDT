@@ -17,10 +17,22 @@ os.chdir(os.getcwd())
 
 from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
 from src.database import init_database, TicketState, ProcessedEmail
+from sqlalchemy import text
 
 # Initialize database
 SessionMaker = init_database()
 SessionLocal = SessionMaker
+
+# Add message_body column if it doesn't exist
+session = SessionLocal()
+try:
+    session.execute(text("ALTER TABLE processed_emails ADD COLUMN message_body TEXT"))
+    session.commit()
+    print("✓ Added message_body column to processed_emails")
+except:
+    pass  # Column already exists
+finally:
+    session.close()
 
 def import_ticket(ticket_number, session, ticketing_client):
     """Import a single ticket without AI analysis"""
@@ -79,14 +91,9 @@ def import_ticket(ticket_number, session, ticketing_client):
         ticket_details = ticket_data.get('ticketDetails', [])
         msg_count = 0
 
-        # Debug: print first ticket detail structure
-        if ticket_details:
-            print(f"  🔍 First ticket detail keys: {list(ticket_details[0].keys())}")
-            print(f"  🔍 First ticket detail sample: {str(ticket_details[0])[:800]}")
-
         for detail in ticket_details:
             # Create a unique identifier for each message
-            detail_id = detail.get('id') or detail.get('recId')
+            detail_id = detail.get('id')
             if not detail_id:
                 continue
 
@@ -97,17 +104,43 @@ def import_ticket(ticket_number, session, ticketing_client):
             if existing_msg:
                 continue
 
-            # Create ProcessedEmail entry
-            processed_email = ProcessedEmail(
-                gmail_message_id=msg_id,
-                gmail_thread_id=ticket_data.get('entranceGmailThreadId'),
-                ticket_id=ticket_state.id,
-                order_number=sales_order.get('salesId'),
-                subject=detail.get('subject') or ticket_data.get('entranceEmailSubject'),
-                from_address=detail.get('senderEmail') or ticket_data.get('entranceEmailSenderAddress'),
-                success=True
-            )
-            session.add(processed_email)
+            # Extract message content and metadata
+            comment = detail.get('comment', '')
+            entrance_body = detail.get('entranceEmailBody', '')
+            message_body = entrance_body if entrance_body else comment
+
+            # Determine source/target for subject line
+            source = detail.get('sourceTicketSideTypeId')
+            target = detail.get('targetTicketSideTypeId')
+
+            if source == 2 and target == 1:
+                subject = "Message from customer"
+            elif source == 1 and target == 2:
+                subject = "Message to customer"
+            elif source == 1 and target == 3:
+                subject = "Message to supplier"
+            elif source == 3 and target == 1:
+                subject = "Message from supplier"
+            elif source == 1 and target == 1:
+                subject = "Internal note"
+            else:
+                subject = "Message"
+
+            # Create ProcessedEmail entry with message body
+            session.execute(text("""
+                INSERT INTO processed_emails
+                (gmail_message_id, gmail_thread_id, ticket_id, order_number, subject, from_address, message_body, success, processed_at)
+                VALUES (:msg_id, :thread_id, :ticket_id, :order_num, :subject, :from_addr, :body, 1, :created)
+            """), {
+                'msg_id': msg_id,
+                'thread_id': str(ticket_data.get('entranceGmailThreadId')),
+                'ticket_id': ticket_state.id,
+                'order_num': sales_order.get('salesId'),
+                'subject': subject,
+                'from_addr': detail.get('receiverEmailAddress') or ticket_data.get('entranceEmailSenderAddress'),
+                'body': message_body,
+                'created': detail.get('createdDateTime')
+            })
             msg_count += 1
 
         print(f"  ✅ Imported with {msg_count} messages")

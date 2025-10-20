@@ -538,19 +538,45 @@ async def get_ticket_detail(
 
     if ticket.current_state == 'imported':
         # Get messages from processed_emails table
-        processed_emails = db.query(ProcessedEmail).filter(
-            ProcessedEmail.ticket_id == ticket.id
-        ).order_by(ProcessedEmail.processed_at.asc()).all()
+        from sqlalchemy import text
+        result = db.execute(text("""
+            SELECT id, processed_at, subject, from_address, message_body
+            FROM processed_emails
+            WHERE ticket_id = :ticket_id
+            ORDER BY processed_at ASC
+        """), {"ticket_id": ticket.id}).fetchall()
 
-        for email in processed_emails:
+        for row in result:
+            email_id, processed_at, subject, from_address, message_body = row
+
+            # Determine message type from subject
+            if "from customer" in subject.lower():
+                message_type = "customer"
+                is_internal = False
+            elif "to customer" in subject.lower():
+                message_type = "operator_to_customer"
+                is_internal = False
+            elif "to supplier" in subject.lower():
+                message_type = "operator_to_supplier"
+                is_internal = False
+            elif "from supplier" in subject.lower():
+                message_type = "supplier"
+                is_internal = False
+            elif "internal" in subject.lower():
+                message_type = "internal"
+                is_internal = True
+            else:
+                message_type = "unknown"
+                is_internal = False
+
             message = {
-                "id": email.id,
-                "createdAt": email.processed_at.isoformat() if email.processed_at else None,
-                "messageText": f"From: {email.from_address}\nSubject: {email.subject}\n\n(Message content stored separately)",
-                "messageType": "imported",
-                "isInternal": False,
+                "id": email_id,
+                "createdAt": processed_at.isoformat() if processed_at else None,
+                "messageText": message_body or "(No content)",
+                "messageType": message_type,
+                "isInternal": is_internal,
                 "authorName": None,
-                "authorEmail": email.from_address,
+                "authorEmail": from_address,
                 "sourceType": "email"
             }
             messages.append(message)
