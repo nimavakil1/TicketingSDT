@@ -849,6 +849,7 @@ async def reprocess_ticket(
 
 class AnalyzeRequest(BaseModel):
     ignored_message_ids: List[int] = []
+    preview_only: bool = False
 
 
 @app.post("/api/tickets/{ticket_number}/analyze")
@@ -906,6 +907,35 @@ async def analyze_ticket(
             'supplierName': ticket.supplier_name,
             'items': ticket.product_details
         }
+
+        # If preview_only, build and return the prompt without running analysis
+        if request.preview_only:
+            from src.ai.ai_engine import AIEngine
+            ai_engine = AIEngine()
+
+            # Detect language
+            combined_text = f"{email_data['subject']} {email_data['body']}"
+            language = ai_engine.language_detector.detect_language(combined_text)
+            language_name = ai_engine.language_detector.get_language_name(language)
+
+            # Build the prompt
+            prompt = ai_engine._build_analysis_prompt(
+                subject=email_data['subject'],
+                body=email_data['body'],
+                from_address=email_data['from'],
+                language=language_name,
+                ticket_data=ticket_data_dict,
+                ticket_history=None,
+                supplier_language=ticket.customer_language
+            )
+
+            return {
+                "preview": True,
+                "system_prompt": ai_engine.system_prompt,
+                "user_prompt": prompt,
+                "email_data": email_data,
+                "ticket_data": ticket_data_dict
+            }
 
         # Run AI analysis
         from src.ai.ai_engine import AIEngine

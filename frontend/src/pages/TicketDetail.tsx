@@ -26,6 +26,8 @@ const TicketDetail: React.FC = () => {
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const [ignoredMessageIds, setIgnoredMessageIds] = useState<Set<number>>(new Set());
   const [runningAnalysis, setRunningAnalysis] = useState(false);
+  const [showPromptPreview, setShowPromptPreview] = useState(false);
+  const [promptPreview, setPromptPreview] = useState<{system_prompt: string, user_prompt: string} | null>(null);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -73,10 +75,36 @@ const TicketDetail: React.FC = () => {
   const handleRunAIAnalysis = async () => {
     if (!ticket) return;
 
+    // First, get the prompt preview
+    setRunningAnalysis(true);
+    try {
+      const response = await client.post(`/api/tickets/${ticket.ticket_number}/analyze`, {
+        ignored_message_ids: Array.from(ignoredMessageIds),
+        preview_only: true
+      });
+
+      setPromptPreview({
+        system_prompt: response.data.system_prompt,
+        user_prompt: response.data.user_prompt
+      });
+      setShowPromptPreview(true);
+    } catch (err: any) {
+      setReprocessMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to generate prompt preview' });
+      setTimeout(() => setReprocessMessage(null), 5000);
+    } finally {
+      setRunningAnalysis(false);
+    }
+  };
+
+  const handleConfirmAnalysis = async () => {
+    if (!ticket) return;
+
+    setShowPromptPreview(false);
     setRunningAnalysis(true);
     try {
       await client.post(`/api/tickets/${ticket.ticket_number}/analyze`, {
-        ignored_message_ids: Array.from(ignoredMessageIds)
+        ignored_message_ids: Array.from(ignoredMessageIds),
+        preview_only: false
       });
       await loadTicket(); // Reload to show new AI decision
       setReprocessMessage({ type: 'success', text: 'AI analysis completed successfully' });
@@ -873,6 +901,51 @@ const TicketDetail: React.FC = () => {
         recipientEmail={composeRecipientType === 'customer' ? ticket.customer_email : undefined}
         onMessageSent={handleMessageSent}
       />
+
+      {/* Prompt Preview Modal */}
+      {showPromptPreview && promptPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">AI Analysis Prompt Preview</h2>
+              <p className="text-sm text-gray-600 mt-1">Review the prompt that will be sent to the LLM</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">System Prompt</h3>
+                <div className="bg-gray-50 border border-gray-200 rounded p-4">
+                  <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">{promptPreview.system_prompt}</pre>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">User Prompt (Ticket Data)</h3>
+                <div className="bg-blue-50 border border-blue-200 rounded p-4">
+                  <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono">{promptPreview.user_prompt}</pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
+              <button
+                onClick={() => setShowPromptPreview(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAnalysis}
+                disabled={runningAnalysis}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${runningAnalysis ? 'animate-spin' : ''}`} />
+                {runningAnalysis ? 'Running Analysis...' : 'Confirm & Run Analysis'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
