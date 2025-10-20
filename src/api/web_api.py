@@ -916,6 +916,42 @@ async def analyze_ticket(
             ORDER BY processed_at ASC
         """), {"ticket_id": ticket.id}).fetchall()
 
+        # Helper function to strip HTML and normalize text
+        import html
+        from html.parser import HTMLParser
+
+        class MLStripper(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.reset()
+                self.strict = False
+                self.convert_charrefs= True
+                self.text = []
+            def handle_data(self, d):
+                self.text.append(d)
+            def get_data(self):
+                return ''.join(self.text)
+
+        def strip_html_tags(html_text):
+            s = MLStripper()
+            s.feed(html_text)
+            return s.get_data()
+
+        def normalize_for_comparison(text):
+            """Normalize text for duplicate detection"""
+            if not text:
+                return ""
+            # Strip HTML
+            text = strip_html_tags(text)
+            # Decode HTML entities
+            text = html.unescape(text)
+            # Lowercase and remove extra whitespace
+            text = re.sub(r'\s+', ' ', text.lower()).strip()
+            # Remove common email artifacts
+            text = re.sub(r'http[s]?://\S+', '', text)  # URLs
+            text = re.sub(r'[-_]{10,}', '', text)  # Separator lines
+            return text
+
         # Build structured conversation, excluding ignored messages
         conversation_parts = []
         seen_content = set()  # To detect duplicates
@@ -936,10 +972,27 @@ async def analyze_ticket(
 
                 msg_type = message_types.get(detail_id, "unknown")
 
+                # Normalize for duplicate detection
+                body_normalized = normalize_for_comparison(body or '')
+
+                # Skip if empty after normalization
+                if not body_normalized or len(body_normalized) < 20:
+                    continue
+
                 # Skip duplicates
-                body_normalized = (body or '').strip()
                 if body_normalized in seen_content:
                     continue
+
+                # Check if this message contains a previous message (email threading)
+                is_duplicate = False
+                for prev_content in seen_content:
+                    if len(prev_content) > 50 and prev_content in body_normalized:
+                        is_duplicate = True
+                        break
+
+                if is_duplicate:
+                    continue
+
                 seen_content.add(body_normalized)
 
                 # Format message with clear label
