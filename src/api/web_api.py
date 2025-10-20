@@ -868,8 +868,43 @@ async def analyze_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     try:
-        # Get messages from database
+        # Get messages from database with source/target info
         from sqlalchemy import text
+
+        # First get ticketDetails from API to determine message types
+        from src.api.ticketing_client import TicketingAPIClient
+        ticketing_client = TicketingAPIClient()
+        ticket_data_api = ticketing_client.get_ticket_by_ticket_number(ticket_number)
+
+        if not ticket_data_api:
+            raise HTTPException(status_code=404, detail="Ticket not found in API")
+
+        ticket_details = ticket_data_api[0].get('ticketDetails', [])
+
+        # Build a map of message ID to type
+        message_types = {}
+        for detail in ticket_details:
+            detail_id = detail.get('id')
+            source = detail.get('sourceTicketSideTypeId')
+            target = detail.get('targetTicketSideTypeId')
+
+            # Determine message type: 1=System/Operator, 2=Customer, 3=Supplier
+            if source == 2 and target == 1:
+                msg_type = "customer_to_us"
+            elif source == 1 and target == 2:
+                msg_type = "us_to_customer"
+            elif source == 1 and target == 3:
+                msg_type = "us_to_supplier"
+            elif source == 3 and target == 1:
+                msg_type = "supplier_to_us"
+            elif source == 1 and target == 1:
+                msg_type = "internal_note"
+            else:
+                msg_type = "unknown"
+
+            message_types[detail_id] = msg_type
+
+        # Get messages from database
         result = db.execute(text("""
             SELECT id, message_body, from_address, processed_at
             FROM processed_emails
@@ -877,17 +912,53 @@ async def analyze_ticket(
             ORDER BY processed_at ASC
         """), {"ticket_id": ticket.id}).fetchall()
 
-        # Build conversation history, excluding ignored messages
-        customer_messages = []
+        # Build structured conversation, excluding ignored messages
+        conversation_parts = []
+        seen_content = set()  # To detect duplicates
+
         for msg_id, body, from_addr, created_at in result:
             if msg_id not in request.ignored_message_ids:
-                customer_messages.append(body or '')
+                # Extract actual ID from gmail_message_id (format: imported_{ticket_number}_{id})
+                detail_id = None
+                db_msg = db.execute(text("SELECT gmail_message_id FROM processed_emails WHERE id = :id"),
+                                   {"id": msg_id}).fetchone()
+                if db_msg:
+                    parts = db_msg[0].split('_')
+                    if len(parts) >= 3:
+                        try:
+                            detail_id = int(parts[-1])
+                        except:
+                            pass
 
-        if not customer_messages:
+                msg_type = message_types.get(detail_id, "unknown")
+
+                # Skip duplicates
+                body_normalized = (body or '').strip()
+                if body_normalized in seen_content:
+                    continue
+                seen_content.add(body_normalized)
+
+                # Format message with clear label
+                if msg_type == "customer_to_us":
+                    label = "MESSAGE FROM CUSTOMER"
+                elif msg_type == "us_to_customer":
+                    label = "OUR RESPONSE TO CUSTOMER"
+                elif msg_type == "us_to_supplier":
+                    label = "OUR MESSAGE TO SUPPLIER"
+                elif msg_type == "supplier_to_us":
+                    label = "SUPPLIER'S RESPONSE"
+                elif msg_type == "internal_note":
+                    label = "INTERNAL NOTE"
+                else:
+                    label = "MESSAGE"
+
+                conversation_parts.append(f"[{label}] ({created_at})\n{body_normalized}")
+
+        if not conversation_parts:
             raise HTTPException(status_code=400, detail="No messages to analyze (all messages ignored)")
 
-        # Combine all messages for analysis
-        combined_body = '\n\n---\n\n'.join(customer_messages)
+        # Build clean, structured conversation
+        combined_body = '\n\n' + '='*80 + '\n\n'.join(conversation_parts)
 
         # Build email data for AI analysis
         email_data = {
