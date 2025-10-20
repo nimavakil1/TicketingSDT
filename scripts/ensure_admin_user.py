@@ -26,8 +26,8 @@ def ensure_admin_exists():
             print("Creating default admin user...")
 
             # Create default admin
-            default_username = "admin"
-            default_password = "admin123"
+            default_username = "nima"
+            default_password = "Sage2o15"
 
             hashed_password = bcrypt.hashpw(
                 default_password.encode('utf-8'),
