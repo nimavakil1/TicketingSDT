@@ -15,7 +15,7 @@ os.chdir(project_root)
 
 from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
 from src.database.db import SessionLocal
-from src.database.models import TicketState
+from src.database.models import TicketState, ProcessedEmail
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -88,9 +88,35 @@ def import_ticket(ticket_number: str, session, ticketing_client: TicketingAPICli
         session.add(ticket_state)
         session.flush()
 
-        # Messages are in ticketDetails
+        # Import messages from ticketDetails
         ticket_details = ticket_data.get('ticketDetails', [])
-        message_count = len(ticket_details) if ticket_details else 0
+        message_count = 0
+
+        for detail in ticket_details:
+            # Create a unique identifier for each message
+            detail_id = detail.get('id') or detail.get('recId')
+            if not detail_id:
+                continue
+
+            msg_id = f"imported_{ticket_number}_{detail_id}"
+
+            # Check if already exists
+            existing_msg = session.query(ProcessedEmail).filter_by(gmail_message_id=msg_id).first()
+            if existing_msg:
+                continue
+
+            # Create ProcessedEmail entry
+            processed_email = ProcessedEmail(
+                gmail_message_id=msg_id,
+                gmail_thread_id=ticket_data.get('entranceGmailThreadId'),
+                ticket_id=ticket_state.id,
+                order_number=sales_order.get('salesId'),
+                subject=detail.get('subject') or ticket_data.get('entranceEmailSubject'),
+                from_address=detail.get('senderEmail') or ticket_data.get('entranceEmailSenderAddress'),
+                success=True
+            )
+            session.add(processed_email)
+            message_count += 1
 
         print(f"  ✅ Imported {ticket_number} with {message_count} messages")
         print(f"     Customer: {ticket_data.get('contactName')}")
