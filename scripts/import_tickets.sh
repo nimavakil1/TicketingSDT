@@ -35,54 +35,53 @@ def import_ticket(ticket_number, session, ticketing_client):
 
         ticket_data = tickets[0]
 
-        # Debug: print ticket data structure
-        print(f"  📋 Ticket data keys: {list(ticket_data.keys())}")
-        print(f"  📋 Sample data: {str(ticket_data)[:500]}")
-
         # Check if exists
         existing = session.query(TicketState).filter_by(ticket_number=ticket_number).first()
         if existing:
             print(f"  ⚠️  Already exists")
             return False
 
-        # Create ticket
+        # Extract sales order data
+        sales_order = ticket_data.get('salesOrder', {})
+
+        # Create ticket with correct field mappings
         ticket_state = TicketState(
             ticket_number=ticket_number,
             ticket_id=ticket_data.get('id'),
-            order_number=ticket_data.get('orderNumber'),
-            customer_name=ticket_data.get('customerName'),
-            customer_email=ticket_data.get('customerEmail'),
-            customer_language=ticket_data.get('customerLanguage', 'de-DE'),
-            customer_address=ticket_data.get('customerAddress'),
-            customer_city=ticket_data.get('customerCity'),
-            customer_postal_code=ticket_data.get('customerPostalCode'),
-            customer_country=ticket_data.get('customerCountry'),
-            customer_phone=ticket_data.get('customerPhone'),
-            supplier_name=ticket_data.get('supplierName'),
-            supplier_email=ticket_data.get('supplierEmail'),
-            purchase_order_number=ticket_data.get('purchaseOrderNumber'),
-            tracking_number=ticket_data.get('trackingNumber'),
-            carrier_name=ticket_data.get('carrierName'),
-            ticket_type_id=ticket_data.get('typeId'),
-            ticket_status_id=ticket_data.get('statusId'),
-            owner_id=ticket_data.get('ownerId'),
+            order_number=sales_order.get('salesId'),
+            customer_name=ticket_data.get('contactName'),
+            customer_email=sales_order.get('confirmedEmail'),
+            customer_language=ticket_data.get('customerLanguageCultureName', 'de-DE'),
+            customer_address=None,  # Not in response
+            customer_city=None,
+            customer_postal_code=None,
+            customer_country=None,
+            customer_phone=None,
+            supplier_name=None,  # Not in this endpoint
+            supplier_email=None,
+            purchase_order_number=sales_order.get('purchaseOrderNumber'),
+            tracking_number=None,  # Not in response
+            carrier_name=None,
+            ticket_type_id=ticket_data.get('ticketTypeId'),
+            ticket_status_id=ticket_data.get('ticketStatusId'),
+            owner_id=None,  # Not in response
             current_state='imported',
-            product_details=str(ticket_data.get('items', [])),
-            order_total=ticket_data.get('orderTotal'),
-            order_currency=ticket_data.get('orderCurrency'),
-            order_date=ticket_data.get('orderDate')
+            product_details=str(sales_order.get('salesLines', [])),
+            order_total=sales_order.get('salesBalanceMST'),
+            order_currency=sales_order.get('currencyCode'),
+            order_date=sales_order.get('confirmedDate')
         )
 
         session.add(ticket_state)
         session.flush()
 
-        # Messages are already in ticket_data
-        messages = ticket_data.get('messages', [])
-        msg_count = len(messages) if messages else 0
+        # Messages are in ticketDetails
+        ticket_details = ticket_data.get('ticketDetails', [])
+        msg_count = len(ticket_details) if ticket_details else 0
 
         print(f"  ✅ Imported with {msg_count} messages")
-        print(f"     Customer: {ticket_data.get('customerName')}")
-        print(f"     Order: {ticket_data.get('orderNumber')}")
+        print(f"     Customer: {ticket_data.get('contactName')}")
+        print(f"     Order: {sales_order.get('salesId')}")
 
         return True
 
