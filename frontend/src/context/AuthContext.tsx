@@ -38,20 +38,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string) => {
-    const response = await axios.post('/api/auth/login', { username, password });
-    const { access_token } = response.data;
+    try {
+      const response = await axios.post('/api/auth/login', { username, password });
+      const { access_token } = response.data;
 
-    // Decode JWT to get user info (JWT payload is the second part, base64 encoded)
-    const payload = JSON.parse(atob(access_token.split('.')[1]));
-    const userData = {
-      id: payload.sub,
-      username: payload.sub,
-      email: `${payload.sub}@distri-smart.com`, // Placeholder email
-    };
+      // Decode JWT to get user info (JWT payload is the second part, base64 encoded)
+      const payload = JSON.parse(atob(access_token.split('.')[1]));
+      const userData = {
+        id: payload.sub,
+        username: payload.sub,
+        email: `${payload.sub}@distri-smart.com`, // Placeholder email
+      };
 
-    localStorage.setItem('token', access_token);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   };
 
   const logout = () => {

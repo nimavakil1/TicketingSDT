@@ -39,6 +39,7 @@ class SupportAgentOrchestrator:
 
         # Initialize database
         self.SessionMaker = init_database()
+        self.session = self.SessionMaker()  # Main session for settings checks
 
         # Initialize components
         self.gmail_monitor = GmailMonitor()
@@ -58,6 +59,20 @@ class SupportAgentOrchestrator:
         Returns:
             Number of emails processed
         """
+        # Check if Gmail monitoring is paused
+        try:
+            from sqlalchemy import text
+            result = self.session.execute(
+                text("SELECT value FROM system_settings WHERE key = 'gmail_monitoring_paused'")
+            ).fetchone()
+
+            if result and result[0] == 'true':
+                logger.debug("Gmail monitoring is paused - skipping email check")
+                return 0
+        except Exception as e:
+            # If settings table doesn't exist yet, continue normally
+            logger.debug(f"Could not check pause setting: {e}")
+
         logger.info("Checking for new emails")
 
         try:

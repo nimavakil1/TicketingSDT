@@ -2534,6 +2534,50 @@ async def delete_template(
     return {"message": "Template deleted successfully"}
 
 
+# ============================================================================
+# System Settings Endpoints
+# ============================================================================
+
+@app.get("/api/settings/{key}")
+async def get_setting(
+    key: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a system setting value"""
+    from sqlalchemy import text
+    result = db.execute(text("SELECT value FROM system_settings WHERE key = :key"), {"key": key}).fetchone()
+
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
+
+    return {"key": key, "value": result[0]}
+
+
+@app.put("/api/settings/{key}")
+async def update_setting(
+    key: str,
+    value: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a system setting value"""
+    from sqlalchemy import text
+
+    db.execute(
+        text("""
+            INSERT OR REPLACE INTO system_settings (key, value, updated_at)
+            VALUES (:key, :value, CURRENT_TIMESTAMP)
+        """),
+        {"key": key, "value": value}
+    )
+    db.commit()
+
+    logger.info(f"System setting updated: {key}={value} by user {current_user.username}")
+
+    return {"key": key, "value": value, "message": "Setting updated successfully"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

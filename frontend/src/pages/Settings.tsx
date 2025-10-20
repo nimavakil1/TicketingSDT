@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter } from 'lucide-react';
+import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter, Settings as SettingsIcon } from 'lucide-react';
 import client from '../api/client';
 import ReactDiffViewer from 'react-diff-viewer-continued';
+import { getSystemSetting, updateSystemSetting } from '../api/settings';
 
 interface SettingsData {
   deployment_phase: number;
@@ -56,7 +57,7 @@ interface Supplier {
 }
 
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters' | 'suppliers'>('filters');
+  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'ai' | 'prompt' | 'filters' | 'suppliers'>('general');
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -117,6 +118,10 @@ const Settings: React.FC = () => {
   const [changeSummary, setChangeSummary] = useState<string>('');
   const [showDiff, setShowDiff] = useState(false);
 
+  // General settings state
+  const [gmailMonitoringPaused, setGmailMonitoringPaused] = useState(false);
+  const [loadingPauseSetting, setLoadingPauseSetting] = useState(false);
+
   useEffect(() => {
     loadSettings();
     loadUsers();
@@ -124,6 +129,7 @@ const Settings: React.FC = () => {
     loadFeedbackCount();
     loadSkipBlocks();
     loadIgnorePatterns();
+    loadGmailMonitoringSetting();
   }, []);
 
   const loadSettings = async () => {
@@ -174,6 +180,34 @@ const Settings: React.FC = () => {
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
+  };
+
+  const loadGmailMonitoringSetting = async () => {
+    try {
+      const setting = await getSystemSetting('gmail_monitoring_paused');
+      setGmailMonitoringPaused(setting.value === 'true');
+    } catch (error: any) {
+      // If setting doesn't exist yet, default to false
+      if (error.response?.status === 404) {
+        setGmailMonitoringPaused(false);
+      } else {
+        console.error('Failed to load Gmail monitoring setting:', error);
+      }
+    }
+  };
+
+  const handleToggleGmailMonitoring = async () => {
+    setLoadingPauseSetting(true);
+    try {
+      const newValue = !gmailMonitoringPaused;
+      await updateSystemSetting('gmail_monitoring_paused', newValue ? 'true' : 'false');
+      setGmailMonitoringPaused(newValue);
+      showMessage('success', `Gmail monitoring ${newValue ? 'paused' : 'resumed'} successfully`);
+    } catch (error: any) {
+      showMessage('error', `Failed to update Gmail monitoring: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setLoadingPauseSetting(false);
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -670,6 +704,17 @@ const Settings: React.FC = () => {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('general')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'general'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <SettingsIcon className="inline-block h-5 w-5 mr-2" />
+            General Settings
+          </button>
+          <button
             onClick={() => setActiveTab('filters')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'filters'
@@ -726,6 +771,54 @@ const Settings: React.FC = () => {
           </button>
         </nav>
       </div>
+
+      {/* General Settings Tab */}
+      {activeTab === 'general' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">General System Settings</h2>
+
+          <div className="space-y-6">
+            {/* Gmail Monitoring Pause Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex-1">
+                <h3 className="text-base font-medium text-gray-900">Pause Gmail Monitoring</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Temporarily stop the system from checking and importing new emails from Gmail.
+                  This will pause all automatic ticket creation.
+                </p>
+                {gmailMonitoringPaused && (
+                  <div className="mt-2 flex items-center text-sm text-orange-600">
+                    <XCircle className="h-4 w-4 mr-1" />
+                    <span className="font-medium">Email monitoring is currently paused</span>
+                  </div>
+                )}
+              </div>
+              <div className="ml-6">
+                <button
+                  onClick={handleToggleGmailMonitoring}
+                  disabled={loadingPauseSetting}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    gmailMonitoringPaused ? 'bg-orange-600' : 'bg-green-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                      gmailMonitoringPaused ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> When Gmail monitoring is paused, the system will not check for new emails
+                or create tickets automatically. Existing tickets and manual operations will continue to work normally.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI Settings Tab */}
       {activeTab === 'ai' && settings && (
