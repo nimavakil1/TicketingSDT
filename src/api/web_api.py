@@ -547,6 +547,18 @@ async def get_ticket_detail(
 
             # Transform ticketDetails into a simpler message format
             for detail in ticket_details:
+                # Get raw message text
+                raw_message_text = detail.get("comment", "")
+
+                # Skip ALL AI Agent messages (case-insensitive) - same logic as orchestrator
+                if raw_message_text:
+                    comment_lower = raw_message_text.strip().lower()
+                    if (comment_lower.startswith('ai agent') or
+                        'ai agent proposes' in comment_lower or
+                        'ai agent suggests' in comment_lower or
+                        raw_message_text.strip().startswith('🚨')):
+                        continue
+
                 source = detail.get("sourceTicketSideTypeId")
                 target = detail.get("targetTicketSideTypeId")
 
@@ -570,9 +582,6 @@ async def get_ticket_detail(
                 else:
                     message_type = "unknown"
                     is_internal = False
-
-                # Get raw message text
-                raw_message_text = detail.get("comment", "")
 
                 # Apply text filtering to remove skip blocks
                 filtered_message_text = text_filter.filter_email_body(raw_message_text)
