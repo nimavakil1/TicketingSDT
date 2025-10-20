@@ -284,7 +284,7 @@ class SupportAgentOrchestrator:
             self._update_ticket_identifiers(session, ticket_state, ticket_data, analysis)
 
             # Create pending messages for Phase 1 approval (human review required)
-            ai_decision_id = self._log_ai_decision(session, ticket_state, analysis)
+            ai_decision_id = self._log_ai_decision(session, ticket_state, analysis, gmail_message_id)
             self._create_pending_messages_from_analysis(
                 session, ticket_state, ticket_data, analysis, ai_decision_id
             )
@@ -1006,12 +1006,14 @@ class SupportAgentOrchestrator:
         self,
         session,
         ticket_state: TicketState,
-        analysis: Dict[str, Any]
+        analysis: Dict[str, Any],
+        gmail_message_id: Optional[str] = None
     ) -> Optional[int]:
         """Log AI decision and return decision ID"""
         try:
             decision_log = AIDecisionLog(
                 ticket_id=ticket_state.id,
+                gmail_message_id=gmail_message_id,
                 detected_language=analysis.get('language', 'unknown'),
                 detected_intent=analysis.get('intent', 'unknown'),
                 confidence_score=analysis.get('confidence', 0.0),
@@ -1022,6 +1024,7 @@ class SupportAgentOrchestrator:
             )
             session.add(decision_log)
             session.flush()
+            logger.info("AI decision logged", decision_id=decision_log.id, gmail_id=gmail_message_id)
             return decision_log.id
         except Exception as e:
             logger.error("Failed to log AI decision", error=str(e))
