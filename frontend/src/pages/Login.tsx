@@ -18,7 +18,7 @@ const Login: React.FC = () => {
 
     try {
       await login(username, password);
-      navigate('/');
+      window.location.href = '/';
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
     } finally {
