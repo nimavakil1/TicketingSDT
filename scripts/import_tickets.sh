@@ -17,6 +17,7 @@ os.chdir(os.getcwd())
 
 from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
 from src.database import init_database, TicketState, ProcessedEmail
+from src.utils.text_filter import TextFilter
 from sqlalchemy import text
 
 # Initialize database
@@ -34,7 +35,7 @@ except:
 finally:
     session.close()
 
-def import_ticket(ticket_number, session, ticketing_client):
+def import_ticket(ticket_number, session, ticketing_client, text_filter):
     """Import a single ticket without AI analysis"""
     try:
         print(f"\n📥 Importing ticket {ticket_number}...")
@@ -107,7 +108,10 @@ def import_ticket(ticket_number, session, ticketing_client):
             # Extract message content and metadata
             comment = detail.get('comment', '')
             entrance_body = detail.get('entranceEmailBody', '')
-            message_body = entrance_body if entrance_body else comment
+            raw_message_body = entrance_body if entrance_body else comment
+
+            # Apply text filtering to remove skip blocks
+            message_body = text_filter.filter_email_body(raw_message_body)
 
             # Determine source/target for subject line
             source = detail.get('sourceTicketSideTypeId')
@@ -156,6 +160,7 @@ def import_ticket(ticket_number, session, ticketing_client):
 # Main
 session = SessionLocal()
 ticketing_client = TicketingAPIClient()
+text_filter = TextFilter(session)
 
 tickets = [
     'FR25005137',
@@ -171,7 +176,7 @@ print(f"\n🎯 Importing {len(tickets)} tickets (NO AI analysis)...\n")
 
 success = 0
 for ticket in tickets:
-    if import_ticket(ticket, session, ticketing_client):
+    if import_ticket(ticket, session, ticketing_client, text_filter):
         success += 1
 
 session.commit()
