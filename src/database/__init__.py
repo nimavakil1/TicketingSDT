@@ -12,6 +12,7 @@ from .models import (
     RetryQueue,
     MessageTemplate,
     PendingMessage,
+    SkipTextBlock,
     init_database,
     get_session
 )
@@ -29,6 +30,7 @@ __all__ = [
     'RetryQueue',
     'MessageTemplate',
     'PendingMessage',
+    'SkipTextBlock',
     'init_database',
     'get_session'
 ]
