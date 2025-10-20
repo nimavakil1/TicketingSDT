@@ -438,22 +438,24 @@ Existing Ticket Information:
             prompt += "\n"
 
         prompt += """
-Task: Analyze this email step by step and provide your response.
+Task: Analyze this ticket conversation step by step and provide your response.
 
 UNDERSTANDING THE CONVERSATION HISTORY:
-The "Previous Conversation History" above is in JSON format with three threads:
-- customer_thread: Array of messages between us and the customer. Each has {timestamp, direction (inbound/outbound), message}
-- supplier_thread: Array of messages between us and the supplier. Each has {timestamp, direction (inbound/outbound), message}
-- internal_notes: Array of internal notes. Each has {timestamp, note}
+The conversation above shows the complete ticket history with clear labels:
+- [MESSAGE FROM CUSTOMER]: What the customer sent to us
+- [OUR RESPONSE TO CUSTOMER]: What we already told the customer
+- [OUR MESSAGE TO SUPPLIER]: What we asked the supplier
+- [SUPPLIER'S RESPONSE]: What the supplier told us
+- [INTERNAL NOTE]: Our internal notes
 
-"inbound" means they sent to us. "outbound" means we sent to them.
+Each message includes a timestamp. Read the entire conversation chronologically to understand the context.
 
 STEP 1: SITUATION ANALYSIS
 Before deciding on an action, answer these questions:
 
 1. What is the customer's main concern or request?
-2. What have we already communicated to the customer? (Check customer_thread for outbound messages)
-3. What information have we received from the supplier? (Check supplier_thread for inbound messages)
+2. What have we already communicated to the customer? (Look for [OUR RESPONSE TO CUSTOMER])
+3. What information have we received from the supplier? (Look for [SUPPLIER'S RESPONSE])
 4. What are we currently waiting for? (Check pending requests/promises)
 5. Are we about to contradict something we already told the customer?
 6. Are we about to ask the supplier for information they already provided?
