@@ -104,8 +104,10 @@ class TicketingAPIClient:
         try:
             logger.info(f"Fetching ticket by ticket number", ticket_number=ticket_number)
             response = self._make_request('GET', f'/tickets/tickets/GetTicketsByTicketNumber?ticketNumber={ticket_number}')
-            tickets = response.get('tickets', [])
-            return tickets if tickets else None
+            # API returns a list directly, not a dict with 'tickets' key
+            if isinstance(response, list):
+                return response if response else None
+            return response.get('tickets', []) if response else None
         except TicketingAPIError:
             return None
 
