@@ -24,6 +24,8 @@ const TicketDetail: React.FC = () => {
   const [composeModalOpen, setComposeModalOpen] = useState(false);
   const [composeRecipientType, setComposeRecipientType] = useState<'customer' | 'supplier'>('customer');
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const [ignoredMessageIds, setIgnoredMessageIds] = useState<Set<number>>(new Set());
+  const [runningAnalysis, setRunningAnalysis] = useState(false);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -54,6 +56,36 @@ const TicketDetail: React.FC = () => {
 
   const handleMessageSent = () => {
     loadPendingMessages();
+  };
+
+  const toggleMessageIgnore = (messageId: number) => {
+    setIgnoredMessageIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleRunAIAnalysis = async () => {
+    if (!ticket) return;
+
+    setRunningAnalysis(true);
+    try {
+      await client.post(`/api/tickets/${ticket.ticket_number}/analyze`, {
+        ignored_message_ids: Array.from(ignoredMessageIds)
+      });
+      await loadTicket(); // Reload to show new AI decision
+      setReprocessMessage({ type: 'success', text: 'AI analysis completed successfully' });
+    } catch (err: any) {
+      setReprocessMessage({ type: 'error', text: err.response?.data?.detail || 'AI analysis failed' });
+    } finally {
+      setRunningAnalysis(false);
+      setTimeout(() => setReprocessMessage(null), 5000);
+    }
   };
 
   const handleFeedback = async (decisionId: number, feedbackType: 'correct' | 'incorrect') => {
@@ -595,10 +627,22 @@ const TicketDetail: React.FC = () => {
 
       {/* Ticket Message History */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <MessageSquare className="h-5 w-5" />
-          Message History ({ticket.messages?.length || 0})
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Message History ({ticket.messages?.length || 0})
+          </h2>
+          {ticket.status === 'imported' && (
+            <button
+              onClick={handleRunAIAnalysis}
+              disabled={runningAnalysis}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${runningAnalysis ? 'animate-spin' : ''}`} />
+              {runningAnalysis ? 'Analyzing...' : 'Run AI Analysis'}
+            </button>
+          )}
+        </div>
         <div className="space-y-3">
           {!ticket.messages || ticket.messages.length === 0 ? (
             <p className="text-gray-500 text-sm">No messages found for this ticket.</p>
@@ -606,11 +650,15 @@ const TicketDetail: React.FC = () => {
             ticket.messages.map((message) => {
               const isSupplierMessage = message.messageType === 'supplier' || message.messageType === 'operator_to_supplier';
 
+              const isIgnored = ignoredMessageIds.has(message.id);
+
               return (
                 <div
                   key={message.id}
                   className={`border rounded-lg p-4 ${
-                    message.isInternal
+                    isIgnored
+                      ? 'border-gray-300 bg-gray-100 opacity-60'
+                      : message.isInternal
                       ? 'border-yellow-200 bg-yellow-50'
                       : isSupplierMessage
                       ? 'border-orange-200 bg-orange-50'
@@ -618,6 +666,15 @@ const TicketDetail: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
+                    {ticket.status === 'imported' && (
+                      <input
+                        type="checkbox"
+                        checked={isIgnored}
+                        onChange={() => toggleMessageIgnore(message.id)}
+                        className="mt-1 mr-3 h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        title="Ignore this message in AI analysis"
+                      />
+                    )}
                     <div className="flex items-center gap-2">
                       {message.isInternal ? (
                         <Lock className="h-4 w-4 text-yellow-600" />
