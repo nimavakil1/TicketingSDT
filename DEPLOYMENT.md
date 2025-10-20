@@ -2,31 +2,17 @@
 
 ## One-Time Setup (Switch to Production Mode)
 
-Edit nginx config:
+**Run this ONCE to configure nginx for production:**
+
 ```bash
-sudo nano /etc/nginx/sites-available/ai-agent
+cd ~/TicketingSDT
+sudo ./setup-production.sh
 ```
 
-Comment out these lines (add `#` at the start):
-```nginx
-proxy_pass http://localhost:3002;
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-```
-
-Uncomment these lines (remove `#`):
-```nginx
-root /home/ai/TicketingSDT/frontend/dist;
-try_files $uri $uri/ /index.html;
-```
-
-Then:
-```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
+This script will:
+- Backup your current nginx config
+- Switch from dev server (port 3002) to production mode (serving built files)
+- Test and reload nginx
 
 ## Every Deployment (After git pull)
 
