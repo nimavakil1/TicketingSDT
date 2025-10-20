@@ -921,10 +921,9 @@ async def analyze_ticket(
         # Log AI decision
         new_decision = AIDecisionLog(
             ticket_id=ticket.id,
-            intent=analysis.get('intent'),
-            confidence=analysis.get('confidence'),
-            requires_escalation=analysis.get('requires_escalation', False),
-            escalation_reason=analysis.get('escalation_reason'),
+            detected_language=analysis.get('language'),
+            detected_intent=analysis.get('intent'),
+            confidence_score=analysis.get('confidence'),
             recommended_action=analysis.get('summary'),
             response_generated=analysis.get('customer_response'),
             action_taken='manual_analysis',
