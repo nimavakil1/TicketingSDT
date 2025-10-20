@@ -85,8 +85,8 @@ def import_ticket(ticket_number: str, session, ticketing_client: TicketingAPICli
         session.add(ticket_state)
         session.flush()
 
-        # Fetch messages
-        messages = ticketing_client.get_ticket_messages(ticket_number)
+        # Messages are already in ticket_data
+        messages = ticket_data.get('messages', [])
         message_count = len(messages) if messages else 0
 
         print(f"  ✅ Imported {ticket_number} with {message_count} messages")

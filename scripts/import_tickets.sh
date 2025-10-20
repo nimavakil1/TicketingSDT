@@ -72,7 +72,8 @@ def import_ticket(ticket_number, session, ticketing_client):
         session.add(ticket_state)
         session.flush()
 
-        messages = ticketing_client.get_ticket_messages(ticket_number)
+        # Messages are already in ticket_data
+        messages = ticket_data.get('messages', [])
         msg_count = len(messages) if messages else 0
 
         print(f"  ✅ Imported with {msg_count} messages")
