@@ -12,8 +12,11 @@ sys.path.insert(0, os.getcwd())
 os.chdir(os.getcwd())
 
 from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
-from src.database.db import SessionLocal
-from src.database.models import TicketState
+from src.database import init_database, TicketState
+
+# Initialize database
+SessionMaker = init_database()
+SessionLocal = SessionMaker
 
 def import_ticket(ticket_number, session, ticketing_client):
     """Import a single ticket without AI analysis"""
