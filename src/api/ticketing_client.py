@@ -30,7 +30,7 @@ class TicketingAPIClient:
 
     def _authenticate(self) -> None:
         """Authenticate with the ticketing API"""
-        auth_url = f"{self.base_url}/auth/login"
+        auth_url = f"{self.base_url}/Account/login"
         try:
             logger.info("Authenticating with ticketing API", url=auth_url)
             response = self.session.post(
@@ -52,11 +52,11 @@ class TicketingAPIClient:
 
             response.raise_for_status()
             data = response.json()
-            self.token = data.get('token')
+            self.token = data.get('access_token')  # API returns 'access_token' not 'token'
 
             if not self.token:
                 logger.error("No token in response", response_data=data)
-                raise TicketingAPIError(f"No token in authentication response: {data}")
+                raise TicketingAPIError(f"No access_token in authentication response: {data}")
 
             self.session.headers.update({'Authorization': f'Bearer {self.token}'})
             logger.info("Successfully authenticated with ticketing API")
