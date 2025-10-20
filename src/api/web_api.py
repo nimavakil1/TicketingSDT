@@ -847,6 +847,102 @@ async def reprocess_ticket(
         raise HTTPException(status_code=500, detail=f"Failed to reprocess ticket: {str(e)}")
 
 
+class AnalyzeRequest(BaseModel):
+    ignored_message_ids: List[int] = []
+
+
+@app.post("/api/tickets/{ticket_number}/analyze")
+async def analyze_ticket(
+    ticket_number: str,
+    request: AnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Run AI analysis on imported ticket with specific messages ignored"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        # Get messages from database
+        from sqlalchemy import text
+        result = db.execute(text("""
+            SELECT id, message_body, from_address, processed_at
+            FROM processed_emails
+            WHERE ticket_id = :ticket_id
+            ORDER BY processed_at ASC
+        """), {"ticket_id": ticket.id}).fetchall()
+
+        # Build conversation history, excluding ignored messages
+        conversation = []
+        for msg_id, body, from_addr, created_at in result:
+            if msg_id not in request.ignored_message_ids:
+                conversation.append({
+                    'from': from_addr or 'unknown',
+                    'body': body or '',
+                    'created_at': created_at
+                })
+
+        if not conversation:
+            raise HTTPException(status_code=400, detail="No messages to analyze (all messages ignored)")
+
+        # Run AI analysis
+        from src.ai.ai_engine import AIEngine
+        ai_engine = AIEngine()
+
+        analysis = ai_engine.analyze_ticket(
+            ticket_number=ticket.ticket_number,
+            customer_name=ticket.customer_name,
+            customer_email=ticket.customer_email,
+            customer_language=ticket.customer_language,
+            order_number=ticket.order_number,
+            conversation_history=conversation,
+            ticket_context={
+                'product_details': ticket.product_details,
+                'tracking_number': ticket.tracking_number,
+                'carrier_name': ticket.carrier_name,
+                'order_total': ticket.order_total,
+                'order_currency': ticket.order_currency,
+                'supplier_name': ticket.supplier_name
+            }
+        )
+
+        # Log AI decision
+        new_decision = AIDecisionLog(
+            ticket_id=ticket.id,
+            intent=analysis.get('intent'),
+            confidence=analysis.get('confidence'),
+            requires_escalation=analysis.get('requires_escalation', False),
+            escalation_reason=analysis.get('escalation_reason'),
+            recommended_action=analysis.get('summary'),
+            response_generated=analysis.get('customer_response'),
+            action_taken='manual_analysis',
+            deployment_phase=settings.deployment_phase
+        )
+        db.add(new_decision)
+        db.commit()
+
+        logger.info("Manual AI analysis completed", ticket_number=ticket_number, decision_id=new_decision.id)
+
+        return {
+            "success": True,
+            "message": "AI analysis completed",
+            "decision_id": new_decision.id,
+            "requires_escalation": analysis.get('requires_escalation'),
+            "confidence": analysis.get('confidence')
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to analyze ticket", ticket_number=ticket_number, error=str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to analyze ticket: {str(e)}")
+
+
 @app.post("/api/tickets/{ticket_number}/refresh")
 async def refresh_ticket(
     ticket_number: str,
