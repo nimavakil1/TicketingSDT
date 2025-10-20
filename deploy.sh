@@ -2,15 +2,15 @@
 # Deployment script for TicketingSDT on server
 # Run this after git pull
 
-set -e  # Exit on error
-
 echo "🚀 Starting deployment..."
 
+# Change to project directory
+cd ~/TicketingSDT
+
 # Activate virtual environment if it exists
-if [ -d "venv" ]; then
+if [ -f "venv/bin/activate" ]; then
+    echo "Activating virtual environment..."
     source venv/bin/activate
-elif [ -d "$HOME/TicketingSDT/venv" ]; then
-    source "$HOME/TicketingSDT/venv/bin/activate"
 fi
 
 # 1. Build frontend
