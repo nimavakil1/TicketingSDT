@@ -30,24 +30,47 @@ class TicketingAPIClient:
 
     def _authenticate(self) -> None:
         """Authenticate with the ticketing API"""
+        auth_url = f"{self.base_url}/auth/login"
         try:
-            logger.info("Authenticating with ticketing API")
+            logger.info("Authenticating with ticketing API", url=auth_url)
             response = self.session.post(
-                f"{self.base_url}/auth/login",
+                auth_url,
                 json={
                     "username": self.username,
                     "password": self.password
                 },
                 timeout=10
             )
+
+            # Log response for debugging
+            logger.info(
+                "Auth response received",
+                status_code=response.status_code,
+                url=auth_url,
+                content_preview=response.text[:200] if response.text else "Empty"
+            )
+
             response.raise_for_status()
             data = response.json()
             self.token = data.get('token')
+
+            if not self.token:
+                logger.error("No token in response", response_data=data)
+                raise TicketingAPIError(f"No token in authentication response: {data}")
+
             self.session.headers.update({'Authorization': f'Bearer {self.token}'})
             logger.info("Successfully authenticated with ticketing API")
+        except requests.exceptions.HTTPError as e:
+            logger.error(
+                "Authentication HTTP error",
+                status_code=e.response.status_code if e.response else None,
+                url=auth_url,
+                response_text=e.response.text if e.response else None
+            )
+            raise TicketingAPIError(f"Authentication HTTP error {e.response.status_code}: {e.response.text if e.response else str(e)}")
         except Exception as e:
-            logger.error(f"Failed to authenticate with ticketing API: {e}")
-            raise TicketingAPIError(f"Authentication failed: {e}")
+            logger.error("Authentication failed", error=str(e), error_type=type(e).__name__)
+            raise TicketingAPIError(f"Authentication failed ({type(e).__name__}): {e}")
 
     def _ensure_authenticated(self) -> None:
         """Ensure we have a valid authentication token"""
