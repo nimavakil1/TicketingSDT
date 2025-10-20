@@ -6,6 +6,10 @@ cd ~/TicketingSDT
 python3 << 'PYTHON_SCRIPT'
 import sys
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Set up paths
 sys.path.insert(0, os.getcwd())
