@@ -79,6 +79,11 @@ def import_ticket(ticket_number, session, ticketing_client):
         ticket_details = ticket_data.get('ticketDetails', [])
         msg_count = 0
 
+        # Debug: print first ticket detail structure
+        if ticket_details:
+            print(f"  🔍 First ticket detail keys: {list(ticket_details[0].keys())}")
+            print(f"  🔍 First ticket detail sample: {str(ticket_details[0])[:800]}")
+
         for detail in ticket_details:
             # Create a unique identifier for each message
             detail_id = detail.get('id') or detail.get('recId')
