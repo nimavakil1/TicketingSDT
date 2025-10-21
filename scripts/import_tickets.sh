@@ -120,6 +120,23 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 # Not a valid Amazon order number, leave it None
                 print(f"  ⚠️  Order number '{potential_order_number}' is not Amazon format, skipping")
 
+        # Fix datetime format - truncate fractional seconds to 6 digits max
+        def fix_datetime(dt_string):
+            if not dt_string:
+                return None
+            # Match ISO format with timezone: 2025-10-16T11:51:04.3271702+02:00
+            # Python only supports up to 6 decimal places for microseconds
+            import re
+            match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([\+\-]\d{2}:\d{2})$', dt_string)
+            if match:
+                date_part, fractional, tz_part = match.groups()
+                # Truncate fractional seconds to 6 digits
+                fractional = fractional[:6]
+                return f"{date_part}.{fractional}{tz_part}"
+            return dt_string
+
+        order_date_fixed = fix_datetime(sales_order.get('confirmedDate'))
+
         # Create ticket with correct field mappings
         ticket_state = TicketState(
             ticket_number=ticket_number,
@@ -146,7 +163,7 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
             product_details=json.dumps(products),
             order_total=sales_order.get('totalPrice'),
             order_currency='EUR',
-            order_date=sales_order.get('confirmedDate')
+            order_date=order_date_fixed
         )
 
         session.add(ticket_state)
