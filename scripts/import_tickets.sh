@@ -106,11 +106,25 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 'price': item.get('singlePrice', 0)
             })
 
+        # Extract and validate Amazon order number
+        # Amazon order format: XXX-XXXXXXX-XXXXXXX (e.g., 305-1234567-1234567)
+        import re
+        potential_order_number = sales_order.get('orderNumber') or sales_order.get('marketplaceOrderId')
+        amazon_order_number = None
+
+        if potential_order_number:
+            # Validate Amazon order number format
+            if re.match(r'^\d{3}-\d{7}-\d{7}$', str(potential_order_number)):
+                amazon_order_number = potential_order_number
+            else:
+                # Not a valid Amazon order number, leave it None
+                print(f"  ⚠️  Order number '{potential_order_number}' is not Amazon format, skipping")
+
         # Create ticket with correct field mappings
         ticket_state = TicketState(
             ticket_number=ticket_number,
             ticket_id=ticket_data.get('id'),
-            order_number=sales_order.get('orderNumber'),  # Use orderNumber not salesId
+            order_number=amazon_order_number,  # Only set if valid Amazon format
             customer_name=shipping_address.get('Name') or sales_order.get('customerName'),
             customer_email=sales_order.get('confirmedEmail'),
             customer_language=ticket_data.get('customerLanguageCultureName', 'de-DE'),
