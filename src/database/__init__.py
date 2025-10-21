@@ -13,6 +13,7 @@ from .models import (
     MessageTemplate,
     PendingMessage,
     SkipTextBlock,
+    SystemSetting,
     init_database,
     get_session
 )
@@ -31,6 +32,7 @@ __all__ = [
     'MessageTemplate',
     'PendingMessage',
     'SkipTextBlock',
+    'SystemSetting',
     'init_database',
     'get_session'
 ]

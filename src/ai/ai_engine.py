@@ -272,17 +272,34 @@ class AIEngine:
             raise ValueError(f"Unsupported AI provider: {provider_name}")
 
     def _load_system_prompt(self) -> Optional[str]:
-        """Load operating prompt from settings.prompt_path if present."""
+        """Load system prompt from database or settings file."""
+        # Try database first
+        try:
+            from src.database.db import SessionLocal
+            session = SessionLocal()
+            try:
+                from src.database.models import SystemSetting
+                setting = session.query(SystemSetting).filter_by(key='ai_system_prompt').first()
+                if setting and setting.value:
+                    logger.info("Loaded system prompt from database")
+                    return setting.value
+            finally:
+                session.close()
+        except Exception as e:
+            logger.warning("Failed to load system prompt from database", error=str(e))
+
+        # Fallback to file if configured
         try:
             from pathlib import Path
             p = Path(settings.prompt_path)
             if p.exists():
                 text = p.read_text(encoding="utf-8").strip()
                 if text:
-                    logger.info("Loaded system prompt", path=str(p))
+                    logger.info("Loaded system prompt from file", path=str(p))
                     return text
         except Exception as e:
-            logger.warning("Failed to load system prompt", error=str(e))
+            logger.warning("Failed to load system prompt from file", error=str(e))
+
         return None
 
     def analyze_email(

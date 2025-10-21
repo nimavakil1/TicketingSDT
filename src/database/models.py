@@ -399,6 +399,21 @@ class PendingMessage(Base):
         return f"<PendingMessage(id={self.id}, type={self.message_type}, status={self.status})>"
 
 
+class SystemSetting(Base):
+    """
+    Store system-wide configuration settings
+    Used for AI prompts, feature flags, etc.
+    """
+    __tablename__ = 'system_settings'
+
+    key = Column(String(255), primary_key=True)
+    value = Column(Text)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SystemSetting(key={self.key})>"
+
+
 # Database initialization
 def init_database(database_url: Optional[str] = None) -> sessionmaker:
     """
