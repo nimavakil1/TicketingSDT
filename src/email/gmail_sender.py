@@ -85,6 +85,7 @@ class GmailSender:
         subject: str,
         body: str,
         cc: Optional[List[str]] = None,
+        bcc: Optional[List[str]] = None,
         attachments: Optional[List[str]] = None,
         reply_to_message_id: Optional[str] = None,
         thread_id: Optional[str] = None
@@ -97,6 +98,7 @@ class GmailSender:
             subject: Email subject
             body: Email body (plain text)
             cc: List of CC email addresses
+            bcc: List of BCC email addresses
             attachments: List of file paths to attach
             reply_to_message_id: Gmail message ID to reply to (for threading)
             thread_id: Gmail thread ID (for threading)
@@ -112,6 +114,9 @@ class GmailSender:
 
             if cc:
                 message['Cc'] = ', '.join(cc)
+
+            if bcc:
+                message['Bcc'] = ', '.join(bcc)
 
             # Add threading headers if replying
             if reply_to_message_id:

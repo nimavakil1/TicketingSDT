@@ -22,6 +22,9 @@ const TicketDetail: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [composeExpanded, setComposeExpanded] = useState(false);
   const [composeRecipientType, setComposeRecipientType] = useState<'customer' | 'supplier'>('customer');
+  const [composeTo, setComposeTo] = useState('');
+  const [composeCC, setComposeCC] = useState('');
+  const [composeBCC, setComposeBCC] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
@@ -57,8 +60,12 @@ const TicketDetail: React.FC = () => {
   const handleComposeMessage = (recipientType: 'customer' | 'supplier') => {
     setComposeRecipientType(recipientType);
     setComposeExpanded(true);
-    // Set default subject based on ticket
+    // Set default recipient based on type
     if (ticket) {
+      const defaultEmail = recipientType === 'customer'
+        ? ticket.customer_email
+        : (ticket.supplier_email || '');
+      setComposeTo(defaultEmail);
       setComposeSubject(`Re: Ticket ${ticket.ticket_number}`);
     }
   };
@@ -66,19 +73,21 @@ const TicketDetail: React.FC = () => {
   const handleSendViaGmail = async () => {
     if (!ticket) return;
 
-    const recipientEmail = composeRecipientType === 'customer'
-      ? ticket.customer_email
-      : (ticket.supplier_email || '');
-
     setReprocessing(true);
     setReprocessMessage(null);
 
     try {
+      // Parse CC and BCC fields (comma-separated)
+      const ccList = composeCC ? composeCC.split(',').map(e => e.trim()).filter(e => e) : [];
+      const bccList = composeBCC ? composeBCC.split(',').map(e => e.trim()).filter(e => e) : [];
+
       // Send email through Gmail API
       await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, {
-        to: recipientEmail,
+        to: composeTo,
         subject: composeSubject,
         body: composeBody,
+        cc: ccList.length > 0 ? ccList : undefined,
+        bcc: bccList.length > 0 ? bccList : undefined,
         thread_id: ticket.gmail_thread_id || null
       });
 
@@ -86,6 +95,9 @@ const TicketDetail: React.FC = () => {
 
       // Reset form and collapse
       setComposeExpanded(false);
+      setComposeTo('');
+      setComposeCC('');
+      setComposeBCC('');
       setComposeSubject('');
       setComposeBody('');
 
@@ -741,16 +753,46 @@ const TicketDetail: React.FC = () => {
         {composeExpanded && (
           <div className="p-6 bg-gray-50 border-t border-gray-200">
             <div className="space-y-4">
-              {/* Recipient Type Badge */}
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm font-medium text-gray-700">Composing message to:</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  composeRecipientType === 'customer'
-                    ? 'bg-indigo-100 text-indigo-800'
-                    : 'bg-purple-100 text-purple-800'
-                }`}>
-                  {composeRecipientType === 'customer' ? `Customer: ${ticket?.customer_email}` : `Supplier: ${ticket?.supplier_email || 'N/A'}`}
-                </span>
+              {/* To Address */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  To
+                </label>
+                <input
+                  type="email"
+                  value={composeTo}
+                  onChange={(e) => setComposeTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="recipient@example.com"
+                />
+              </div>
+
+              {/* CC */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  CC (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={composeCC}
+                  onChange={(e) => setComposeCC(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="email1@example.com, email2@example.com"
+                />
+              </div>
+
+              {/* BCC */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  BCC (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={composeBCC}
+                  onChange={(e) => setComposeBCC(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="email1@example.com, email2@example.com"
+                />
               </div>
 
               {/* Subject */}
@@ -792,7 +834,7 @@ const TicketDetail: React.FC = () => {
               <div className="flex gap-3">
                 <button
                   onClick={handleSendViaGmail}
-                  disabled={!composeSubject || !composeBody || reprocessing}
+                  disabled={!composeTo || !composeSubject || !composeBody || reprocessing}
                   className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="h-4 w-4" />
@@ -801,6 +843,9 @@ const TicketDetail: React.FC = () => {
                 <button
                   onClick={() => {
                     setComposeExpanded(false);
+                    setComposeTo('');
+                    setComposeCC('');
+                    setComposeBCC('');
                     setComposeSubject('');
                     setComposeBody('');
                   }}

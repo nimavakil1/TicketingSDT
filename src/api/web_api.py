@@ -1285,6 +1285,7 @@ class SendEmailRequest(BaseModel):
     subject: str
     body: str
     cc: Optional[List[str]] = None
+    bcc: Optional[List[str]] = None
     reply_to_message_id: Optional[str] = None
     thread_id: Optional[str] = None
 
@@ -1296,7 +1297,7 @@ async def send_email_via_gmail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Send an email through Gmail API"""
+    """Send an email through Gmail API and save to ticket history"""
     ticket = db.query(TicketState).filter(
         TicketState.ticket_number == ticket_number
     ).first()
@@ -1313,12 +1314,28 @@ async def send_email_via_gmail(
             subject=request.subject,
             body=request.body,
             cc=request.cc,
+            bcc=request.bcc,
             reply_to_message_id=request.reply_to_message_id,
             thread_id=request.thread_id
         )
 
+        # Save sent message to ticket history
+        sent_message = ProcessedEmail(
+            gmail_message_id=result.get('id'),
+            gmail_thread_id=result.get('threadId') or request.thread_id,
+            ticket_id=ticket.id,
+            order_number=ticket.order_number,
+            subject=request.subject,
+            from_address=settings.gmail_user_email,  # Our email address
+            message_body=request.body,
+            success=True,
+            processed_at=datetime.now(timezone.utc)
+        )
+        db.add(sent_message)
+        db.commit()
+
         logger.info(
-            "Email sent via Gmail",
+            "Email sent via Gmail and saved to history",
             ticket_number=ticket_number,
             to=request.to,
             subject=request.subject,
@@ -1332,6 +1349,7 @@ async def send_email_via_gmail(
         }
 
     except Exception as e:
+        db.rollback()
         logger.error("Failed to send email", ticket_number=ticket_number, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
