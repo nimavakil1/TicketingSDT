@@ -461,7 +461,14 @@ const TicketDetail: React.FC = () => {
             {ticket.order_number && (
               <div>
                 <p className="text-xs text-gray-500">Amazon Order Number</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.order_number}</p>
+                <a
+                  href={`https://sellercentral.amazon.de/orders-v3/order/${ticket.order_number}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+                >
+                  {ticket.order_number}
+                </a>
               </div>
             )}
             {ticket.customer_name && (
