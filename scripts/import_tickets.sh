@@ -116,7 +116,7 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
             ticket_status_id=ticket_data.get('ticketStatusId'),
             owner_id=None,  # Not in response
             current_state='imported',
-            product_details=str(sales_order.get('salesOrderItems', [])),
+            product_details=json.dumps(sales_order.get('salesOrderItems', [])),
             order_total=sales_order.get('totalPrice'),
             order_currency='EUR',
             order_date=sales_order.get('confirmedDate')
