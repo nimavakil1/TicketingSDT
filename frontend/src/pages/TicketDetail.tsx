@@ -549,7 +549,18 @@ const TicketDetail: React.FC = () => {
             {ticket.tracking_number && (
               <div>
                 <p className="text-xs text-gray-500">Tracking Number</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.tracking_number}</p>
+                {ticket.tracking_url ? (
+                  <a
+                    href={ticket.tracking_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+                  >
+                    {ticket.tracking_number}
+                  </a>
+                ) : (
+                  <p className="text-sm font-medium text-gray-900">{ticket.tracking_number}</p>
+                )}
               </div>
             )}
             {ticket.carrier_name && (
@@ -571,25 +582,32 @@ const TicketDetail: React.FC = () => {
               </div>
             )}
           </div>
-          {ticket.product_details && (
-            <div>
-              <p className="text-xs text-gray-500 mb-2">Products</p>
-              <div className="space-y-2">
-                {JSON.parse(ticket.product_details).map((product: any, index: number) => (
-                  <div key={index} className="border border-gray-200 rounded p-2 flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{product.title}</p>
-                      <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-900">Qty: {product.quantity}</p>
-                      <p className="text-xs text-gray-500">€{product.price.toFixed(2)}</p>
-                    </div>
+          {ticket.product_details && (() => {
+            try {
+              const products = JSON.parse(ticket.product_details);
+              return (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Products</p>
+                  <div className="space-y-2">
+                    {products.map((product: any, index: number) => (
+                      <div key={index} className="border border-gray-200 rounded p-3">
+                        <div className="flex justify-between items-start mb-1">
+                          <p className="text-sm font-medium text-gray-900">{product.title || 'No title'}</p>
+                          <p className="text-sm font-medium text-gray-900">Qty: {product.quantity || 1}</p>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <p className="text-xs text-gray-500">SKU: {product.sku || 'N/A'}</p>
+                          {product.price && <p className="text-xs text-gray-500">€{product.price.toFixed(2)}</p>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              );
+            } catch (e) {
+              return <p className="text-sm text-red-600">Error parsing product details</p>;
+            }
+          })()}
         </div>
       )}
 

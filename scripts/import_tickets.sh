@@ -73,6 +73,7 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
         supplier_email = None
         purchase_order_number = None
         tracking_number = None
+        tracking_url = None
         carrier_name = None
 
         if purchase_orders:
@@ -86,13 +87,24 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 parcels = deliveries[0].get('deliveryParcels', [])
                 if parcels:
                     tracking_number = parcels[0].get('trackNumber')
+                    tracking_url = parcels[0].get('traceUrl', '')
                     # Only use tracking if traceUrl is not empty
-                    trace_url = parcels[0].get('traceUrl', '')
-                    if not trace_url:
+                    if not tracking_url:
                         tracking_number = None
+                        tracking_url = None
 
                     shipment_method = parcels[0].get('shipmentMethod', {})
                     carrier_name = shipment_method.get('exportName')
+
+        # Extract product details from salesOrderItems
+        products = []
+        for item in sales_order.get('salesOrderItems', []):
+            products.append({
+                'sku': item.get('productNumber'),
+                'title': item.get('productTitle'),
+                'quantity': item.get('quantity', 1),
+                'price': item.get('singlePrice', 0)
+            })
 
         # Create ticket with correct field mappings
         ticket_state = TicketState(
@@ -111,12 +123,13 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
             supplier_email=supplier_email,
             purchase_order_number=purchase_order_number,
             tracking_number=tracking_number,
+            tracking_url=tracking_url,
             carrier_name=carrier_name,
             ticket_type_id=ticket_data.get('ticketTypeId'),
             ticket_status_id=ticket_data.get('ticketStatusId'),
             owner_id=None,  # Not in response
             current_state='imported',
-            product_details=json.dumps(sales_order.get('salesOrderItems', [])),
+            product_details=json.dumps(products),
             order_total=sales_order.get('totalPrice'),
             order_currency='EUR',
             order_date=sales_order.get('confirmedDate')

@@ -676,6 +676,7 @@ async def get_ticket_detail(
         "order_date": ticket.order_date,
         "purchase_order_number": ticket.purchase_order_number,
         "tracking_number": ticket.tracking_number,
+        "tracking_url": ticket.tracking_url,
         "carrier_name": ticket.carrier_name,
         "delivery_status": ticket.delivery_status,
         "expected_delivery_date": ticket.expected_delivery_date,

@@ -40,6 +40,7 @@ export interface TicketDetail {
   order_date?: string;
   purchase_order_number?: string;
   tracking_number?: string;
+  tracking_url?: string;
   carrier_name?: string;
   delivery_status?: string;
   expected_delivery_date?: string;

@@ -68,6 +68,7 @@ class TicketState(Base):
 
     # Delivery/Tracking information
     tracking_number = Column(String(100))
+    tracking_url = Column(String(500))
     carrier_name = Column(String(100))
     delivery_status = Column(String(50))
     expected_delivery_date = Column(String(50))
