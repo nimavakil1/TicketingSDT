@@ -18,10 +18,31 @@ def check_scopes():
     """Check what scopes are currently granted"""
     token_path = settings.gmail_token_path
 
-    if not os.path.exists(token_path):
-        print("❌ Token file not found at:", token_path)
-        print("   You need to authenticate first")
+    # Try common locations if default doesn't exist
+    possible_paths = [
+        token_path,
+        'data/token.json',
+        'config/gmail_token.json',
+        os.path.expanduser('~/TicketingSDT/data/token.json')
+    ]
+
+    found_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            found_path = path
+            break
+
+    if not found_path:
+        print("❌ Token file not found!")
+        print("   Checked these locations:")
+        for path in possible_paths:
+            print(f"     - {path}")
+        print("\n   You need to authenticate first.")
+        print("   Token should be at:", token_path)
         return
+
+    token_path = found_path
+    print(f"📍 Found token at: {token_path}\n")
 
     try:
         with open(token_path, 'r') as f:
