@@ -111,17 +111,20 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
         import re
 
         # Check multiple possible fields for Amazon order number
+        # Priority: reference field (most common), then fallback to others
         potential_order_number = (
+            sales_order.get('reference') or
             sales_order.get('marketplaceOrderId') or
-            sales_order.get('orderNumber') or
             sales_order.get('externalOrderNumber') or
-            sales_order.get('amazonOrderId')
+            sales_order.get('amazonOrderId') or
+            sales_order.get('orderNumber')
         )
 
         amazon_order_number = None
 
         # Debug: Show what we found
         print(f"  🔍 Checking order fields:")
+        print(f"     - reference: {sales_order.get('reference')}")
         print(f"     - orderNumber: {sales_order.get('orderNumber')}")
         print(f"     - marketplaceOrderId: {sales_order.get('marketplaceOrderId')}")
         print(f"     - externalOrderNumber: {sales_order.get('externalOrderNumber')}")
@@ -137,20 +140,26 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
         else:
             print(f"  ⚠️  No order number found in any field")
 
-        # Fix datetime format - truncate fractional seconds to 6 digits max
+        # Fix datetime format - truncate fractional seconds to 6 digits max and parse
         def fix_datetime(dt_string):
             if not dt_string:
                 return None
-            # Match ISO format with timezone: 2025-10-16T11:51:04.3271702+02:00
-            # Python only supports up to 6 decimal places for microseconds
-            import re
-            match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([\+\-]\d{2}:\d{2})$', dt_string)
-            if match:
-                date_part, fractional, tz_part = match.groups()
-                # Truncate fractional seconds to 6 digits
-                fractional = fractional[:6]
-                return f"{date_part}.{fractional}{tz_part}"
-            return dt_string
+            try:
+                from datetime import datetime
+                # Match ISO format with timezone: 2025-10-16T11:51:04.3271702+02:00
+                # Python only supports up to 6 decimal places for microseconds
+                match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([\+\-]\d{2}:\d{2})$', dt_string)
+                if match:
+                    date_part, fractional, tz_part = match.groups()
+                    # Truncate fractional seconds to 6 digits
+                    fractional = fractional[:6]
+                    fixed_string = f"{date_part}.{fractional}{tz_part}"
+                    return datetime.fromisoformat(fixed_string)
+                # Try parsing as-is
+                return datetime.fromisoformat(dt_string)
+            except Exception as e:
+                print(f"  ⚠️  Could not parse datetime '{dt_string}': {e}")
+                return None
 
         order_date_fixed = fix_datetime(sales_order.get('confirmedDate'))
 
