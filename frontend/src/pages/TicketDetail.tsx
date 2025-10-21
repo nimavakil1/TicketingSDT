@@ -745,7 +745,7 @@ const TicketDetail: React.FC = () => {
       {/* Message Composition */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <div className="flex gap-3">
+          <div className="flex gap-3 justify-center">
             <button
               onClick={() => handleComposeMessage('customer')}
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
