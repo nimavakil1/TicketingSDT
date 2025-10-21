@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ticketsApi, TicketDetail as TicketDetailType, Ticket } from '../api/tickets';
+import { ticketsApi, TicketDetail as TicketDetailType, Ticket, CustomStatus } from '../api/tickets';
 import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
@@ -28,6 +28,8 @@ const TicketDetail: React.FC = () => {
   const [runningAnalysis, setRunningAnalysis] = useState(false);
   const [showPromptPreview, setShowPromptPreview] = useState(false);
   const [promptPreview, setPromptPreview] = useState<{system_prompt: string, user_prompt: string} | null>(null);
+  const [statuses, setStatuses] = useState<CustomStatus[]>([]);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -155,6 +157,7 @@ const TicketDetail: React.FC = () => {
 
   useEffect(() => {
     loadTicketList();
+    loadStatuses();
   }, []);
 
   useEffect(() => {
@@ -176,6 +179,33 @@ const TicketDetail: React.FC = () => {
       setTicketList(tickets);
     } catch (err) {
       console.error('Failed to load ticket list:', err);
+    }
+  };
+
+  const loadStatuses = async () => {
+    try {
+      const response = await client.get('/api/statuses');
+      setStatuses(response.data);
+    } catch (err) {
+      console.error('Failed to load statuses:', err);
+    }
+  };
+
+  const handleStatusChange = async (statusId: number) => {
+    if (!ticket) return;
+
+    setUpdatingStatus(true);
+    try {
+      await client.patch(`/api/tickets/${ticket.ticket_number}/status`, null, {
+        params: { status_id: statusId }
+      });
+      await loadTicket(); // Reload to show updated status
+    } catch (err: any) {
+      console.error('Failed to update status:', err);
+      setReprocessMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to update status' });
+      setTimeout(() => setReprocessMessage(null), 5000);
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -414,8 +444,28 @@ const TicketDetail: React.FC = () => {
             <p className="text-sm font-medium text-gray-900">{ticket.ticket_id}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Status</p>
+            <p className="text-sm text-gray-500">Old System Status</p>
             <p className="text-sm font-medium text-gray-900">{ticket.status}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 mb-1">Custom Status</p>
+            <select
+              value={ticket.custom_status_id || ''}
+              onChange={(e) => handleStatusChange(parseInt(e.target.value))}
+              disabled={updatingStatus}
+              className={`px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                ticket.custom_status
+                  ? `bg-${ticket.custom_status.color}-100 text-${ticket.custom_status.color}-800 font-medium`
+                  : 'bg-white text-gray-900'
+              }`}
+            >
+              <option value="">No status set</option>
+              {statuses.map((status) => (
+                <option key={status.id} value={status.id}>
+                  {status.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <p className="text-sm text-gray-500">Customer Email</p>

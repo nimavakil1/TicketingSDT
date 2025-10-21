@@ -32,6 +32,7 @@ const Tickets: React.FC = () => {
   const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEscalated, setShowEscalated] = useState(false);
+  const [hideClosedTickets, setHideClosedTickets] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(DEFAULT_WIDTHS);
@@ -85,6 +86,13 @@ const Tickets: React.FC = () => {
   useEffect(() => {
     let filtered = tickets;
 
+    // Filter out closed tickets if hideClosedTickets is enabled
+    if (hideClosedTickets) {
+      filtered = filtered.filter(ticket =>
+        !ticket.custom_status || !ticket.custom_status.is_closed
+      );
+    }
+
     if (filters.ticketNumber) {
       filtered = filtered.filter(ticket =>
         ticket.ticket_number.toLowerCase().includes(filters.ticketNumber.toLowerCase())
@@ -116,7 +124,7 @@ const Tickets: React.FC = () => {
     }
 
     setFilteredTickets(filtered);
-  }, [tickets, filters]);
+  }, [tickets, filters, hideClosedTickets]);
 
   const handleFilterChange = (column: string, value: string) => {
     setFilters(prev => ({
@@ -175,15 +183,26 @@ const Tickets: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Tickets</h1>
           <p className="text-gray-600 mt-1">View and manage support tickets</p>
         </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showEscalated}
-            onChange={(e) => setShowEscalated(e.target.checked)}
-            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span className="text-sm font-medium text-gray-700">Show escalated only</span>
-        </label>
+        <div className="flex items-center gap-6">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showEscalated}
+              onChange={(e) => setShowEscalated(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Show escalated only</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideClosedTickets}
+              onChange={(e) => setHideClosedTickets(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Hide closed tickets</span>
+          </label>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">

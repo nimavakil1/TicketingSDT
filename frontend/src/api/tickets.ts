@@ -11,6 +11,16 @@ export interface Ticket {
   ai_decision_count: number;
   ticket_status_id: number;
   owner_id: number | null;
+  custom_status_id: number | null;
+  custom_status: CustomStatus | null;
+}
+
+export interface CustomStatus {
+  id: number;
+  name: string;
+  color: string;
+  is_closed: boolean;
+  display_order: number;
 }
 
 export interface TicketMessage {
@@ -58,6 +68,8 @@ export interface TicketDetail {
   created_at: string;
   messages: TicketMessage[];
   ai_decisions: AIDecision[];
+  custom_status_id: number | null;
+  custom_status: CustomStatus | null;
 }
 
 export interface AIDecision {

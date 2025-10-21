@@ -87,6 +87,17 @@ class DashboardStats(BaseModel):
     phase: int
 
 
+class CustomStatusInfo(BaseModel):
+    id: int
+    name: str
+    color: str
+    is_closed: bool
+    display_order: int
+
+    class Config:
+        from_attributes = True
+
+
 class TicketInfo(BaseModel):
     ticket_number: str
     status: str
@@ -98,6 +109,8 @@ class TicketInfo(BaseModel):
     ai_decision_count: int
     ticket_status_id: int
     owner_id: Optional[int]
+    custom_status_id: Optional[int]
+    custom_status: Optional[CustomStatusInfo]
 
 
 class AIDecisionInfo(BaseModel):
@@ -514,7 +527,9 @@ async def get_tickets(
             escalated=ticket.escalated,
             ai_decision_count=len(ticket.ai_decisions),
             ticket_status_id=ticket.ticket_status_id or 0,
-            owner_id=ticket.owner_id
+            owner_id=ticket.owner_id,
+            custom_status_id=ticket.custom_status_id,
+            custom_status=CustomStatusInfo.model_validate(ticket.custom_status) if ticket.custom_status else None
         )
         for ticket in tickets
     ]
@@ -687,6 +702,14 @@ async def get_ticket_detail(
         "supplier_contact_person": ticket.supplier_contact_person,
         "ticket_status_id": ticket.ticket_status_id,
         "owner_id": ticket.owner_id,
+        "custom_status_id": ticket.custom_status_id,
+        "custom_status": {
+            "id": ticket.custom_status.id,
+            "name": ticket.custom_status.name,
+            "color": ticket.custom_status.color,
+            "is_closed": ticket.custom_status.is_closed,
+            "display_order": ticket.custom_status.display_order
+        } if ticket.custom_status else None,
         "escalated": ticket.escalated,
         "escalation_reason": ticket.escalation_reason,
         "escalation_date": ensure_utc(ticket.escalation_date),
