@@ -130,9 +130,11 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
         print(f"     - externalOrderNumber: {sales_order.get('externalOrderNumber')}")
 
         if potential_order_number:
-            # Validate Amazon order number format
-            if re.match(r'^\d{3}-\d{7}-\d{7}$', str(potential_order_number)):
-                amazon_order_number = potential_order_number
+            # Extract Amazon order number and strip any suffix
+            # Pattern: XXX-XXXXXXX-XXXXXXX (may have _XX or other suffix)
+            amazon_match = re.search(r'(\d{3}-\d{7}-\d{7})', str(potential_order_number))
+            if amazon_match:
+                amazon_order_number = amazon_match.group(1)
                 print(f"  ✅ Valid Amazon order: {amazon_order_number}")
             else:
                 # Not a valid Amazon order number, leave it None
@@ -168,7 +170,9 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 print(f"  ⚠️  Could not parse datetime '{dt_string}': {e}")
                 return None
 
-        order_date_fixed = fix_datetime(sales_order.get('confirmedDate'))
+        # order_date column is String type, so convert datetime back to string
+        order_date_dt = fix_datetime(sales_order.get('confirmedDate'))
+        order_date_fixed = order_date_dt.isoformat() if order_date_dt else None
 
         # Create ticket with correct field mappings
         ticket_state = TicketState(
