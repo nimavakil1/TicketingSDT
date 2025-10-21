@@ -1326,7 +1326,7 @@ async def send_email_via_gmail(
             ticket_id=ticket.id,
             order_number=ticket.order_number,
             subject=request.subject,
-            from_address=settings.gmail_user_email,  # Our email address
+            from_address=settings.gmail_support_email,  # Our email address
             message_body=request.body,
             success=True,
             processed_at=datetime.now(timezone.utc)
