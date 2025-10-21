@@ -61,12 +61,24 @@ def authenticate():
     try:
         flow = InstalledAppFlow.from_client_secrets_file(
             credentials_path,
-            SCOPES,
-            redirect_uri='urn:ietf:wg:oauth:2.0:oob'  # For manual code entry
+            SCOPES
         )
 
-        # This will print the URL and wait for manual code entry
-        creds = flow.run_console()
+        # Get authorization URL
+        flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+        auth_url, _ = flow.authorization_url(prompt='consent')
+
+        print("\n📍 STEP 1: Open this URL in your browser:\n")
+        print(auth_url)
+        print("\n📍 STEP 2: After authorizing, Google will show you a code.")
+        print("           Copy that code and paste it below.\n")
+
+        # Wait for user to paste code
+        code = input("Enter the authorization code: ").strip()
+
+        # Exchange code for credentials
+        flow.fetch_token(code=code)
+        creds = flow.credentials
 
         # Save credentials
         with open(token_path, 'w') as token:
