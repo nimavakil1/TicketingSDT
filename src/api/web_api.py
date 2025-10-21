@@ -5,12 +5,15 @@ FastAPI application that exposes existing system functionality via REST API
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 import structlog
+import re
+import html
+from html.parser import HTMLParser
 from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 import jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
