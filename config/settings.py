@@ -85,8 +85,8 @@ class Settings(BaseSettings):
     ai_max_tokens: int = Field(
         default=2000,
         ge=100,
-        le=4000,
-        description="Maximum tokens for AI responses"
+        le=16000,
+        description="Maximum tokens for AI responses (GPT-5 reasoning models need more)"
     )
 
     # Phase Configuration
