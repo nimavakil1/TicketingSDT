@@ -1380,10 +1380,17 @@ async def save_internal_note(
         import uuid
         internal_msg_id = f"internal_{ticket_number}_{uuid.uuid4().hex[:8]}"
 
+        # Get gmail_thread_id from most recent email for this ticket
+        recent_email = db.query(ProcessedEmail).filter(
+            ProcessedEmail.ticket_id == ticket.id
+        ).order_by(ProcessedEmail.processed_at.desc()).first()
+
+        gmail_thread_id = recent_email.gmail_thread_id if recent_email else None
+
         # Save internal note to ticket history
         internal_note = ProcessedEmail(
             gmail_message_id=internal_msg_id,
-            gmail_thread_id=ticket.gmail_thread_id,
+            gmail_thread_id=gmail_thread_id,
             ticket_id=ticket.id,
             order_number=ticket.order_number,
             subject=request.subject,
