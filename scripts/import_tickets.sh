@@ -284,27 +284,7 @@ ticketing_client = TicketingAPIClient()
 text_filter = TextFilter(session)
 
 tickets = [
-    'FR25005135',
-    'DE25007136',
-    'DE25007142',
-    'DE25007139',
-    'DE25007141',
-    'DE25007144',
-    'DE25007138',
-    'DE25007146',
-    'DE25007135',
-    'DE25007094',
-    'DE25007149',
-    'DE25007100',
-    'DE25007123',
-    'DE25007150',
-    'AT25005133',
-    'FR25005136',
-    'DE25007151',
-    'DE25007152',
-    'DE25007153',
-    'DE25007154',
-    'DE25007167'
+    'DE25007099'
 ]
 
 print(f"\n🎯 Importing {len(tickets)} tickets (NO AI analysis)...\n")
