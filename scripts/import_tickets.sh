@@ -109,16 +109,33 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
         # Extract and validate Amazon order number
         # Amazon order format: XXX-XXXXXXX-XXXXXXX (e.g., 305-1234567-1234567)
         import re
-        potential_order_number = sales_order.get('orderNumber') or sales_order.get('marketplaceOrderId')
+
+        # Check multiple possible fields for Amazon order number
+        potential_order_number = (
+            sales_order.get('marketplaceOrderId') or
+            sales_order.get('orderNumber') or
+            sales_order.get('externalOrderNumber') or
+            sales_order.get('amazonOrderId')
+        )
+
         amazon_order_number = None
+
+        # Debug: Show what we found
+        print(f"  🔍 Checking order fields:")
+        print(f"     - orderNumber: {sales_order.get('orderNumber')}")
+        print(f"     - marketplaceOrderId: {sales_order.get('marketplaceOrderId')}")
+        print(f"     - externalOrderNumber: {sales_order.get('externalOrderNumber')}")
 
         if potential_order_number:
             # Validate Amazon order number format
             if re.match(r'^\d{3}-\d{7}-\d{7}$', str(potential_order_number)):
                 amazon_order_number = potential_order_number
+                print(f"  ✅ Valid Amazon order: {amazon_order_number}")
             else:
                 # Not a valid Amazon order number, leave it None
                 print(f"  ⚠️  Order number '{potential_order_number}' is not Amazon format, skipping")
+        else:
+            print(f"  ⚠️  No order number found in any field")
 
         # Fix datetime format - truncate fractional seconds to 6 digits max
         def fix_datetime(dt_string):
