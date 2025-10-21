@@ -1354,6 +1354,65 @@ async def send_email_via_gmail(
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
 
+# Internal note endpoint
+class InternalNoteRequest(BaseModel):
+    subject: str
+    body: str
+
+
+@app.post("/api/tickets/{ticket_number}/internal-note")
+async def save_internal_note(
+    ticket_number: str,
+    request: InternalNoteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save an internal note to ticket history"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        # Create a unique message ID for internal note
+        import uuid
+        internal_msg_id = f"internal_{ticket_number}_{uuid.uuid4().hex[:8]}"
+
+        # Save internal note to ticket history
+        internal_note = ProcessedEmail(
+            gmail_message_id=internal_msg_id,
+            gmail_thread_id=ticket.gmail_thread_id,
+            ticket_id=ticket.id,
+            order_number=ticket.order_number,
+            subject=request.subject,
+            from_address="Internal",
+            message_body=request.body,
+            success=True,
+            processed_at=datetime.now(timezone.utc)
+        )
+        db.add(internal_note)
+        db.commit()
+
+        logger.info(
+            "Internal note saved",
+            ticket_number=ticket_number,
+            subject=request.subject,
+            message_id=internal_msg_id
+        )
+
+        return {
+            "success": True,
+            "message_id": internal_msg_id
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to save internal note", ticket_number=ticket_number, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to save internal note: {str(e)}")
+
+
 # AI Decision Log endpoints
 @app.get("/api/ai-decisions")
 async def get_ai_decisions(
