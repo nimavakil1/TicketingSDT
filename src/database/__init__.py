@@ -14,6 +14,7 @@ from .models import (
     PendingMessage,
     SkipTextBlock,
     SystemSetting,
+    CustomStatus,
     init_database,
     get_session
 )
@@ -33,6 +34,7 @@ __all__ = [
     'PendingMessage',
     'SkipTextBlock',
     'SystemSetting',
+    'CustomStatus',
     'init_database',
     'get_session'
 ]

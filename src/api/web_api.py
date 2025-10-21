@@ -2898,6 +2898,11 @@ async def update_setting(
     return {"key": key, "value": value, "message": "Setting updated successfully"}
 
 
+# Include status management router
+from src.api.status_api import router as status_router
+app.include_router(status_router)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

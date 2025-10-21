@@ -85,6 +85,7 @@ class TicketState(Base):
     ticket_type_id = Column(Integer)  # 1=Return, 2=Tracking, etc.
     ticket_status_id = Column(Integer)  # Current status from API
     owner_id = Column(Integer)  # Ticket owner from API
+    custom_status_id = Column(Integer, ForeignKey('custom_statuses.id'))  # Our custom status
 
     # State tracking
     current_state = Column(String(50))  # e.g., 'awaiting_customer', 'awaiting_supplier', 'resolved'
@@ -110,6 +111,7 @@ class TicketState(Base):
     # Relationships
     emails = relationship('ProcessedEmail', backref='ticket', lazy='dynamic')
     supplier_messages = relationship('SupplierMessage', backref='ticket', lazy='dynamic')
+    custom_status = relationship('CustomStatus', backref='tickets')
 
     def __repr__(self):
         return f"<TicketState(id={self.id}, ticket_number={self.ticket_number}, state={self.current_state})>"
@@ -413,6 +415,23 @@ class SystemSetting(Base):
 
     def __repr__(self):
         return f"<SystemSetting(key={self.key})>"
+
+
+class CustomStatus(Base):
+    """
+    Custom ticket status independent from old ticketing system
+    """
+    __tablename__ = 'custom_statuses'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False, unique=True)
+    color = Column(String(20), default='gray')
+    is_closed = Column(Boolean, default=False)
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<CustomStatus(id={self.id}, name={self.name}, is_closed={self.is_closed})>"
 
 
 # Database initialization
