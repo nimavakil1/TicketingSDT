@@ -30,6 +30,7 @@ class ProcessedEmail(Base):
     order_number = Column(String(50), index=True)
     subject = Column(String(500))
     from_address = Column(String(255))
+    message_body = Column(Text)
     success = Column(Boolean, default=True, nullable=False, index=True)
     error_message = Column(Text)
 
