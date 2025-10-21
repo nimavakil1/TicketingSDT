@@ -103,6 +103,7 @@ class TicketInfo(BaseModel):
     ticket_number: str
     status: str
     customer_email: str
+    customer_name: Optional[str]
     order_number: Optional[str]
     purchase_order_number: Optional[str]
     last_updated: datetime
@@ -522,6 +523,7 @@ async def get_tickets(
             ticket_number=ticket.ticket_number,
             status=ticket.current_state or "unknown",
             customer_email=ticket.customer_email or "N/A",
+            customer_name=ticket.customer_name,
             order_number=ticket.order_number,
             purchase_order_number=ticket.purchase_order_number,
             last_updated=ticket.updated_at,

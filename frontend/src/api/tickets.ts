@@ -4,6 +4,7 @@ export interface Ticket {
   ticket_number: string;
   status: string;
   customer_email: string;
+  customer_name: string | null;
   order_number: string | null;
   purchase_order_number: string | null;
   last_updated: string;
