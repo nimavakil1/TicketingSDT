@@ -27,6 +27,7 @@ from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
 from src.utils.text_filter import TextFilter
+from src.utils.status_manager import update_ticket_status
 from src.scheduler.message_retry_scheduler import start_scheduler, stop_scheduler
 
 logger = structlog.get_logger(__name__)
@@ -820,9 +821,13 @@ async def reprocess_ticket(
             ticket.escalated = True
             ticket.escalation_reason = analysis.get('escalation_reason')
             ticket.current_state = 'escalated'
+            # Update custom status to ESCALATED
+            update_ticket_status(ticket.ticket_number, 'ESCALATED', db)
         else:
             ticket.escalated = False
             ticket.escalation_reason = None
+            # Update custom status to In Progress (being worked on)
+            update_ticket_status(ticket.ticket_number, 'In Progress', db)
 
         ticket.updated_at = datetime.utcnow()
         db.commit()
@@ -1121,6 +1126,13 @@ async def analyze_ticket(
             deployment_phase=settings.deployment_phase
         )
         db.add(new_decision)
+
+        # Update status based on analysis result
+        if analysis.get('requires_escalation'):
+            update_ticket_status(ticket.ticket_number, 'ESCALATED', db)
+        else:
+            update_ticket_status(ticket.ticket_number, 'In Progress', db)
+
         db.commit()
 
         logger.info("Manual AI analysis completed", ticket_number=ticket_number, decision_id=new_decision.id)
