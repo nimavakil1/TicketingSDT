@@ -955,6 +955,9 @@ async def analyze_ticket(
             text = re.sub(r'[-_]{10,}', '', text)  # Separator lines
             return text
 
+        # Initialize text filter
+        text_filter = TextFilter(db)
+
         # Build structured conversation, excluding ignored messages
         conversation_parts = []
         seen_content = set()  # To detect duplicates
@@ -975,8 +978,11 @@ async def analyze_ticket(
 
                 msg_type = message_types.get(detail_id, "unknown")
 
-                # Normalize for duplicate detection
-                body_normalized = normalize_for_comparison(body or '')
+                # Apply text filtering to remove boilerplate FIRST
+                body_filtered = text_filter.filter_email_body(body or '')
+
+                # Then normalize for duplicate detection
+                body_normalized = normalize_for_comparison(body_filtered)
 
                 # Skip if empty after normalization
                 if not body_normalized or len(body_normalized) < 20:
@@ -1062,7 +1068,7 @@ async def analyze_ticket(
 
             return {
                 "preview": True,
-                "system_prompt": ai_engine.system_prompt,
+                "system_prompt": ai_engine.system_prompt or "No custom system prompt configured",
                 "user_prompt": prompt,
                 "email_data": email_data,
                 "ticket_data": ticket_data_dict
