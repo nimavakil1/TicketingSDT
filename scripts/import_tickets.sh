@@ -152,7 +152,7 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 match_tz = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([\+\-]\d{2}:\d{2})$', dt_string)
                 if match_tz:
                     date_part, fractional, tz_part = match_tz.groups()
-                    fractional = fractional[:6]  # Truncate to 6 digits
+                    fractional = fractional[:6].ljust(6, '0')  # Truncate to 6 digits and pad if needed
                     fixed_string = f"{date_part}.{fractional}{tz_part}"
                     return datetime.fromisoformat(fixed_string)
 
@@ -160,7 +160,7 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 match_no_tz = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)$', dt_string)
                 if match_no_tz:
                     date_part, fractional = match_no_tz.groups()
-                    fractional = fractional[:6]  # Truncate to 6 digits
+                    fractional = fractional[:6].ljust(6, '0')  # Truncate to 6 digits and pad if needed
                     fixed_string = f"{date_part}.{fractional}"
                     return datetime.fromisoformat(fixed_string)
 
