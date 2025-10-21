@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 
-from src.database import CustomStatus, TicketState, get_session
-from src.api.web_api import get_current_user, User
+from src.database import CustomStatus, TicketState
+from src.api.web_api import get_current_user, User, get_db
 
 router = APIRouter()
 
@@ -40,7 +40,7 @@ class StatusResponse(BaseModel):
 @router.get("/api/statuses", response_model=List[StatusResponse])
 async def get_statuses(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_db)
 ):
     """Get all custom statuses ordered by display_order"""
     statuses = db.query(CustomStatus).order_by(CustomStatus.display_order).all()
@@ -51,7 +51,7 @@ async def get_statuses(
 async def create_status(
     status: StatusCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_db)
 ):
     """Create a new custom status"""
     # Check if name already exists
@@ -76,7 +76,7 @@ async def update_status(
     status_id: int,
     status: StatusUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_db)
 ):
     """Update an existing status"""
     db_status = db.query(CustomStatus).filter(CustomStatus.id == status_id).first()
@@ -108,7 +108,7 @@ async def update_status(
 async def delete_status(
     status_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_db)
 ):
     """Delete a status (only if no tickets are using it)"""
     db_status = db.query(CustomStatus).filter(CustomStatus.id == status_id).first()
@@ -133,7 +133,7 @@ async def update_ticket_status(
     ticket_number: str,
     status_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_db)
 ):
     """Update a ticket's custom status"""
     ticket = db.query(TicketState).filter(TicketState.ticket_number == ticket_number).first()
