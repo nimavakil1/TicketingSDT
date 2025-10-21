@@ -11,7 +11,7 @@ interface ColumnWidths {
   ticketNumber: number;
   status: number;
   amazonOrder: number;
-  transaction: number;
+  customerName: number;
   poNumber: number;
   aiDecisions: number;
   lastUpdated: number;
@@ -21,7 +21,7 @@ const DEFAULT_WIDTHS: ColumnWidths = {
   ticketNumber: 150,
   status: 120,
   amazonOrder: 180,
-  transaction: 150,
+  customerName: 200,
   poNumber: 150,
   aiDecisions: 120,
   lastUpdated: 180,
@@ -41,7 +41,7 @@ const Tickets: React.FC = () => {
     ticketNumber: '',
     status: '',
     amazonOrder: '',
-    transaction: '',
+    customerName: '',
     poNumber: '',
   });
   const startXRef = useRef<number>(0);
@@ -111,9 +111,9 @@ const Tickets: React.FC = () => {
       );
     }
 
-    if (filters.transaction) {
+    if (filters.customerName) {
       filtered = filtered.filter(ticket =>
-        ticket.ticket_number.toLowerCase().includes(filters.transaction.toLowerCase())
+        ticket.customer_name?.toLowerCase().includes(filters.customerName.toLowerCase())
       );
     }
 
@@ -265,20 +265,20 @@ const Tickets: React.FC = () => {
               </th>
               <th
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
-                style={{ width: `${columnWidths.transaction}px` }}
+                style={{ width: `${columnWidths.customerName}px` }}
               >
-                <div className="mb-1">Transaction Nr</div>
+                <div className="mb-1">Customer name</div>
                 <input
                   type="text"
-                  value={filters.transaction}
-                  onChange={(e) => handleFilterChange('transaction', e.target.value)}
+                  value={filters.customerName}
+                  onChange={(e) => handleFilterChange('customerName', e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   placeholder="Filter..."
                   className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
-                  onMouseDown={(e) => handleMouseDown(e, 'transaction')}
+                  onMouseDown={(e) => handleMouseDown(e, 'customerName')}
                 />
               </th>
               <th
@@ -352,8 +352,8 @@ const Tickets: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.amazonOrder}px` }}>
                   {ticket.order_number || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.transaction}px` }}>
-                  {ticket.ticket_number}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.customerName}px` }}>
+                  {ticket.customer_name || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.poNumber}px` }}>
                   {ticket.purchase_order_number || '-'}
