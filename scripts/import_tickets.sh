@@ -303,7 +303,8 @@ tickets = [
     'DE25007151',
     'DE25007152',
     'DE25007153',
-    'DE25007154'
+    'DE25007154',
+    'DE25007167'
 ]
 
 print(f"\n🎯 Importing {len(tickets)} tickets (NO AI analysis)...\n")
