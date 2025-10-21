@@ -1279,6 +1279,63 @@ async def refresh_ticket(
         raise HTTPException(status_code=500, detail=f"Failed to refresh ticket: {str(e)}")
 
 
+# Email sending endpoint
+class SendEmailRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+    cc: Optional[List[str]] = None
+    reply_to_message_id: Optional[str] = None
+    thread_id: Optional[str] = None
+
+
+@app.post("/api/tickets/{ticket_number}/send-email")
+async def send_email_via_gmail(
+    ticket_number: str,
+    request: SendEmailRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Send an email through Gmail API"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        from src.email.gmail_sender import GmailSender
+
+        gmail_sender = GmailSender()
+        result = gmail_sender.send_email(
+            to=request.to,
+            subject=request.subject,
+            body=request.body,
+            cc=request.cc,
+            reply_to_message_id=request.reply_to_message_id,
+            thread_id=request.thread_id
+        )
+
+        logger.info(
+            "Email sent via Gmail",
+            ticket_number=ticket_number,
+            to=request.to,
+            subject=request.subject,
+            message_id=result.get('id')
+        )
+
+        return {
+            "success": True,
+            "message_id": result.get('id'),
+            "thread_id": result.get('threadId')
+        }
+
+    except Exception as e:
+        logger.error("Failed to send email", ticket_number=ticket_number, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+
 # AI Decision Log endpoints
 @app.get("/api/ai-decisions")
 async def get_ai_decisions(

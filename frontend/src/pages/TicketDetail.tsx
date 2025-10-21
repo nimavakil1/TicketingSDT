@@ -63,23 +63,46 @@ const TicketDetail: React.FC = () => {
     }
   };
 
-  const handleSendViaGmail = () => {
+  const handleSendViaGmail = async () => {
     if (!ticket) return;
 
     const recipientEmail = composeRecipientType === 'customer'
       ? ticket.customer_email
       : (ticket.supplier_email || '');
 
-    // Create mailto link with pre-filled subject and body
-    const mailtoLink = `mailto:${recipientEmail}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
+    setReprocessing(true);
+    setReprocessMessage(null);
 
-    // Open Gmail in new tab
-    window.open(mailtoLink, '_blank');
+    try {
+      // Send email through Gmail API
+      await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, {
+        to: recipientEmail,
+        subject: composeSubject,
+        body: composeBody,
+        thread_id: ticket.gmail_thread_id || null
+      });
 
-    // Reset form and collapse
-    setComposeExpanded(false);
-    setComposeSubject('');
-    setComposeBody('');
+      setReprocessMessage({ type: 'success', text: 'Email sent successfully via Gmail!' });
+
+      // Reset form and collapse
+      setComposeExpanded(false);
+      setComposeSubject('');
+      setComposeBody('');
+
+      // Refresh ticket to show new message
+      setTimeout(() => {
+        loadTicket();
+        setReprocessMessage(null);
+      }, 2000);
+    } catch (err: any) {
+      console.error('Failed to send email:', err);
+      setReprocessMessage({
+        type: 'error',
+        text: err.response?.data?.detail || 'Failed to send email'
+      });
+    } finally {
+      setReprocessing(false);
+    }
   };
 
   const handleMessageSent = () => {
@@ -761,7 +784,7 @@ const TicketDetail: React.FC = () => {
               {/* Info Note */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Clicking "Open in Gmail" will open your default email client with the pre-filled message. You can edit it before sending.
+                  <strong>Note:</strong> Email will be sent through Gmail API in the background and automatically threaded with the existing conversation.
                 </p>
               </div>
 
@@ -769,11 +792,11 @@ const TicketDetail: React.FC = () => {
               <div className="flex gap-3">
                 <button
                   onClick={handleSendViaGmail}
-                  disabled={!composeSubject || !composeBody}
+                  disabled={!composeSubject || !composeBody || reprocessing}
                   className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="h-4 w-4" />
-                  Open in Gmail
+                  {reprocessing ? 'Sending...' : 'Send via Gmail'}
                 </button>
                 <button
                   onClick={() => {
