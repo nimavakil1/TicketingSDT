@@ -146,16 +146,23 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 return None
             try:
                 from datetime import datetime
-                # Match ISO format with timezone: 2025-10-16T11:51:04.3271702+02:00
-                # Python only supports up to 6 decimal places for microseconds
-                match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([\+\-]\d{2}:\d{2})$', dt_string)
-                if match:
-                    date_part, fractional, tz_part = match.groups()
-                    # Truncate fractional seconds to 6 digits
-                    fractional = fractional[:6]
+                # Match ISO format WITH timezone: 2025-10-16T11:51:04.3271702+02:00
+                match_tz = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)([\+\-]\d{2}:\d{2})$', dt_string)
+                if match_tz:
+                    date_part, fractional, tz_part = match_tz.groups()
+                    fractional = fractional[:6]  # Truncate to 6 digits
                     fixed_string = f"{date_part}.{fractional}{tz_part}"
                     return datetime.fromisoformat(fixed_string)
-                # Try parsing as-is
+
+                # Match ISO format WITHOUT timezone: 2025-10-07T07:29:21.7119919
+                match_no_tz = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)$', dt_string)
+                if match_no_tz:
+                    date_part, fractional = match_no_tz.groups()
+                    fractional = fractional[:6]  # Truncate to 6 digits
+                    fixed_string = f"{date_part}.{fractional}"
+                    return datetime.fromisoformat(fixed_string)
+
+                # Try parsing as-is (for dates without fractional seconds)
                 return datetime.fromisoformat(dt_string)
             except Exception as e:
                 print(f"  ⚠️  Could not parse datetime '{dt_string}': {e}")
@@ -238,6 +245,9 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 subject = "Message"
 
             # Create ProcessedEmail entry with message body
+            # Fix the createdDateTime format
+            created_dt_fixed = fix_datetime(detail.get('createdDateTime'))
+
             session.execute(text("""
                 INSERT INTO processed_emails
                 (gmail_message_id, gmail_thread_id, ticket_id, order_number, subject, from_address, message_body, success, processed_at)
@@ -250,7 +260,7 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
                 'subject': subject,
                 'from_addr': detail.get('receiverEmailAddress') or ticket_data.get('entranceEmailSenderAddress'),
                 'body': message_body,
-                'created': detail.get('createdDateTime')
+                'created': created_dt_fixed
             })
             msg_count += 1
 
