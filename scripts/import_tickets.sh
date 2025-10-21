@@ -57,31 +57,68 @@ def import_ticket(ticket_number, session, ticketing_client, text_filter):
         # Extract sales order data
         sales_order = ticket_data.get('salesOrder', {})
 
+        # Extract shipping address
+        import json
+        shipping_address = {}
+        try:
+            shipping_payload = sales_order.get('shippingAddressPayload', '{}')
+            shipping_data = json.loads(shipping_payload)
+            shipping_address = shipping_data.get('ShippingAddress', {})
+        except:
+            pass
+
+        # Extract supplier info from first purchase order
+        purchase_orders = sales_order.get('purchaseOrders', [])
+        supplier_name = None
+        supplier_email = None
+        purchase_order_number = None
+        tracking_number = None
+        carrier_name = None
+
+        if purchase_orders:
+            first_po = purchase_orders[0]
+            supplier_name = first_po.get('supplierName')
+            purchase_order_number = first_po.get('orderNumber')
+
+            # Extract tracking from deliveries
+            deliveries = first_po.get('deliveries', [])
+            if deliveries:
+                parcels = deliveries[0].get('deliveryParcels', [])
+                if parcels:
+                    tracking_number = parcels[0].get('trackNumber')
+                    # Only use tracking if traceUrl is not empty
+                    trace_url = parcels[0].get('traceUrl', '')
+                    if not trace_url:
+                        tracking_number = None
+
+                    shipment_method = parcels[0].get('shipmentMethod', {})
+                    carrier_name = shipment_method.get('exportName')
+
         # Create ticket with correct field mappings
         ticket_state = TicketState(
             ticket_number=ticket_number,
             ticket_id=ticket_data.get('id'),
-            order_number=sales_order.get('salesId'),
-            customer_name=ticket_data.get('contactName'),
+            order_number=sales_order.get('orderNumber'),  # Use orderNumber not salesId
+            customer_name=shipping_address.get('Name') or sales_order.get('customerName'),
             customer_email=sales_order.get('confirmedEmail'),
             customer_language=ticket_data.get('customerLanguageCultureName', 'de-DE'),
-            customer_address=None,  # Not in response
-            customer_city=None,
-            customer_postal_code=None,
-            customer_country=None,
-            customer_phone=None,
-            supplier_name=None,  # Not in this endpoint
-            supplier_email=None,
-            purchase_order_number=sales_order.get('purchaseOrderNumber'),
-            tracking_number=None,  # Not in response
-            carrier_name=None,
+            customer_address=shipping_address.get('AddressLine1'),
+            customer_city=shipping_address.get('City'),
+            customer_postal_code=shipping_address.get('PostalCode'),
+            customer_country=shipping_address.get('CountryCode'),
+            customer_phone=shipping_address.get('Phone'),
+            supplier_name=supplier_name,
+            supplier_email=supplier_email,
+            purchase_order_number=purchase_order_number,
+            tracking_number=tracking_number,
+            carrier_name=carrier_name,
             ticket_type_id=ticket_data.get('ticketTypeId'),
             ticket_status_id=ticket_data.get('ticketStatusId'),
             owner_id=None,  # Not in response
             current_state='imported',
-            product_details=str(sales_order.get('salesLines', [])),
-            order_total=sales_order.get('salesBalanceMST'),
-            order_currency=sales_order.get('currencyCode'),
+            product_details=str(sales_order.get('salesOrderItems', [])),
+            order_total=sales_order.get('totalPrice'),
+            order_currency='EUR',
             order_date=sales_order.get('confirmedDate')
         )
 
