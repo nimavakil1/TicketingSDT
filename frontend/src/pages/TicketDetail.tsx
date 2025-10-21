@@ -4,7 +4,6 @@ import { ticketsApi, TicketDetail as TicketDetailType, Ticket, CustomStatus } fr
 import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
-import ComposeMessageModal from '../components/ComposeMessageModal';
 import { messagesApi, PendingMessage } from '../api/messages';
 
 const TicketDetail: React.FC = () => {
@@ -21,8 +20,10 @@ const TicketDetail: React.FC = () => {
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessMessage, setReprocessMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [composeModalOpen, setComposeModalOpen] = useState(false);
+  const [composeExpanded, setComposeExpanded] = useState(false);
   const [composeRecipientType, setComposeRecipientType] = useState<'customer' | 'supplier'>('customer');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeBody, setComposeBody] = useState('');
   const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
   const [ignoredMessageIds, setIgnoredMessageIds] = useState<Set<number>>(new Set());
   const [runningAnalysis, setRunningAnalysis] = useState(false);
@@ -55,7 +56,30 @@ const TicketDetail: React.FC = () => {
 
   const handleComposeMessage = (recipientType: 'customer' | 'supplier') => {
     setComposeRecipientType(recipientType);
-    setComposeModalOpen(true);
+    setComposeExpanded(true);
+    // Set default subject based on ticket
+    if (ticket) {
+      setComposeSubject(`Re: Ticket ${ticket.ticket_number}`);
+    }
+  };
+
+  const handleSendViaGmail = () => {
+    if (!ticket) return;
+
+    const recipientEmail = composeRecipientType === 'customer'
+      ? ticket.customer_email
+      : (ticket.supplier_email || '');
+
+    // Create mailto link with pre-filled subject and body
+    const mailtoLink = `mailto:${recipientEmail}?subject=${encodeURIComponent(composeSubject)}&body=${encodeURIComponent(composeBody)}`;
+
+    // Open Gmail in new tab
+    window.open(mailtoLink, '_blank');
+
+    // Reset form and collapse
+    setComposeExpanded(false);
+    setComposeSubject('');
+    setComposeBody('');
   };
 
   const handleMessageSent = () => {
@@ -669,24 +693,102 @@ const TicketDetail: React.FC = () => {
       )}
 
       {/* Message Composition */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Send Message</h2>
-        <div className="flex gap-3">
-          <button
-            onClick={() => handleComposeMessage('customer')}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <Send className="h-4 w-4" />
-            Send to Customer
-          </button>
-          <button
-            onClick={() => handleComposeMessage('supplier')}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <Send className="h-4 w-4" />
-            Send to Supplier
-          </button>
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Send Message via Gmail</h2>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleComposeMessage('customer')}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <Send className="h-4 w-4" />
+              Send to Customer
+            </button>
+            <button
+              onClick={() => handleComposeMessage('supplier')}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <Send className="h-4 w-4" />
+              Send to Supplier
+            </button>
+          </div>
         </div>
+
+        {/* Expandable Compose Form */}
+        {composeExpanded && (
+          <div className="p-6 bg-gray-50 border-t border-gray-200">
+            <div className="space-y-4">
+              {/* Recipient Type Badge */}
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-sm font-medium text-gray-700">Composing message to:</span>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  composeRecipientType === 'customer'
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'bg-purple-100 text-purple-800'
+                }`}>
+                  {composeRecipientType === 'customer' ? `Customer: ${ticket?.customer_email}` : `Supplier: ${ticket?.supplier_email || 'N/A'}`}
+                </span>
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Email subject"
+                />
+              </div>
+
+              {/* Body */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Message
+                </label>
+                <textarea
+                  value={composeBody}
+                  onChange={(e) => setComposeBody(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Type your message here..."
+                />
+              </div>
+
+              {/* Info Note */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Clicking "Open in Gmail" will open your default email client with the pre-filled message. You can edit it before sending.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSendViaGmail}
+                  disabled={!composeSubject || !composeBody}
+                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Send className="h-4 w-4" />
+                  Open in Gmail
+                </button>
+                <button
+                  onClick={() => {
+                    setComposeExpanded(false);
+                    setComposeSubject('');
+                    setComposeBody('');
+                  }}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pending Messages */}
@@ -965,17 +1067,6 @@ const TicketDetail: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Compose Message Modal */}
-      <ComposeMessageModal
-        isOpen={composeModalOpen}
-        onClose={() => setComposeModalOpen(false)}
-        ticketNumber={ticket.ticket_number}
-        ticketId={ticket.id}
-        recipientType={composeRecipientType}
-        recipientEmail={composeRecipientType === 'customer' ? ticket.customer_email : undefined}
-        onMessageSent={handleMessageSent}
-      />
 
       {/* Prompt Preview Modal */}
       {showPromptPreview && promptPreview && (
