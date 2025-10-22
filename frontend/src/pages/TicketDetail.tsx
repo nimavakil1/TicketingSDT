@@ -667,7 +667,7 @@ const TicketDetail: React.FC = () => {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Ticket Information</h2>
           <div className="space-y-3">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Custom Status</p>
+              <p className="text-xs text-gray-500 mb-1">Status</p>
               <select
                 value={ticket.custom_status_id || ''}
                 onChange={(e) => handleStatusChange(parseInt(e.target.value))}
