@@ -97,10 +97,15 @@ def test_upsert_ticket():
         if response.get('succeeded'):
             print("  ✓ Success with minimal fields!")
         else:
-            print("  ✗ Failed with minimal fields, trying with optional fields...")
+            print("  ✗ Failed with minimal fields, trying with all optional fields...")
 
-            # Try again with optional fields
-            print(f"\nAttempt 2: With optional fields")
+            # Try again with ALL optional fields including date
+            from datetime import datetime, timezone
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " +00:00"
+
+            print(f"\nAttempt 2: With ALL optional fields (including date)")
+            print(f"  EntranceEmailDate: {current_time}")
+
             response = client.upsert_ticket(
                 sales_order_reference=amazon_order_number,
                 ticket_type_id=2,  # Tracking
@@ -108,7 +113,8 @@ def test_upsert_ticket():
                 comment="Test ticket created via API",
                 entrance_email_subject="Test: Tracking inquiry",
                 entrance_email_body="Customer is asking about shipment tracking.",
-                entrance_email_sender_address="test@example.com"
+                entrance_email_sender_address="test@example.com",
+                entrance_email_date=current_time
             )
 
         print(f"\n{'='*70}")
