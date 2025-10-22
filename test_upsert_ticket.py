@@ -5,6 +5,7 @@ Test script for creating a ticket via UpsertTicket API
 import os
 import sys
 import json
+import logging
 from pathlib import Path
 
 # Add project root to path
@@ -15,6 +16,7 @@ from src.api.ticketing_client import TicketingAPIClient, TicketingAPIError
 import structlog
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
 )
@@ -133,6 +135,4 @@ def test_upsert_ticket():
     return 0
 
 if __name__ == '__main__':
-    import logging
-    logging.basicConfig(level=logging.INFO)
     sys.exit(test_upsert_ticket())
