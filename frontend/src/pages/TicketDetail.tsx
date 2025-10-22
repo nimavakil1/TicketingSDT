@@ -40,6 +40,7 @@ const TicketDetail: React.FC = () => {
   const [composeAttachments, setComposeAttachments] = useState<File[]>([]);
   const [lightboxImage, setLightboxImage] = useState<Attachment | null>(null);
   const [expandedTextAttachments, setExpandedTextAttachments] = useState<Set<number>>(new Set());
+  const [imageBlobUrls, setImageBlobUrls] = useState<Map<number, string>>(new Map());
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -68,6 +69,23 @@ const TicketDetail: React.FC = () => {
     try {
       const data = await ticketsApi.getAttachments(ticketNumber);
       setAttachments(data);
+
+      // Load image blob URLs for thumbnails
+      const newBlobUrls = new Map<number, string>();
+      for (const attachment of data) {
+        if (attachment.mime_type?.startsWith('image/')) {
+          try {
+            const blob = await client.get(`/api/attachments/${attachment.id}/view`, {
+              responseType: 'blob',
+            });
+            const url = window.URL.createObjectURL(blob.data);
+            newBlobUrls.set(attachment.id, url);
+          } catch (err) {
+            console.error(`Failed to load image thumbnail for attachment ${attachment.id}:`, err);
+          }
+        }
+      }
+      setImageBlobUrls(newBlobUrls);
     } catch (err) {
       console.error('Failed to load attachments:', err);
     }
@@ -1253,12 +1271,18 @@ const TicketDetail: React.FC = () => {
                     {/* Thumbnail for images */}
                     {isImageFile(attachment.mime_type) ? (
                       <div className="flex-shrink-0">
-                        <img
-                          src={`/api/attachments/${attachment.id}/view`}
-                          alt={attachment.original_filename}
-                          className="w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-80"
-                          onClick={() => handleViewImage(attachment)}
-                        />
+                        {imageBlobUrls.has(attachment.id) ? (
+                          <img
+                            src={imageBlobUrls.get(attachment.id)}
+                            alt={attachment.original_filename}
+                            className="w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-80"
+                            onClick={() => handleViewImage(attachment)}
+                          />
+                        ) : (
+                          <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center">
+                            <Paperclip className="h-6 w-6 text-gray-400" />
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <Paperclip className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
@@ -1549,11 +1573,15 @@ const TicketDetail: React.FC = () => {
             className="max-w-7xl max-h-[90vh] flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
-              src={`/api/attachments/${lightboxImage.id}/view`}
-              alt={lightboxImage.original_filename}
-              className="max-w-full max-h-[80vh] object-contain rounded shadow-2xl"
-            />
+            {imageBlobUrls.has(lightboxImage.id) ? (
+              <img
+                src={imageBlobUrls.get(lightboxImage.id)}
+                alt={lightboxImage.original_filename}
+                className="max-w-full max-h-[80vh] object-contain rounded shadow-2xl"
+              />
+            ) : (
+              <div className="bg-gray-800 p-8 rounded text-white">Loading image...</div>
+            )}
             <div className="mt-4 text-center">
               <p className="text-white text-sm font-medium">{lightboxImage.original_filename}</p>
               <div className="flex items-center justify-center gap-4 mt-2">
