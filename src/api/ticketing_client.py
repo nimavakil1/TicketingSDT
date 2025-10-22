@@ -243,6 +243,12 @@ class TicketingAPIClient:
                 has_files=bool(files)
             )
 
+            # Log request headers for debugging
+            logger.info(
+                "Session headers",
+                headers=dict(self.session.headers)
+            )
+
             try:
                 # Always use multipart/form-data by passing an empty files dict
                 # This matches the API's "form-data" requirement
@@ -253,6 +259,15 @@ class TicketingAPIClient:
                     files_param = files
 
                 response = self.session.post(url, data=form_data, files=files_param, timeout=30)
+
+                # Log request details
+                logger.info(
+                    "Request sent",
+                    method=response.request.method,
+                    url=response.request.url,
+                    headers=dict(response.request.headers),
+                    body_preview=str(response.request.body)[:500] if response.request.body else "No body"
+                )
 
                 # Re-authenticate if token expired
                 if response.status_code == 401:
