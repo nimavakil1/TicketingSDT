@@ -1377,6 +1377,70 @@ async def send_email_via_gmail(
         )
         db.add(sent_message)
         db.commit()
+        db.refresh(sent_message)
+
+        # Save attachments to database
+        saved_attachments = []
+        if attachments and attachment_paths:
+            from pathlib import Path
+            import mimetypes
+            import uuid
+            from src.utils.text_extraction import extract_text_from_file
+
+            base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+            email_dir = base_dir / f"email_{ticket_number}"
+            email_dir.mkdir(parents=True, exist_ok=True)
+
+            for idx, file in enumerate(attachments):
+                if file.filename and idx < len(attachment_paths):
+                    # Generate unique filename
+                    unique_id = uuid.uuid4().hex[:8]
+                    safe_filename = f"{unique_id}_{file.filename}"
+                    dest_path = email_dir / safe_filename
+                    relative_path = f"email_{ticket_number}/{safe_filename}"
+
+                    # Copy from temp to permanent location
+                    import shutil
+                    shutil.copy2(attachment_paths[idx], dest_path)
+
+                    # Get mime type
+                    mime_type, _ = mimetypes.guess_type(file.filename)
+                    file_size = os.path.getsize(dest_path)
+
+                    # Try to extract text
+                    extracted_text = None
+                    extraction_status = 'pending'
+                    extraction_error = None
+                    try:
+                        extracted_text = extract_text_from_file(str(dest_path), mime_type)
+                        if extracted_text:
+                            extraction_status = 'completed'
+                        else:
+                            extraction_status = 'skipped'
+                    except Exception as ex:
+                        logger.warning(f"Failed to extract text from sent attachment: {ex}")
+                        extraction_status = 'failed'
+                        extraction_error = str(ex)
+
+                    # Create attachment record
+                    attachment_record = Attachment(
+                        ticket_id=ticket.id,
+                        gmail_message_id=result.get('id'),
+                        processed_email_id=sent_message.id,
+                        filename=safe_filename,
+                        original_filename=file.filename,
+                        file_path=relative_path,
+                        mime_type=mime_type,
+                        file_size=file_size,
+                        extracted_text=extracted_text,
+                        extraction_status=extraction_status,
+                        extraction_error=extraction_error,
+                        uploaded_by_user_id=current_user.id
+                    )
+                    db.add(attachment_record)
+                    saved_attachments.append(file.filename)
+
+            db.commit()
 
         logger.info(
             "Email sent via Gmail and saved to history",
@@ -1384,13 +1448,15 @@ async def send_email_via_gmail(
             to=to,
             subject=subject,
             message_id=result.get('id'),
-            attachment_count=len(attachment_paths)
+            attachment_count=len(attachment_paths),
+            saved_attachments=len(saved_attachments)
         )
 
         return {
             "success": True,
             "message_id": result.get('id'),
-            "thread_id": result.get('threadId')
+            "thread_id": result.get('threadId'),
+            "attachments_saved": len(saved_attachments)
         }
 
     except Exception as e:
