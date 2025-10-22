@@ -37,6 +37,7 @@ const TicketDetail: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [composeAttachments, setComposeAttachments] = useState<File[]>([]);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -134,6 +135,17 @@ const TicketDetail: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const handleComposeFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      setComposeAttachments(prev => [...prev, ...Array.from(files)]);
+    }
+  };
+
+  const removeComposeAttachment = (index: number) => {
+    setComposeAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleComposeMessage = (recipientType: 'customer' | 'supplier' | 'internal') => {
     setComposeRecipientType(recipientType);
     setComposeExpanded(true);
@@ -172,15 +184,37 @@ const TicketDetail: React.FC = () => {
         const ccList = composeCC ? composeCC.split(',').map(e => e.trim()).filter(e => e) : [];
         const bccList = composeBCC ? composeBCC.split(',').map(e => e.trim()).filter(e => e) : [];
 
-        // Send email through Gmail API
-        await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, {
-          to: composeTo,
-          subject: composeSubject,
-          body: composeBody,
-          cc: ccList.length > 0 ? ccList : undefined,
-          bcc: bccList.length > 0 ? bccList : undefined,
-          thread_id: ticket.gmail_thread_id || null
-        });
+        // If attachments present, use FormData
+        if (composeAttachments.length > 0) {
+          const formData = new FormData();
+          formData.append('to', composeTo);
+          formData.append('subject', composeSubject);
+          formData.append('body', composeBody);
+          if (ccList.length > 0) formData.append('cc', JSON.stringify(ccList));
+          if (bccList.length > 0) formData.append('bcc', JSON.stringify(bccList));
+          if (ticket.gmail_thread_id) formData.append('thread_id', ticket.gmail_thread_id);
+
+          // Append all attachments
+          composeAttachments.forEach((file) => {
+            formData.append('attachments', file);
+          });
+
+          await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+        } else {
+          // Send email through Gmail API without attachments
+          await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, {
+            to: composeTo,
+            subject: composeSubject,
+            body: composeBody,
+            cc: ccList.length > 0 ? ccList : undefined,
+            bcc: bccList.length > 0 ? bccList : undefined,
+            thread_id: ticket.gmail_thread_id || null
+          });
+        }
 
         setReprocessMessage({ type: 'success', text: 'Email sent successfully via Gmail!' });
       }
@@ -192,10 +226,12 @@ const TicketDetail: React.FC = () => {
       setComposeBCC('');
       setComposeSubject('');
       setComposeBody('');
+      setComposeAttachments([]);
 
       // Refresh ticket to show new message
       setTimeout(() => {
         loadTicket();
+        loadAttachments();
         setReprocessMessage(null);
       }, 2000);
     } catch (err: any) {
@@ -927,6 +963,48 @@ const TicketDetail: React.FC = () => {
                 />
               </div>
 
+              {/* Attachments */}
+              {composeRecipientType !== 'internal' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Attachments
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.docx,.txt,.csv,.xlsx,.xls"
+                      onChange={handleComposeFileSelect}
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-lg file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-indigo-50 file:text-indigo-700
+                        hover:file:bg-indigo-100"
+                    />
+                    {composeAttachments.length > 0 && (
+                      <div className="space-y-1">
+                        {composeAttachments.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                            <div className="flex items-center gap-2">
+                              <Paperclip className="h-4 w-4 text-gray-400" />
+                              <span className="text-sm text-gray-700">{file.name}</span>
+                              <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                            </div>
+                            <button
+                              onClick={() => removeComposeAttachment(index)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Info Note */}
               {composeRecipientType !== 'internal' && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -961,6 +1039,7 @@ const TicketDetail: React.FC = () => {
                     setComposeBCC('');
                     setComposeSubject('');
                     setComposeBody('');
+                    setComposeAttachments([]);
                   }}
                   className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
                 >

@@ -1308,7 +1308,13 @@ class SendEmailRequest(BaseModel):
 @app.post("/api/tickets/{ticket_number}/send-email")
 async def send_email_via_gmail(
     ticket_number: str,
-    request: SendEmailRequest,
+    to: str = Form(...),
+    subject: str = Form(...),
+    body: str = Form(...),
+    cc: Optional[str] = Form(None),
+    bcc: Optional[str] = Form(None),
+    thread_id: Optional[str] = Form(None),
+    attachments: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1320,29 +1326,49 @@ async def send_email_via_gmail(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
+    attachment_paths = []
     try:
         from src.email.gmail_sender import GmailSender
+        import os
+        import tempfile
+        import json
+
+        # Parse CC and BCC if provided as JSON strings
+        cc_list = json.loads(cc) if cc else None
+        bcc_list = json.loads(bcc) if bcc else None
+
+        # Save attachments temporarily
+        if attachments:
+            temp_dir = tempfile.mkdtemp()
+            for file in attachments:
+                if file.filename:
+                    file_path = os.path.join(temp_dir, file.filename)
+                    content = await file.read()
+                    with open(file_path, 'wb') as f:
+                        f.write(content)
+                    attachment_paths.append(file_path)
 
         gmail_sender = GmailSender()
         result = gmail_sender.send_email(
-            to=request.to,
-            subject=request.subject,
-            body=request.body,
-            cc=request.cc,
-            bcc=request.bcc,
-            reply_to_message_id=request.reply_to_message_id,
-            thread_id=request.thread_id
+            to=to,
+            subject=subject,
+            body=body,
+            cc=cc_list,
+            bcc=bcc_list,
+            attachments=attachment_paths if attachment_paths else None,
+            reply_to_message_id=None,
+            thread_id=thread_id
         )
 
         # Save sent message to ticket history
         sent_message = ProcessedEmail(
             gmail_message_id=result.get('id'),
-            gmail_thread_id=result.get('threadId') or request.thread_id,
+            gmail_thread_id=result.get('threadId') or thread_id,
             ticket_id=ticket.id,
             order_number=ticket.order_number,
-            subject=request.subject,
+            subject=subject,
             from_address=settings.gmail_support_email,  # Our email address
-            message_body=request.body,
+            message_body=body,
             success=True,
             processed_at=datetime.now(timezone.utc)
         )
@@ -1352,9 +1378,10 @@ async def send_email_via_gmail(
         logger.info(
             "Email sent via Gmail and saved to history",
             ticket_number=ticket_number,
-            to=request.to,
-            subject=request.subject,
-            message_id=result.get('id')
+            to=to,
+            subject=subject,
+            message_id=result.get('id'),
+            attachment_count=len(attachment_paths)
         )
 
         return {
@@ -1367,6 +1394,19 @@ async def send_email_via_gmail(
         db.rollback()
         logger.error("Failed to send email", ticket_number=ticket_number, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+    finally:
+        # Clean up temporary files
+        import shutil
+        for file_path in attachment_paths:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                # Clean up temp directory if empty
+                temp_dir = os.path.dirname(file_path)
+                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
+                    shutil.rmtree(temp_dir)
+            except Exception as e:
+                logger.warning(f"Failed to clean up temp file: {e}")
 
 
 # Internal note endpoint
