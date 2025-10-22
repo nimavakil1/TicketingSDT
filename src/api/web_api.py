@@ -1385,7 +1385,7 @@ async def send_email_via_gmail(
             from pathlib import Path
             import mimetypes
             import uuid
-            from src.utils.text_extraction import extract_text_from_file
+            from src.email.text_extractor import extract_text_from_file
 
             base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
             email_dir = base_dir / f"email_{ticket_number}"
