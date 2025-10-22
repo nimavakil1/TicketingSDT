@@ -101,10 +101,12 @@ def test_upsert_ticket():
 
             # Try again with ALL optional fields including date
             from datetime import datetime, timezone
-            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " +00:00"
+            # Format with 6 digits for microseconds (not 3 for milliseconds)
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f") + " +00:00"
 
             print(f"\nAttempt 2: With ALL optional fields (including date)")
             print(f"  EntranceEmailDate: {current_time}")
+            print(f"  (6 digits for microseconds)")
 
             response = client.upsert_ticket(
                 sales_order_reference=amazon_order_number,
