@@ -250,11 +250,12 @@ class TicketingAPIClient:
             )
 
             try:
-                # Always use multipart/form-data by passing an empty files dict
-                # This matches the API's "form-data" requirement
+                # Force multipart/form-data encoding (API requires this)
+                # By passing files with at least one entry, requests will use multipart
                 if not files:
-                    # Create empty files dict to force multipart encoding
-                    files_param = {}
+                    # Add a dummy field to force multipart/form-data encoding
+                    # This is required by the API even when no files are attached
+                    files_param = [('', ('', ''))]
                 else:
                     files_param = files
 
