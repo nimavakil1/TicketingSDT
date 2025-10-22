@@ -1572,11 +1572,11 @@ async def upload_attachment(
                 detail=f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}"
             )
 
-        # Validate file size (10MB max)
-        max_size = 10 * 1024 * 1024  # 10MB
+        # Validate file size (100MB max)
+        max_size = 100 * 1024 * 1024  # 100MB
         file_content = await file.read()
         if len(file_content) > max_size:
-            raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+            raise HTTPException(status_code=400, detail="File size exceeds 100MB limit")
 
         # Create upload directory for this ticket
         base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')

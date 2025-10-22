@@ -1,6 +1,9 @@
 server {
     server_name ai.distri-smart.com;
 
+    # Allow up to 100MB file uploads
+    client_max_body_size 100M;
+
     # Frontend - Proxy to Vite dev server (development) or serve from dist (production)
     location / {
         # For development: proxy to Vite dev server on port 3002
