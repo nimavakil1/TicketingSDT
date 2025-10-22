@@ -1385,11 +1385,13 @@ async def send_email_via_gmail(
             from pathlib import Path
             import mimetypes
             import uuid
-            from src.email.text_extractor import extract_text_from_file
+            from src.email.text_extractor import TextExtractor
 
             base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
             email_dir = base_dir / f"email_{ticket_number}"
             email_dir.mkdir(parents=True, exist_ok=True)
+
+            text_extractor = TextExtractor()
 
             for idx, file in enumerate(attachments):
                 if file.filename and idx < len(attachment_paths):
@@ -1412,7 +1414,7 @@ async def send_email_via_gmail(
                     extraction_status = 'pending'
                     extraction_error = None
                     try:
-                        extracted_text = extract_text_from_file(str(dest_path), mime_type)
+                        extracted_text = text_extractor.extract_text(str(dest_path))
                         if extracted_text:
                             extraction_status = 'completed'
                         else:
