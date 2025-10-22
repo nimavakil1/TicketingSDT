@@ -233,6 +233,14 @@ class TicketingAPIClient:
             self._ensure_authenticated()
             url = f"{self.base_url}/tickets/tickets/UpsertTicket"
 
+            # Debug logging
+            logger.info(
+                "Sending UpsertTicket request",
+                url=url,
+                form_data=form_data,
+                has_files=bool(files)
+            )
+
             try:
                 if files:
                     response = self.session.post(url, data=form_data, files=files, timeout=30)
@@ -248,14 +256,23 @@ class TicketingAPIClient:
                     else:
                         response = self.session.post(url, data=form_data, timeout=30)
 
+                # Log response details
+                logger.info(
+                    "UpsertTicket HTTP response",
+                    status_code=response.status_code,
+                    content_preview=response.text[:500] if response.text else "Empty"
+                )
+
                 response.raise_for_status()
                 result = response.json()
 
                 logger.info(
-                    "UpsertTicket response",
+                    "UpsertTicket parsed response",
                     succeeded=result.get('succeeded'),
                     ticket_id=result.get('id'),
-                    messages=result.get('messages', [])
+                    messages=result.get('messages', []),
+                    view_string=result.get('viewString', ''),
+                    data_items_count=len(result.get('dataItems', []))
                 )
 
                 return result
