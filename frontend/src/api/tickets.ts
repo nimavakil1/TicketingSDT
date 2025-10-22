@@ -26,6 +26,7 @@ export interface CustomStatus {
 
 export interface TicketMessage {
   id: number;
+  gmail_message_id: string | null;
   createdAt: string;
   messageText: string;
   messageType: string;

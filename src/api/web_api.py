@@ -579,14 +579,14 @@ async def get_ticket_detail(
         # Get messages from processed_emails table
         from sqlalchemy import text
         result = db.execute(text("""
-            SELECT id, processed_at, subject, from_address, message_body
+            SELECT id, gmail_message_id, processed_at, subject, from_address, message_body
             FROM processed_emails
             WHERE ticket_id = :ticket_id
             ORDER BY processed_at ASC
         """), {"ticket_id": ticket.id}).fetchall()
 
         for row in result:
-            email_id, processed_at, subject, from_address, message_body = row
+            email_id, gmail_message_id, processed_at, subject, from_address, message_body = row
 
             # Determine message type from subject
             subject_lower = (subject or "").lower()
@@ -611,6 +611,7 @@ async def get_ticket_detail(
 
             message = {
                 "id": email_id,
+                "gmail_message_id": gmail_message_id,
                 "createdAt": processed_at if processed_at else None,  # Already a string from DB
                 "messageText": message_body or "(No content)",
                 "messageType": message_type,
@@ -676,6 +677,7 @@ async def get_ticket_detail(
 
                     message = {
                         "id": detail.get("id"),
+                        "gmail_message_id": None,  # Not available from ticketing system API
                         "createdAt": detail.get("createdDateTime"),
                         "messageText": filtered_message_text,
                         "messageType": message_type,

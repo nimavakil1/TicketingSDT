@@ -1207,6 +1207,94 @@ const TicketDetail: React.FC = () => {
                   <div className="text-sm text-gray-700 pl-6">
                     {stripHtml(message.messageText)}
                   </div>
+
+                  {/* Attachments for this message */}
+                  {message.gmail_message_id && attachments.some(att => att.gmail_message_id === message.gmail_message_id) && (
+                    <div className="mt-3 pl-6 space-y-2">
+                      {attachments
+                        .filter(att => att.gmail_message_id === message.gmail_message_id)
+                        .map(attachment => (
+                          <div
+                            key={attachment.id}
+                            className="border rounded p-2 bg-gray-50 hover:bg-gray-100"
+                          >
+                            <div className="flex items-start gap-2">
+                              {/* Thumbnail for images */}
+                              {isImageFile(attachment.mime_type) && imageBlobUrls.has(attachment.id) ? (
+                                <div className="flex-shrink-0">
+                                  <img
+                                    src={imageBlobUrls.get(attachment.id)}
+                                    alt={attachment.original_filename}
+                                    className="w-12 h-12 object-cover rounded border cursor-pointer hover:opacity-80"
+                                    onClick={() => handleViewImage(attachment)}
+                                  />
+                                </div>
+                              ) : (
+                                <Paperclip className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                              )}
+
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-gray-900 truncate">
+                                  {attachment.original_filename}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <span>{formatFileSize(attachment.file_size)}</span>
+                                  {attachment.extraction_status === 'completed' && (
+                                    <span className="text-green-600">✓ Text extracted</span>
+                                  )}
+                                </div>
+
+                                {/* Extracted Text */}
+                                {attachment.extracted_text && attachment.extraction_status === 'completed' && (
+                                  <div className="mt-1">
+                                    <button
+                                      onClick={() => toggleExtractedText(attachment.id)}
+                                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                                    >
+                                      {expandedTextAttachments.has(attachment.id) ? (
+                                        <>
+                                          <ChevronUp className="h-3 w-3" />
+                                          Hide text
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ChevronDown className="h-3 w-3" />
+                                          Show text
+                                        </>
+                                      )}
+                                    </button>
+                                    {expandedTextAttachments.has(attachment.id) && (
+                                      <div className="mt-1 p-2 bg-white rounded text-xs text-gray-700 max-h-32 overflow-y-auto whitespace-pre-wrap border">
+                                        {attachment.extracted_text}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {isImageFile(attachment.mime_type) && (
+                                  <button
+                                    onClick={() => handleViewImage(attachment)}
+                                    className="p-1 text-purple-600 hover:bg-purple-50 rounded"
+                                    title="View image"
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleDownloadAttachment(attachment)}
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                  title="Download"
+                                >
+                                  <Download className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -1214,14 +1302,17 @@ const TicketDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Attachments */}
+      {/* Attachments Overview & Upload */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <Paperclip className="h-5 w-5" />
-            Attachments ({attachments.length})
+            Manual Upload & Attachments Overview ({attachments.length})
           </h2>
         </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Upload files manually here. Email attachments are shown inline with their respective messages above.
+        </p>
 
         {/* Upload Section */}
         <div className="mb-4 p-4 bg-gray-50 rounded-lg">
