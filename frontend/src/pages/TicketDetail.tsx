@@ -660,71 +660,150 @@ const TicketDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Ticket Info Card */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Ticket Information</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Ticket ID</p>
-            <p className="text-sm font-medium text-gray-900">{ticket.ticket_id}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Old System Status</p>
-            <p className="text-sm font-medium text-gray-900">{ticket.status}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Custom Status</p>
-            <select
-              value={ticket.custom_status_id || ''}
-              onChange={(e) => handleStatusChange(parseInt(e.target.value))}
-              disabled={updatingStatus}
-              className={`px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                ticket.custom_status
-                  ? `bg-${ticket.custom_status.color}-100 text-${ticket.custom_status.color}-800 font-medium`
-                  : 'bg-white text-gray-900'
-              }`}
-            >
-              <option value="">No status set</option>
-              {statuses.map((status) => (
-                <option key={status.id} value={status.id}>
-                  {status.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Customer Email</p>
-            <p className="text-sm font-medium text-gray-900">{ticket.customer_email}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Created</p>
-            <p className="text-sm font-medium text-gray-900">
-              {formatInCET(ticket.created_at)}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Last Updated</p>
-            <p className="text-sm font-medium text-gray-900">
-              {formatInCET(ticket.last_updated)}
-            </p>
-          </div>
-          {ticket.escalated && ticket.escalation_reason && (
-            <>
-              <div>
-                <p className="text-sm text-gray-500">Escalation Reason</p>
-                <p className="text-sm font-medium text-red-800">{ticket.escalation_reason}</p>
-              </div>
-              {ticket.escalation_date && (
+      {/* Ticket Information and Order Details - Side by Side */}
+      <div className="grid grid-cols-2 gap-6">
+        {/* Ticket Info Card */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Ticket Information</h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Custom Status</p>
+              <select
+                value={ticket.custom_status_id || ''}
+                onChange={(e) => handleStatusChange(parseInt(e.target.value))}
+                disabled={updatingStatus}
+                className={`w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  ticket.custom_status
+                    ? `bg-${ticket.custom_status.color}-100 text-${ticket.custom_status.color}-800 font-medium`
+                    : 'bg-white text-gray-900'
+                }`}
+              >
+                <option value="">No status set</option>
+                {statuses.map((status) => (
+                  <option key={status.id} value={status.id}>
+                    {status.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Customer Email</p>
+              <p className="text-sm font-medium text-gray-900">{ticket.customer_email}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Created</p>
+              <p className="text-sm font-medium text-gray-900">
+                {formatInCET(ticket.created_at)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Last Updated</p>
+              <p className="text-sm font-medium text-gray-900">
+                {formatInCET(ticket.last_updated)}
+              </p>
+            </div>
+            {ticket.escalated && ticket.escalation_reason && (
+              <>
                 <div>
-                  <p className="text-sm text-gray-500">Escalation Date</p>
+                  <p className="text-xs text-gray-500">Escalation Reason</p>
+                  <p className="text-sm font-medium text-red-800">{ticket.escalation_reason}</p>
+                </div>
+                {ticket.escalation_date && (
+                  <div>
+                    <p className="text-xs text-gray-500">Escalation Date</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {formatInCET(ticket.escalation_date)}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Order Details */}
+        {(ticket.order_date || ticket.order_total || ticket.tracking_number || ticket.product_details) && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
+            <div className="space-y-3">
+              {ticket.order_date && (
+                <div>
+                  <p className="text-xs text-gray-500">Order Date</p>
+                  <p className="text-sm font-medium text-gray-900">{ticket.order_date}</p>
+                </div>
+              )}
+              {ticket.order_total !== undefined && ticket.order_total !== null && (
+                <div>
+                  <p className="text-xs text-gray-500">Order Total</p>
                   <p className="text-sm font-medium text-gray-900">
-                    {formatInCET(ticket.escalation_date)}
+                    {ticket.order_total.toFixed(2)} {ticket.order_currency || 'EUR'}
                   </p>
                 </div>
               )}
-            </>
-          )}
-        </div>
+              {ticket.tracking_number && (
+                <div>
+                  <p className="text-xs text-gray-500">Tracking Number</p>
+                  {ticket.tracking_url ? (
+                    <a
+                      href={ticket.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
+                    >
+                      {ticket.tracking_number}
+                    </a>
+                  ) : (
+                    <p className="text-sm font-medium text-gray-900">{ticket.tracking_number}</p>
+                  )}
+                </div>
+              )}
+              {ticket.carrier_name && (
+                <div>
+                  <p className="text-xs text-gray-500">Carrier</p>
+                  <p className="text-sm font-medium text-gray-900">{ticket.carrier_name}</p>
+                </div>
+              )}
+              {ticket.delivery_status && (
+                <div>
+                  <p className="text-xs text-gray-500">Delivery Status</p>
+                  <p className="text-sm font-medium text-gray-900">{ticket.delivery_status}</p>
+                </div>
+              )}
+              {ticket.expected_delivery_date && (
+                <div>
+                  <p className="text-xs text-gray-500">Expected Delivery</p>
+                  <p className="text-sm font-medium text-gray-900">{ticket.expected_delivery_date}</p>
+                </div>
+              )}
+              {ticket.product_details && (() => {
+                try {
+                  const products = JSON.parse(ticket.product_details);
+                  return (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2">Products</p>
+                      <div className="space-y-2">
+                        {products.map((product: any, index: number) => (
+                          <div key={index} className="border border-gray-200 rounded p-3">
+                            <div className="flex justify-between items-start mb-1">
+                              <p className="text-sm font-medium text-gray-900">{product.title || 'No title'}</p>
+                              <p className="text-sm font-medium text-gray-900">Qty: {product.quantity || 1}</p>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <p className="text-xs text-gray-500">SKU: {product.sku || 'N/A'}</p>
+                              {product.price && <p className="text-xs text-gray-500">€{product.price.toFixed(2)}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                } catch (e) {
+                  return <p className="text-sm text-red-600">Error parsing product details</p>;
+                }
+              })()}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Customer and Supplier Information - Side by Side */}
@@ -808,90 +887,6 @@ const TicketDetail: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Additional Order Details */}
-      {(ticket.order_date || ticket.order_total || ticket.tracking_number || ticket.product_details) && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            {ticket.order_date && (
-              <div>
-                <p className="text-xs text-gray-500">Order Date</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.order_date}</p>
-              </div>
-            )}
-            {ticket.order_total !== undefined && ticket.order_total !== null && (
-              <div>
-                <p className="text-xs text-gray-500">Order Total</p>
-                <p className="text-sm font-medium text-gray-900">
-                  {ticket.order_total.toFixed(2)} {ticket.order_currency || 'EUR'}
-                </p>
-              </div>
-            )}
-            {ticket.tracking_number && (
-              <div>
-                <p className="text-xs text-gray-500">Tracking Number</p>
-                {ticket.tracking_url ? (
-                  <a
-                    href={ticket.tracking_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
-                  >
-                    {ticket.tracking_number}
-                  </a>
-                ) : (
-                  <p className="text-sm font-medium text-gray-900">{ticket.tracking_number}</p>
-                )}
-              </div>
-            )}
-            {ticket.carrier_name && (
-              <div>
-                <p className="text-xs text-gray-500">Carrier</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.carrier_name}</p>
-              </div>
-            )}
-            {ticket.delivery_status && (
-              <div>
-                <p className="text-xs text-gray-500">Delivery Status</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.delivery_status}</p>
-              </div>
-            )}
-            {ticket.expected_delivery_date && (
-              <div>
-                <p className="text-xs text-gray-500">Expected Delivery</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.expected_delivery_date}</p>
-              </div>
-            )}
-          </div>
-          {ticket.product_details && (() => {
-            try {
-              const products = JSON.parse(ticket.product_details);
-              return (
-                <div>
-                  <p className="text-xs text-gray-500 mb-2">Products</p>
-                  <div className="space-y-2">
-                    {products.map((product: any, index: number) => (
-                      <div key={index} className="border border-gray-200 rounded p-3">
-                        <div className="flex justify-between items-start mb-1">
-                          <p className="text-sm font-medium text-gray-900">{product.title || 'No title'}</p>
-                          <p className="text-sm font-medium text-gray-900">Qty: {product.quantity || 1}</p>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs text-gray-500">SKU: {product.sku || 'N/A'}</p>
-                          {product.price && <p className="text-xs text-gray-500">€{product.price.toFixed(2)}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            } catch (e) {
-              return <p className="text-sm text-red-600">Error parsing product details</p>;
-            }
-          })()}
-        </div>
-      )}
 
       {/* Message Composition */}
       <div className="bg-white rounded-lg shadow">
