@@ -34,12 +34,16 @@ class TextExtractor:
         try:
             if suffix == '.pdf':
                 return self._extract_from_pdf(file_path)
-            elif suffix in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp']:
+            elif suffix in ['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp']:
                 return self._extract_from_image(file_path)
             elif suffix == '.docx':
                 return self._extract_from_docx(file_path)
             elif suffix == '.txt':
                 return self._extract_from_text(file_path)
+            elif suffix == '.csv':
+                return self._extract_from_csv(file_path)
+            elif suffix in ['.xlsx', '.xls']:
+                return self._extract_from_excel(file_path)
             else:
                 logger.warning("Unsupported file type for text extraction",
                              file_path=str(file_path),
@@ -144,6 +148,63 @@ class TextExtractor:
 
         except Exception as e:
             logger.error("Failed to read text file",
+                        file_path=str(file_path),
+                        error=str(e))
+            return None
+
+    def _extract_from_csv(self, file_path: Path) -> Optional[str]:
+        """Extract text from CSV file"""
+        try:
+            import csv
+
+            rows = []
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    rows.append(" | ".join(row))
+
+            extracted_text = "\n".join(rows)
+            logger.info("Extracted text from CSV",
+                       file_path=str(file_path),
+                       text_length=len(extracted_text),
+                       row_count=len(rows))
+            return extracted_text
+
+        except Exception as e:
+            logger.error("Failed to extract CSV text",
+                        file_path=str(file_path),
+                        error=str(e))
+            return None
+
+    def _extract_from_excel(self, file_path: Path) -> Optional[str]:
+        """Extract text from Excel file"""
+        try:
+            import openpyxl
+
+            workbook = openpyxl.load_workbook(file_path, data_only=True)
+            text_parts = []
+
+            for sheet_name in workbook.sheetnames:
+                sheet = workbook[sheet_name]
+                text_parts.append(f"=== Sheet: {sheet_name} ===")
+
+                for row in sheet.iter_rows(values_only=True):
+                    row_text = " | ".join([str(cell) if cell is not None else "" for cell in row])
+                    if row_text.strip():
+                        text_parts.append(row_text)
+
+            extracted_text = "\n".join(text_parts)
+            logger.info("Extracted text from Excel",
+                       file_path=str(file_path),
+                       text_length=len(extracted_text),
+                       sheet_count=len(workbook.sheetnames))
+            return extracted_text
+
+        except ImportError:
+            logger.error("openpyxl not installed - cannot extract Excel text")
+            return None
+        except Exception as e:
+            logger.error("Failed to extract Excel text",
                         file_path=str(file_path),
                         error=str(e))
             return None

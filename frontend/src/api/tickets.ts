@@ -87,6 +87,18 @@ export interface AIDecision {
   feedback_notes: string | null;
 }
 
+export interface Attachment {
+  id: number;
+  ticket_id: number;
+  filename: string;
+  original_filename: string;
+  mime_type: string | null;
+  file_size: number | null;
+  extraction_status: string;
+  created_at: string;
+  gmail_message_id: string | null;
+}
+
 export const ticketsApi = {
   getTickets: async (params?: {
     limit?: number;
@@ -105,5 +117,32 @@ export const ticketsApi = {
   refreshTicket: async (ticketNumber: string): Promise<any> => {
     const response = await client.post(`/api/tickets/${ticketNumber}/refresh`);
     return response.data;
+  },
+
+  getAttachments: async (ticketNumber: string): Promise<Attachment[]> => {
+    const response = await client.get(`/api/tickets/${ticketNumber}/attachments`);
+    return response.data;
+  },
+
+  downloadAttachment: async (attachmentId: number): Promise<Blob> => {
+    const response = await client.get(`/api/attachments/${attachmentId}/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  uploadAttachment: async (ticketNumber: string, file: File): Promise<Attachment> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await client.post(`/api/tickets/${ticketNumber}/attachments/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  deleteAttachment: async (attachmentId: number): Promise<void> => {
+    await client.delete(`/api/attachments/${attachmentId}`);
   },
 };

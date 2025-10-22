@@ -8,7 +8,8 @@ import structlog
 import re
 import html
 from html.parser import HTMLParser
-from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Form
+from fastapi import FastAPI, HTTPException, Depends, WebSocket, WebSocketDisconnect, status, Form, File, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, init_database
+from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, Attachment, init_database
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
@@ -198,6 +199,18 @@ class MessageTemplateInfo(BaseModel):
     use_cases: List[str]
     created_at: datetime
     updated_at: datetime
+
+
+class AttachmentInfo(BaseModel):
+    id: int
+    ticket_id: int
+    filename: str
+    original_filename: str
+    mime_type: Optional[str]
+    file_size: Optional[int]
+    extraction_status: str
+    created_at: datetime
+    gmail_message_id: Optional[str]
 
 
 class MessageTemplateCreate(BaseModel):
@@ -1420,6 +1433,243 @@ async def save_internal_note(
         db.rollback()
         logger.error("Failed to save internal note", ticket_number=ticket_number, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to save internal note: {str(e)}")
+
+
+# Attachment endpoints
+@app.get("/api/tickets/{ticket_number}/attachments")
+async def get_ticket_attachments(
+    ticket_number: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> List[AttachmentInfo]:
+    """Get all attachments for a ticket"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    attachments = db.query(Attachment).filter(
+        Attachment.ticket_id == ticket.id
+    ).order_by(Attachment.created_at.desc()).all()
+
+    return [
+        AttachmentInfo(
+            id=att.id,
+            ticket_id=att.ticket_id,
+            filename=att.filename,
+            original_filename=att.original_filename,
+            mime_type=att.mime_type,
+            file_size=att.file_size,
+            extraction_status=att.extraction_status,
+            created_at=att.created_at,
+            gmail_message_id=att.gmail_message_id
+        )
+        for att in attachments
+    ]
+
+
+@app.get("/api/attachments/{attachment_id}/download")
+async def download_attachment(
+    attachment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Download an attachment file"""
+    attachment = db.query(Attachment).filter(Attachment.id == attachment_id).first()
+
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    # Build full file path
+    import os
+    from pathlib import Path
+
+    # Attachments are stored in attachments directory
+    base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+    file_path = base_dir / attachment.file_path
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found on disk")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=attachment.original_filename,
+        media_type=attachment.mime_type or 'application/octet-stream'
+    )
+
+
+@app.post("/api/tickets/{ticket_number}/attachments/upload")
+async def upload_attachment(
+    ticket_number: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload an attachment to a ticket"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        import os
+        import mimetypes
+        from pathlib import Path
+        import uuid
+        from src.email.text_extractor import TextExtractor
+
+        # Validate file type
+        allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.docx', '.txt', '.csv', '.xlsx', '.xls'}
+        file_ext = Path(file.filename).suffix.lower()
+
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}"
+            )
+
+        # Validate file size (10MB max)
+        max_size = 10 * 1024 * 1024  # 10MB
+        file_content = await file.read()
+        if len(file_content) > max_size:
+            raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+
+        # Create upload directory for this ticket
+        base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+        upload_dir = base_dir / f"uploaded_{ticket_number}"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        unique_id = uuid.uuid4().hex[:8]
+        safe_filename = f"{unique_id}_{file.filename}"
+        file_path = upload_dir / safe_filename
+
+        # Save file
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+
+        # Get mime type
+        mime_type, _ = mimetypes.guess_type(file.filename)
+
+        # Extract text if possible
+        text_extractor = TextExtractor()
+        extracted_text = None
+        extraction_status = 'pending'
+        extraction_error = None
+
+        try:
+            extracted_text = text_extractor.extract_text(str(file_path))
+            if extracted_text:
+                extraction_status = 'completed'
+            else:
+                extraction_status = 'skipped'
+        except Exception as e:
+            logger.warning("Failed to extract text from uploaded file",
+                         filename=file.filename,
+                         error=str(e))
+            extraction_status = 'failed'
+            extraction_error = str(e)
+
+        # Create relative path
+        relative_path = f"uploaded_{ticket_number}/{safe_filename}"
+
+        # Create attachment record
+        attachment = Attachment(
+            ticket_id=ticket.id,
+            gmail_message_id=None,  # Manually uploaded
+            processed_email_id=None,
+            filename=safe_filename,
+            original_filename=file.filename,
+            file_path=relative_path,
+            mime_type=mime_type,
+            file_size=len(file_content),
+            extracted_text=extracted_text,
+            extraction_status=extraction_status,
+            extraction_error=extraction_error,
+            uploaded_by_user_id=current_user.id
+        )
+
+        db.add(attachment)
+        db.commit()
+        db.refresh(attachment)
+
+        logger.info("Attachment uploaded",
+                   ticket_number=ticket_number,
+                   filename=file.filename,
+                   size=len(file_content),
+                   user=current_user.username)
+
+        return AttachmentInfo(
+            id=attachment.id,
+            ticket_id=attachment.ticket_id,
+            filename=attachment.filename,
+            original_filename=attachment.original_filename,
+            mime_type=attachment.mime_type,
+            file_size=attachment.file_size,
+            extraction_status=attachment.extraction_status,
+            created_at=attachment.created_at,
+            gmail_message_id=attachment.gmail_message_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to upload attachment",
+                    ticket_number=ticket_number,
+                    filename=file.filename,
+                    error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to upload attachment: {str(e)}")
+
+
+@app.delete("/api/attachments/{attachment_id}")
+async def delete_attachment(
+    attachment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete an attachment"""
+    # Only allow operators and admins to delete
+    if current_user.role not in ['admin', 'operator']:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    attachment = db.query(Attachment).filter(Attachment.id == attachment_id).first()
+
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    try:
+        import os
+        from pathlib import Path
+
+        # Delete file from disk
+        base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+        file_path = base_dir / attachment.file_path
+
+        if file_path.exists():
+            os.remove(file_path)
+
+        # Delete database record
+        db.delete(attachment)
+        db.commit()
+
+        logger.info("Attachment deleted",
+                   attachment_id=attachment_id,
+                   filename=attachment.filename,
+                   user=current_user.username)
+
+        return {"success": True, "message": "Attachment deleted"}
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to delete attachment",
+                    attachment_id=attachment_id,
+                    error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to delete attachment: {str(e)}")
 
 
 # AI Decision Log endpoints

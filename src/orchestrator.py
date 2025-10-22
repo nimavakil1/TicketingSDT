@@ -20,6 +20,7 @@ from src.database.models import (
     Supplier,
     PendingEmailRetry,
     AIDecisionLog,
+    Attachment,
     init_database
 )
 from src.utils.message_service import MessageService
@@ -880,6 +881,7 @@ class SupportAgentOrchestrator:
             existing.order_number = order_number or existing.order_number
             existing.success = success
             existing.error_message = error_message
+            processed_email = existing
         else:
             # Create new record
             processed_email = ProcessedEmail(
@@ -893,6 +895,125 @@ class SupportAgentOrchestrator:
                 error_message=error_message
             )
             session.add(processed_email)
+
+        session.commit()
+
+        # Save attachments if present and ticket_state exists
+        if success and ticket_state and email_data.get('attachments'):
+            self._save_attachments(
+                session=session,
+                email_data=email_data,
+                ticket_state=ticket_state,
+                processed_email=processed_email
+            )
+
+    def _save_attachments(
+        self,
+        session: Any,
+        email_data: Dict[str, Any],
+        ticket_state: TicketState,
+        processed_email: ProcessedEmail
+    ) -> None:
+        """
+        Save attachment metadata to database and extract text
+
+        Args:
+            session: Database session
+            email_data: Email data containing attachments
+            ticket_state: Ticket state object
+            processed_email: Processed email record
+        """
+        import os
+        from pathlib import Path
+        from src.email.text_extractor import TextExtractor
+
+        attachments = email_data.get('attachments', [])
+        attachment_texts = email_data.get('attachment_texts', [])
+        gmail_id = email_data['id']
+
+        if not attachments:
+            return
+
+        text_extractor = TextExtractor()
+
+        for file_path in attachments:
+            try:
+                # Get file info
+                file_path_obj = Path(file_path)
+                filename = file_path_obj.name
+                file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+
+                # Get mime type
+                import mimetypes
+                mime_type, _ = mimetypes.guess_type(file_path)
+
+                # Check if attachment already exists
+                existing_attachment = session.query(Attachment).filter_by(
+                    ticket_id=ticket_state.id,
+                    gmail_message_id=gmail_id,
+                    filename=filename
+                ).first()
+
+                if existing_attachment:
+                    logger.debug("Attachment already exists", filename=filename)
+                    continue
+
+                # Extract text if supported
+                extracted_text = None
+                extraction_status = 'pending'
+                extraction_error = None
+
+                # Check if text was already extracted (from attachment_texts)
+                for att_text in attachment_texts:
+                    if att_text.get('filename') == filename:
+                        extracted_text = att_text.get('text')
+                        extraction_status = 'completed'
+                        break
+
+                # If not already extracted, try to extract now
+                if not extracted_text:
+                    try:
+                        extracted_text = text_extractor.extract_text(file_path)
+                        if extracted_text:
+                            extraction_status = 'completed'
+                        else:
+                            extraction_status = 'skipped'
+                    except Exception as e:
+                        logger.warning("Failed to extract text from attachment",
+                                     filename=filename,
+                                     error=str(e))
+                        extraction_status = 'failed'
+                        extraction_error = str(e)
+
+                # Create relative path from attachments directory
+                # Attachments are stored in attachments/{message_id}/{filename}
+                relative_path = f"{gmail_id}/{filename}"
+
+                # Create attachment record
+                attachment = Attachment(
+                    ticket_id=ticket_state.id,
+                    gmail_message_id=gmail_id,
+                    processed_email_id=processed_email.id,
+                    filename=filename,
+                    original_filename=filename,
+                    file_path=relative_path,
+                    mime_type=mime_type,
+                    file_size=file_size,
+                    extracted_text=extracted_text,
+                    extraction_status=extraction_status,
+                    extraction_error=extraction_error
+                )
+
+                session.add(attachment)
+                logger.info("Saved attachment metadata",
+                          filename=filename,
+                          ticket_id=ticket_state.ticket_number,
+                          extracted_text_length=len(extracted_text) if extracted_text else 0)
+
+            except Exception as e:
+                logger.error("Failed to save attachment",
+                           file_path=file_path,
+                           error=str(e))
 
         session.commit()
 

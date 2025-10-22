@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ticketsApi, TicketDetail as TicketDetailType, Ticket, CustomStatus } from '../api/tickets';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send } from 'lucide-react';
+import { ticketsApi, TicketDetail as TicketDetailType, Ticket, CustomStatus, Attachment } from '../api/tickets';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send, Paperclip, Download, Trash2, Upload } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
 import { messagesApi, PendingMessage } from '../api/messages';
@@ -34,6 +34,9 @@ const TicketDetail: React.FC = () => {
   const [promptPreview, setPromptPreview] = useState<{system_prompt: string, user_prompt: string} | null>(null);
   const [statuses, setStatuses] = useState<CustomStatus[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -55,6 +58,80 @@ const TicketDetail: React.FC = () => {
     } catch (err) {
       console.error('Failed to load pending messages:', err);
     }
+  };
+
+  const loadAttachments = async () => {
+    if (!ticketNumber) return;
+    try {
+      const data = await ticketsApi.getAttachments(ticketNumber);
+      setAttachments(data);
+    } catch (err) {
+      console.error('Failed to load attachments:', err);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUploadAttachment = async () => {
+    if (!selectedFile || !ticketNumber) return;
+
+    setUploadingFile(true);
+    try {
+      await ticketsApi.uploadAttachment(ticketNumber, selectedFile);
+      setSelectedFile(null);
+      // Reset file input
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+      // Reload attachments
+      await loadAttachments();
+      setReprocessMessage({ type: 'success', text: 'Attachment uploaded successfully!' });
+      setTimeout(() => setReprocessMessage(null), 3000);
+    } catch (err: any) {
+      setReprocessMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to upload attachment' });
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDownloadAttachment = async (attachment: Attachment) => {
+    try {
+      const blob = await ticketsApi.downloadAttachment(attachment.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.original_filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setReprocessMessage({ type: 'error', text: 'Failed to download attachment' });
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: number) => {
+    if (!confirm('Are you sure you want to delete this attachment?')) return;
+
+    try {
+      await ticketsApi.deleteAttachment(attachmentId);
+      await loadAttachments();
+      setReprocessMessage({ type: 'success', text: 'Attachment deleted successfully!' });
+      setTimeout(() => setReprocessMessage(null), 3000);
+    } catch (err: any) {
+      setReprocessMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to delete attachment' });
+    }
+  };
+
+  const formatFileSize = (bytes: number | null): string => {
+    if (!bytes) return 'Unknown size';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   const handleComposeMessage = (recipientType: 'customer' | 'supplier' | 'internal') => {
@@ -244,6 +321,7 @@ const TicketDetail: React.FC = () => {
   useEffect(() => {
     if (ticket) {
       loadPendingMessages();
+      loadAttachments();
     }
   }, [ticket]);
 
@@ -1018,6 +1096,96 @@ const TicketDetail: React.FC = () => {
                 </div>
               );
             })
+          )}
+        </div>
+      </div>
+
+      {/* Attachments */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Paperclip className="h-5 w-5" />
+            Attachments ({attachments.length})
+          </h2>
+        </div>
+
+        {/* Upload Section */}
+        <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <label className="flex-1">
+              <input
+                type="file"
+                id="file-upload"
+                accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.docx,.txt,.csv,.xlsx,.xls"
+                onChange={handleFileSelect}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-lg file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100"
+              />
+            </label>
+            {selectedFile && (
+              <button
+                onClick={handleUploadAttachment}
+                disabled={uploadingFile}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <Upload className={`h-4 w-4 ${uploadingFile ? 'animate-pulse' : ''}`} />
+                {uploadingFile ? 'Uploading...' : 'Upload'}
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Supported formats: PDF, Images (JPG, PNG, TIFF, BMP), Word (DOCX), Excel (XLSX, XLS), Text (TXT, CSV). Max size: 10MB
+          </p>
+        </div>
+
+        {/* Attachments List */}
+        <div className="space-y-2">
+          {attachments.length === 0 ? (
+            <p className="text-gray-500 text-sm">No attachments for this ticket.</p>
+          ) : (
+            attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50"
+              >
+                <div className="flex items-center gap-3 flex-1">
+                  <Paperclip className="h-4 w-4 text-gray-400" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {attachment.original_filename}
+                    </p>
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      <span>{formatFileSize(attachment.file_size)}</span>
+                      <span>{attachment.mime_type || 'Unknown type'}</span>
+                      <span>{formatInCET(attachment.created_at)}</span>
+                      {attachment.extraction_status === 'completed' && (
+                        <span className="text-green-600">✓ Text extracted</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadAttachment(attachment)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteAttachment(attachment.id)}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </div>
       </div>

@@ -435,6 +435,42 @@ class CustomStatus(Base):
         return f"<CustomStatus(id={self.id}, name={self.name}, is_closed={self.is_closed})>"
 
 
+class Attachment(Base):
+    """
+    Store attachment metadata and track files associated with tickets/messages
+    """
+    __tablename__ = 'attachments'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_id = Column(Integer, ForeignKey('ticket_states.id'), nullable=False, index=True)
+    gmail_message_id = Column(String(255), index=True)  # Gmail message this came from
+    processed_email_id = Column(Integer, ForeignKey('processed_emails.id'), index=True)  # Link to processed email
+
+    # File information
+    filename = Column(String(500), nullable=False)
+    original_filename = Column(String(500), nullable=False)  # Original name before any sanitization
+    file_path = Column(String(1000), nullable=False)  # Relative path from attachments directory
+    mime_type = Column(String(100))
+    file_size = Column(Integer)  # Size in bytes
+
+    # Content extraction
+    extracted_text = Column(Text)  # Text extracted from PDF/images/docs
+    extraction_status = Column(String(20), default='pending')  # 'pending', 'completed', 'failed', 'skipped'
+    extraction_error = Column(Text)
+
+    # Metadata
+    uploaded_by_user_id = Column(Integer, ForeignKey('users.id'))  # If manually uploaded
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    ticket = relationship('TicketState', backref='attachments')
+    processed_email = relationship('ProcessedEmail', backref='attachments')
+    uploaded_by = relationship('User', backref='uploaded_attachments')
+
+    def __repr__(self):
+        return f"<Attachment(id={self.id}, filename={self.filename}, ticket_id={self.ticket_id})>"
+
+
 # Database initialization
 def init_database(database_url: Optional[str] = None) -> sessionmaker:
     """
