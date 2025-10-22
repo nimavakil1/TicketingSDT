@@ -178,6 +178,13 @@ const TicketDetail: React.FC = () => {
           body: composeBody
         });
 
+        // Upload attachments if any
+        if (composeAttachments.length > 0) {
+          for (const file of composeAttachments) {
+            await ticketsApi.uploadAttachment(ticket.ticket_number, file);
+          }
+        }
+
         setReprocessMessage({ type: 'success', text: 'Internal note saved!' });
       } else {
         // Parse CC and BCC fields (comma-separated)
@@ -964,46 +971,44 @@ const TicketDetail: React.FC = () => {
               </div>
 
               {/* Attachments */}
-              {composeRecipientType !== 'internal' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Attachments
-                  </label>
-                  <div className="space-y-2">
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.docx,.txt,.csv,.xlsx,.xls"
-                      onChange={handleComposeFileSelect}
-                      className="block w-full text-sm text-gray-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-lg file:border-0
-                        file:text-sm file:font-semibold
-                        file:bg-indigo-50 file:text-indigo-700
-                        hover:file:bg-indigo-100"
-                    />
-                    {composeAttachments.length > 0 && (
-                      <div className="space-y-1">
-                        {composeAttachments.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                            <div className="flex items-center gap-2">
-                              <Paperclip className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm text-gray-700">{file.name}</span>
-                              <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
-                            </div>
-                            <button
-                              onClick={() => removeComposeAttachment(index)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Attachments
+                </label>
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.docx,.txt,.csv,.xlsx,.xls"
+                    onChange={handleComposeFileSelect}
+                    className="block w-full text-sm text-gray-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-lg file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-indigo-50 file:text-indigo-700
+                      hover:file:bg-indigo-100"
+                  />
+                  {composeAttachments.length > 0 && (
+                    <div className="space-y-1">
+                      {composeAttachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <div className="flex items-center gap-2">
+                            <Paperclip className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm text-gray-700">{file.name}</span>
+                            <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <button
+                            onClick={() => removeComposeAttachment(index)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Info Note */}
               {composeRecipientType !== 'internal' && (
