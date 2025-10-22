@@ -38,6 +38,31 @@ def test_upsert_ticket():
     print(f"{'='*70}")
     print(f"Amazon Order Number: {amazon_order_number}")
 
+    # Debug: Check environment variables
+    import os
+    print(f"\nDebug - Environment variables:")
+    print(f"  TICKETING_API_BASE_URL: {os.getenv('TICKETING_API_BASE_URL', 'NOT SET')}")
+    print(f"  TICKETING_API_USERNAME: {os.getenv('TICKETING_API_USERNAME', 'NOT SET')}")
+    password = os.getenv('TICKETING_API_PASSWORD')
+    if password:
+        print(f"  TICKETING_API_PASSWORD: {'*' * len(password)} (length: {len(password)})")
+    else:
+        print(f"  TICKETING_API_PASSWORD: NOT SET")
+
+    print(f"\nDebug - .env file check:")
+    env_path = Path.cwd() / '.env'
+    print(f"  Looking for: {env_path}")
+    print(f"  File exists: {env_path.exists()}")
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            for line in f:
+                if 'TICKETING_API' in line and not line.strip().startswith('#'):
+                    # Mask password
+                    if 'PASSWORD' in line:
+                        print(f"  Found: TICKETING_API_PASSWORD=*** (masked)")
+                    else:
+                        print(f"  Found: {line.strip()}")
+
     try:
         # Initialize the API client
         print("\n[1/3] Initializing API client...")
