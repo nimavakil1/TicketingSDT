@@ -94,6 +94,45 @@ const TicketDetail: React.FC = () => {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validate file type
+      const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.bmp', '.webp', '.docx', '.txt', '.csv', '.xlsx', '.xls'];
+      const fileName = file.name.toLowerCase();
+      const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+
+      if (!allowedExtensions.includes(fileExt)) {
+        setReprocessMessage({
+          type: 'error',
+          text: `File type '${fileExt}' not allowed. Allowed types: PDF, images (JPG, PNG, GIF, TIFF, BMP, WebP), documents (DOCX, TXT, CSV, XLSX)`
+        });
+        setTimeout(() => setReprocessMessage(null), 5000);
+        event.target.value = ''; // Reset input
+        return;
+      }
+
+      // Check for dangerous file types
+      const dangerousExtensions = ['.exe', '.bat', '.sh', '.cmd', '.com', '.scr', '.vbs', '.js', '.jar', '.app', '.dmg', '.msi'];
+      if (dangerousExtensions.includes(fileExt)) {
+        setReprocessMessage({
+          type: 'error',
+          text: 'Executable files are not allowed for security reasons'
+        });
+        setTimeout(() => setReprocessMessage(null), 5000);
+        event.target.value = ''; // Reset input
+        return;
+      }
+
+      // Check file size (100MB)
+      const maxSize = 100 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setReprocessMessage({
+          type: 'error',
+          text: 'File size exceeds 100MB limit'
+        });
+        setTimeout(() => setReprocessMessage(null), 5000);
+        event.target.value = ''; // Reset input
+        return;
+      }
+
       setSelectedFile(file);
     }
   };
@@ -180,7 +219,50 @@ const TicketDetail: React.FC = () => {
   const handleComposeFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files) {
-      setComposeAttachments(prev => [...prev, ...Array.from(files)]);
+      const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.bmp', '.webp', '.docx', '.txt', '.csv', '.xlsx', '.xls'];
+      const dangerousExtensions = ['.exe', '.bat', '.sh', '.cmd', '.com', '.scr', '.vbs', '.js', '.jar', '.app', '.dmg', '.msi'];
+      const maxSize = 100 * 1024 * 1024;
+      const validFiles: File[] = [];
+      const errors: string[] = [];
+
+      Array.from(files).forEach((file) => {
+        const fileName = file.name.toLowerCase();
+        const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+
+        // Check for dangerous types
+        if (dangerousExtensions.includes(fileExt)) {
+          errors.push(`${file.name}: Executable files not allowed`);
+          return;
+        }
+
+        // Check allowed types
+        if (!allowedExtensions.includes(fileExt)) {
+          errors.push(`${file.name}: File type '${fileExt}' not allowed`);
+          return;
+        }
+
+        // Check file size
+        if (file.size > maxSize) {
+          errors.push(`${file.name}: Exceeds 100MB limit`);
+          return;
+        }
+
+        validFiles.push(file);
+      });
+
+      if (errors.length > 0) {
+        setReprocessMessage({
+          type: 'error',
+          text: errors.join('; ')
+        });
+        setTimeout(() => setReprocessMessage(null), 7000);
+      }
+
+      if (validFiles.length > 0) {
+        setComposeAttachments(prev => [...prev, ...validFiles]);
+      }
+
+      event.target.value = ''; // Reset input
     }
   };
 

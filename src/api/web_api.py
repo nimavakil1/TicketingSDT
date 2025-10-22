@@ -187,20 +187,6 @@ class MessageApproval(BaseModel):
     updated_data: Optional[PendingMessageUpdate] = None
 
 
-class MessageTemplateInfo(BaseModel):
-    id: int
-    template_id: str
-    name: str
-    recipient_type: str  # 'supplier', 'customer', 'internal'
-    language: str
-    subject_template: str
-    body_template: str
-    variables: List[str]
-    use_cases: List[str]
-    created_at: datetime
-    updated_at: datetime
-
-
 class AttachmentInfo(BaseModel):
     id: int
     ticket_id: int
@@ -212,25 +198,6 @@ class AttachmentInfo(BaseModel):
     extracted_text: Optional[str]
     created_at: datetime
     gmail_message_id: Optional[str]
-
-
-class MessageTemplateCreate(BaseModel):
-    template_id: str
-    name: str
-    recipient_type: str
-    language: str
-    subject_template: str
-    body_template: str
-    variables: Optional[List[str]] = []
-    use_cases: Optional[List[str]] = []
-
-
-class MessageTemplateUpdate(BaseModel):
-    name: Optional[str] = None
-    subject_template: Optional[str] = None
-    body_template: Optional[str] = None
-    variables: Optional[List[str]] = None
-    use_cases: Optional[List[str]] = None
 
 
 class PromptApprovalRequest(BaseModel):
@@ -1665,14 +1632,22 @@ async def upload_attachment(
         import uuid
         from src.email.text_extractor import TextExtractor
 
-        # Validate file type
-        allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.docx', '.txt', '.csv', '.xlsx', '.xls'}
+        # Validate file type (extension)
+        allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.docx', '.txt', '.csv', '.xlsx', '.xls', '.gif', '.webp'}
         file_ext = Path(file.filename).suffix.lower()
 
         if file_ext not in allowed_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"File type not allowed. Allowed types: {', '.join(allowed_extensions)}"
+                detail=f"File type '{file_ext}' not allowed. Allowed types: PDF, images (JPG, PNG, GIF, TIFF, BMP, WebP), documents (DOCX, TXT, CSV, XLSX)"
+            )
+
+        # Block dangerous file types (extra safety check)
+        dangerous_extensions = {'.exe', '.bat', '.sh', '.cmd', '.com', '.scr', '.vbs', '.js', '.jar', '.app', '.dmg', '.msi', '.dll', '.so', '.dylib'}
+        if file_ext in dangerous_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail="Executable files are not allowed for security reasons"
             )
 
         # Validate file size (100MB max)
@@ -3223,207 +3198,6 @@ async def get_scheduler_status(
             "running": False,
             "error": "Scheduler not initialized"
         }
-
-
-# ============================================================================
-# Message Template Endpoints
-# ============================================================================
-
-@app.get("/api/templates", response_model=List[MessageTemplateInfo])
-async def get_templates(
-    recipient_type: Optional[str] = None,
-    language: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get all message templates with optional filters"""
-    query = db.query(MessageTemplate)
-
-    if recipient_type:
-        query = query.filter(MessageTemplate.recipient_type == recipient_type)
-
-    if language:
-        query = query.filter(MessageTemplate.language == language)
-
-    templates = query.order_by(MessageTemplate.recipient_type, MessageTemplate.name).all()
-
-    return [
-        MessageTemplateInfo(
-            id=t.id,
-            template_id=t.template_id,
-            name=t.name,
-            recipient_type=t.recipient_type,
-            language=t.language,
-            subject_template=t.subject_template,
-            body_template=t.body_template,
-            variables=t.variables if isinstance(t.variables, list) else [],
-            use_cases=t.use_cases if isinstance(t.use_cases, list) else [],
-            created_at=t.created_at,
-            updated_at=t.updated_at
-        )
-        for t in templates
-    ]
-
-
-@app.get("/api/templates/{template_id}", response_model=MessageTemplateInfo)
-async def get_template(
-    template_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get a specific message template by template_id"""
-    template = db.query(MessageTemplate).filter(
-        MessageTemplate.template_id == template_id
-    ).first()
-
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    return MessageTemplateInfo(
-        id=template.id,
-        template_id=template.template_id,
-        name=template.name,
-        recipient_type=template.recipient_type,
-        language=template.language,
-        subject_template=template.subject_template,
-        body_template=template.body_template,
-        variables=template.variables if isinstance(template.variables, list) else [],
-        use_cases=template.use_cases if isinstance(template.use_cases, list) else [],
-        created_at=template.created_at,
-        updated_at=template.updated_at
-    )
-
-
-@app.post("/api/templates", response_model=MessageTemplateInfo, status_code=201)
-async def create_template(
-    template: MessageTemplateCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a new message template"""
-    # Check if template_id already exists
-    existing = db.query(MessageTemplate).filter(
-        MessageTemplate.template_id == template.template_id
-    ).first()
-
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Template with ID '{template.template_id}' already exists"
-        )
-
-    # Validate recipient_type
-    valid_types = ['supplier', 'customer', 'internal']
-    if template.recipient_type not in valid_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid recipient_type. Must be one of: {', '.join(valid_types)}"
-        )
-
-    # Create new template
-    new_template = MessageTemplate(
-        template_id=template.template_id,
-        name=template.name,
-        recipient_type=template.recipient_type,
-        language=template.language,
-        subject_template=template.subject_template,
-        body_template=template.body_template,
-        variables=template.variables,
-        use_cases=template.use_cases,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
-    )
-
-    db.add(new_template)
-    db.commit()
-    db.refresh(new_template)
-
-    logger.info(f"Template created: {template.template_id} by user {current_user.username}")
-
-    return MessageTemplateInfo(
-        id=new_template.id,
-        template_id=new_template.template_id,
-        name=new_template.name,
-        recipient_type=new_template.recipient_type,
-        language=new_template.language,
-        subject_template=new_template.subject_template,
-        body_template=new_template.body_template,
-        variables=new_template.variables if isinstance(new_template.variables, list) else [],
-        use_cases=new_template.use_cases if isinstance(new_template.use_cases, list) else [],
-        created_at=new_template.created_at,
-        updated_at=new_template.updated_at
-    )
-
-
-@app.put("/api/templates/{template_id}", response_model=MessageTemplateInfo)
-async def update_template(
-    template_id: str,
-    updates: MessageTemplateUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Update an existing message template"""
-    template = db.query(MessageTemplate).filter(
-        MessageTemplate.template_id == template_id
-    ).first()
-
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # Apply updates
-    if updates.name is not None:
-        template.name = updates.name
-    if updates.subject_template is not None:
-        template.subject_template = updates.subject_template
-    if updates.body_template is not None:
-        template.body_template = updates.body_template
-    if updates.variables is not None:
-        template.variables = updates.variables
-    if updates.use_cases is not None:
-        template.use_cases = updates.use_cases
-
-    template.updated_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(template)
-
-    logger.info(f"Template updated: {template_id} by user {current_user.username}")
-
-    return MessageTemplateInfo(
-        id=template.id,
-        template_id=template.template_id,
-        name=template.name,
-        recipient_type=template.recipient_type,
-        language=template.language,
-        subject_template=template.subject_template,
-        body_template=template.body_template,
-        variables=template.variables if isinstance(template.variables, list) else [],
-        use_cases=template.use_cases if isinstance(template.use_cases, list) else [],
-        created_at=template.created_at,
-        updated_at=template.updated_at
-    )
-
-
-@app.delete("/api/templates/{template_id}")
-async def delete_template(
-    template_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Delete a message template"""
-    template = db.query(MessageTemplate).filter(
-        MessageTemplate.template_id == template_id
-    ).first()
-
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    db.delete(template)
-    db.commit()
-
-    logger.info(f"Template deleted: {template_id} by user {current_user.username}")
-
-    return {"message": "Template deleted successfully"}
 
 
 # ============================================================================
