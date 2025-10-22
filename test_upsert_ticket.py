@@ -99,14 +99,21 @@ def test_upsert_ticket():
         else:
             print("  ✗ Failed with minimal fields, trying with all optional fields...")
 
-            # Try again with ALL optional fields including date
+            # Try again with ALL optional fields including date and Gmail thread ID
             from datetime import datetime, timezone
+            import random
+            import string
+
             # Format with 6 digits for microseconds (not 3 for milliseconds)
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f") + " +00:00"
 
-            print(f"\nAttempt 2: With ALL optional fields (including date)")
+            # Generate a realistic Gmail thread ID (16 hex characters)
+            gmail_thread_id = ''.join(random.choices(string.hexdigits.lower(), k=16))
+
+            print(f"\nAttempt 2: With ALL optional fields (including date and Gmail thread)")
             print(f"  EntranceEmailDate: {current_time}")
             print(f"  (6 digits for microseconds)")
+            print(f"  EntranceGmailThreadId: {gmail_thread_id}")
 
             response = client.upsert_ticket(
                 sales_order_reference=amazon_order_number,
@@ -116,7 +123,8 @@ def test_upsert_ticket():
                 entrance_email_subject="Test: Tracking inquiry",
                 entrance_email_body="Customer is asking about shipment tracking.",
                 entrance_email_sender_address="test@example.com",
-                entrance_email_date=current_time
+                entrance_email_date=current_time,
+                entrance_gmail_thread_id=gmail_thread_id
             )
 
         print(f"\n{'='*70}")
