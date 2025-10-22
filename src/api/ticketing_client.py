@@ -242,19 +242,21 @@ class TicketingAPIClient:
             )
 
             try:
-                if files:
-                    response = self.session.post(url, data=form_data, files=files, timeout=30)
+                # Always use multipart/form-data by passing an empty files dict
+                # This matches the API's "form-data" requirement
+                if not files:
+                    # Create empty files dict to force multipart encoding
+                    files_param = {}
                 else:
-                    response = self.session.post(url, data=form_data, timeout=30)
+                    files_param = files
+
+                response = self.session.post(url, data=form_data, files=files_param, timeout=30)
 
                 # Re-authenticate if token expired
                 if response.status_code == 401:
                     logger.info("Token expired, re-authenticating")
                     self._authenticate()
-                    if files:
-                        response = self.session.post(url, data=form_data, files=files, timeout=30)
-                    else:
-                        response = self.session.post(url, data=form_data, timeout=30)
+                    response = self.session.post(url, data=form_data, files=files_param, timeout=30)
 
                 # Log response details
                 logger.info(

@@ -65,11 +65,23 @@ def test_upsert_ticket():
 
     try:
         # Initialize the API client
-        print("\n[1/3] Initializing API client...")
+        print("\n[1/4] Initializing API client...")
         client = TicketingAPIClient()
 
+        # First, check if order exists
+        print(f"\n[2/4] Checking if order exists in system...")
+        try:
+            existing_ticket = client.get_ticket_by_ticket_number(amazon_order_number)
+            if existing_ticket:
+                print(f"  ✓ Found existing ticket(s) for this order:")
+                print(f"    {json.dumps(existing_ticket, indent=4, default=str)[:500]}...")
+            else:
+                print(f"  ℹ No existing ticket found for this order (this is normal for new orders)")
+        except Exception as e:
+            print(f"  ⚠ Could not check for existing ticket: {e}")
+
         # Create/update the ticket
-        print(f"[2/3] Creating ticket in old system...")
+        print(f"\n[3/4] Creating ticket in old system...")
         print(f"  - Order Number: {amazon_order_number}")
         print(f"  - Ticket Type: 2 (Tracking)")
         print(f"  - Contact Name: Test Customer")
@@ -116,7 +128,7 @@ def test_upsert_ticket():
                     ticket_number = match.group(0)
 
             if ticket_number:
-                print(f"\n[3/3] Fetching ticket details for: {ticket_number}")
+                print(f"\n[4/4] Fetching ticket details for: {ticket_number}")
                 ticket_details = client.get_ticket_by_ticket_number(ticket_number)
 
                 if ticket_details:
@@ -131,7 +143,7 @@ def test_upsert_ticket():
                 print(f"Try fetching by Amazon order number instead...")
 
                 # Try to fetch by Amazon order number
-                print(f"\n[3/3] Fetching ticket by Amazon order: {amazon_order_number}")
+                print(f"\n[4/4] Fetching ticket by Amazon order: {amazon_order_number}")
                 ticket_details = client.get_ticket_by_ticket_number(amazon_order_number)
 
                 if ticket_details:
