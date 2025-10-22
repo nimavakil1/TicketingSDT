@@ -191,37 +191,25 @@ const TicketDetail: React.FC = () => {
         const ccList = composeCC ? composeCC.split(',').map(e => e.trim()).filter(e => e) : [];
         const bccList = composeBCC ? composeBCC.split(',').map(e => e.trim()).filter(e => e) : [];
 
-        // If attachments present, use FormData
-        if (composeAttachments.length > 0) {
-          const formData = new FormData();
-          formData.append('to', composeTo);
-          formData.append('subject', composeSubject);
-          formData.append('body', composeBody);
-          if (ccList.length > 0) formData.append('cc', JSON.stringify(ccList));
-          if (bccList.length > 0) formData.append('bcc', JSON.stringify(bccList));
-          if (ticket.gmail_thread_id) formData.append('thread_id', ticket.gmail_thread_id);
+        // Always use FormData (endpoint expects Form data)
+        const formData = new FormData();
+        formData.append('to', composeTo);
+        formData.append('subject', composeSubject);
+        formData.append('body', composeBody);
+        if (ccList.length > 0) formData.append('cc', JSON.stringify(ccList));
+        if (bccList.length > 0) formData.append('bcc', JSON.stringify(bccList));
+        if (ticket.gmail_thread_id) formData.append('thread_id', ticket.gmail_thread_id);
 
-          // Append all attachments
-          composeAttachments.forEach((file) => {
-            formData.append('attachments', file);
-          });
+        // Append all attachments if any
+        composeAttachments.forEach((file) => {
+          formData.append('attachments', file);
+        });
 
-          await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-        } else {
-          // Send email through Gmail API without attachments
-          await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, {
-            to: composeTo,
-            subject: composeSubject,
-            body: composeBody,
-            cc: ccList.length > 0 ? ccList : undefined,
-            bcc: bccList.length > 0 ? bccList : undefined,
-            thread_id: ticket.gmail_thread_id || null
-          });
-        }
+        await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
 
         setReprocessMessage({ type: 'success', text: 'Email sent successfully via Gmail!' });
       }
