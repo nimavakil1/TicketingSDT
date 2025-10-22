@@ -163,3 +163,109 @@ class TicketingAPIClient:
         except TicketingAPIError as e:
             logger.error(f"Failed to send message on ticket {ticket_number}: {e}")
             return False
+
+    def upsert_ticket(
+        self,
+        sales_order_reference: str,
+        ticket_type_id: int,
+        contact_name: str,
+        comment: Optional[str] = None,
+        entrance_email_body: Optional[str] = None,
+        entrance_email_date: Optional[str] = None,
+        entrance_email_subject: Optional[str] = None,
+        entrance_email_sender_address: Optional[str] = None,
+        entrance_gmail_thread_id: Optional[str] = None,
+        attachments: Optional[List[tuple]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create or update a ticket in the ticketing system.
+
+        Args:
+            sales_order_reference: Amazon Order ID
+            ticket_type_id: 0=Unknown, 1=Return, 2=Tracking, 3=Price, 4=GeneralInfo,
+                           5=TechSupport, 6=SupportEnquiry, 7=TransportDamage
+            contact_name: Customer contact name
+            comment: Optional comment
+            entrance_email_body: Optional email body
+            entrance_email_date: Optional email date (format: YYYY-MM-DD HH:MM:SS.ssssss +00:00)
+            entrance_email_subject: Optional email subject
+            entrance_email_sender_address: Optional sender email
+            entrance_gmail_thread_id: Optional Gmail thread ID
+            attachments: Optional list of (filename, file_content, mime_type) tuples
+
+        Returns:
+            API response dict with 'succeeded', 'messages', etc.
+        """
+        try:
+            logger.info(
+                "Creating/updating ticket via UpsertTicket",
+                sales_order_reference=sales_order_reference,
+                ticket_type_id=ticket_type_id
+            )
+
+            # Prepare form data
+            form_data = {
+                'SalesOrderReference': sales_order_reference,
+                'TicketTypeId': str(ticket_type_id),
+                'ContactName': contact_name,
+            }
+
+            if comment:
+                form_data['Comment'] = comment
+            if entrance_email_body:
+                form_data['EntranceEmailBody'] = entrance_email_body
+            if entrance_email_date:
+                form_data['EntranceEmailDate'] = entrance_email_date
+            if entrance_email_subject:
+                form_data['EntranceEmailSubject'] = entrance_email_subject
+            if entrance_email_sender_address:
+                form_data['EntranceEmailSenderAddress'] = entrance_email_sender_address
+            if entrance_gmail_thread_id:
+                form_data['EntranceGmailThreadId'] = entrance_gmail_thread_id
+
+            # Prepare files if attachments provided
+            files = []
+            if attachments:
+                for filename, content, mime_type in attachments:
+                    files.append(('Attachments', (filename, content, mime_type)))
+
+            # Make request with form data
+            self._ensure_authenticated()
+            url = f"{self.base_url}/tickets/tickets/UpsertTicket"
+
+            try:
+                if files:
+                    response = self.session.post(url, data=form_data, files=files, timeout=30)
+                else:
+                    response = self.session.post(url, data=form_data, timeout=30)
+
+                # Re-authenticate if token expired
+                if response.status_code == 401:
+                    logger.info("Token expired, re-authenticating")
+                    self._authenticate()
+                    if files:
+                        response = self.session.post(url, data=form_data, files=files, timeout=30)
+                    else:
+                        response = self.session.post(url, data=form_data, timeout=30)
+
+                response.raise_for_status()
+                result = response.json()
+
+                logger.info(
+                    "UpsertTicket response",
+                    succeeded=result.get('succeeded'),
+                    ticket_id=result.get('id'),
+                    messages=result.get('messages', [])
+                )
+
+                return result
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"UpsertTicket request failed: {e}")
+                raise TicketingAPIError(f"UpsertTicket request failed: {e}")
+
+        except TicketingAPIError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to upsert ticket: {e}")
+            raise TicketingAPIError(f"Failed to upsert ticket: {e}")
