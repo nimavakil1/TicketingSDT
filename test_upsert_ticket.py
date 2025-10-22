@@ -86,15 +86,30 @@ def test_upsert_ticket():
         print(f"  - Ticket Type: 2 (Tracking)")
         print(f"  - Contact Name: Test Customer")
 
+        # Try with ONLY required fields first
+        print(f"\nAttempt 1: Minimal fields (required only)")
         response = client.upsert_ticket(
             sales_order_reference=amazon_order_number,
             ticket_type_id=2,  # Tracking
-            contact_name="Test Customer",
-            comment="Test ticket created via API",
-            entrance_email_subject="Test: Tracking inquiry",
-            entrance_email_body="Customer is asking about shipment tracking.",
-            entrance_email_sender_address="test@example.com"
+            contact_name="Customer Name"
         )
+
+        if response.get('succeeded'):
+            print("  ✓ Success with minimal fields!")
+        else:
+            print("  ✗ Failed with minimal fields, trying with optional fields...")
+
+            # Try again with optional fields
+            print(f"\nAttempt 2: With optional fields")
+            response = client.upsert_ticket(
+                sales_order_reference=amazon_order_number,
+                ticket_type_id=2,  # Tracking
+                contact_name="Customer Name",
+                comment="Test ticket created via API",
+                entrance_email_subject="Test: Tracking inquiry",
+                entrance_email_body="Customer is asking about shipment tracking.",
+                entrance_email_sender_address="test@example.com"
+            )
 
         print(f"\n{'='*70}")
         print("UpsertTicket Response:")

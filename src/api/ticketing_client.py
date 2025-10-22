@@ -204,9 +204,11 @@ class TicketingAPIClient:
             )
 
             # Prepare form data
+            # Note: When using multipart/form-data, all values are strings
+            # But we keep TicketTypeId as int for proper serialization
             form_data = {
                 'SalesOrderReference': sales_order_reference,
-                'TicketTypeId': str(ticket_type_id),
+                'TicketTypeId': ticket_type_id,  # Keep as int, not str
                 'ContactName': contact_name,
             }
 
