@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsApi, TicketDetail as TicketDetailType, Ticket, CustomStatus, Attachment } from '../api/tickets';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send, Paperclip, Download, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send, Paperclip, Download, Trash2, Upload, Eye, X, ChevronDown, ChevronUp } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
 import { messagesApi, PendingMessage } from '../api/messages';
@@ -38,6 +38,8 @@ const TicketDetail: React.FC = () => {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [composeAttachments, setComposeAttachments] = useState<File[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<Attachment | null>(null);
+  const [expandedTextAttachments, setExpandedTextAttachments] = useState<Set<number>>(new Set());
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -126,6 +128,28 @@ const TicketDetail: React.FC = () => {
     } catch (err: any) {
       setReprocessMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to delete attachment' });
     }
+  };
+
+  const handleViewImage = (attachment: Attachment) => {
+    if (attachment.mime_type?.startsWith('image/')) {
+      setLightboxImage(attachment);
+    }
+  };
+
+  const toggleExtractedText = (attachmentId: number) => {
+    setExpandedTextAttachments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(attachmentId)) {
+        newSet.delete(attachmentId);
+      } else {
+        newSet.add(attachmentId);
+      }
+      return newSet;
+    });
+  };
+
+  const isImageFile = (mimeType: string | null): boolean => {
+    return mimeType?.startsWith('image/') || false;
   };
 
   const formatFileSize = (bytes: number | null): string => {
@@ -1215,46 +1239,98 @@ const TicketDetail: React.FC = () => {
         </div>
 
         {/* Attachments List */}
-        <div className="space-y-2">
+        <div className="space-y-3">
           {attachments.length === 0 ? (
             <p className="text-gray-500 text-sm">No attachments for this ticket.</p>
           ) : (
             attachments.map((attachment) => (
               <div
                 key={attachment.id}
-                className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50"
+                className="border rounded-lg p-3 hover:bg-gray-50"
               >
-                <div className="flex items-center gap-3 flex-1">
-                  <Paperclip className="h-4 w-4 text-gray-400" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {attachment.original_filename}
-                    </p>
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>{formatFileSize(attachment.file_size)}</span>
-                      <span>{attachment.mime_type || 'Unknown type'}</span>
-                      <span>{formatInCET(attachment.created_at)}</span>
-                      {attachment.extraction_status === 'completed' && (
-                        <span className="text-green-600">✓ Text extracted</span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {/* Thumbnail for images */}
+                    {isImageFile(attachment.mime_type) ? (
+                      <div className="flex-shrink-0">
+                        <img
+                          src={`/api/attachments/${attachment.id}/view`}
+                          alt={attachment.original_filename}
+                          className="w-16 h-16 object-cover rounded border cursor-pointer hover:opacity-80"
+                          onClick={() => handleViewImage(attachment)}
+                        />
+                      </div>
+                    ) : (
+                      <Paperclip className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {attachment.original_filename}
+                      </p>
+                      <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                        <span>{formatFileSize(attachment.file_size)}</span>
+                        <span>{attachment.mime_type || 'Unknown type'}</span>
+                        <span>{formatInCET(attachment.created_at)}</span>
+                        {attachment.extraction_status === 'completed' && (
+                          <span className="text-green-600">✓ Text extracted</span>
+                        )}
+                      </div>
+
+                      {/* Extracted Text Section */}
+                      {attachment.extracted_text && attachment.extraction_status === 'completed' && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => toggleExtractedText(attachment.id)}
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                          >
+                            {expandedTextAttachments.has(attachment.id) ? (
+                              <>
+                                <ChevronUp className="h-3 w-3" />
+                                Hide extracted text
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3" />
+                                Show extracted text
+                              </>
+                            )}
+                          </button>
+                          {expandedTextAttachments.has(attachment.id) && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700 max-h-48 overflow-y-auto whitespace-pre-wrap">
+                              {attachment.extracted_text}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleDownloadAttachment(attachment)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                    title="Download"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteAttachment(attachment.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {isImageFile(attachment.mime_type) && (
+                      <button
+                        onClick={() => handleViewImage(attachment)}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded"
+                        title="View image"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDownloadAttachment(attachment)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Download"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAttachment(attachment.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -1451,6 +1527,44 @@ const TicketDetail: React.FC = () => {
                 <RefreshCw className={`h-4 w-4 ${runningAnalysis ? 'animate-spin' : ''}`} />
                 {runningAnalysis ? 'Running Analysis...' : 'Confirm & Run Analysis'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox Modal */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 p-2 bg-white rounded-full hover:bg-gray-100 shadow-lg"
+            title="Close"
+          >
+            <X className="h-6 w-6 text-gray-700" />
+          </button>
+          <div
+            className="max-w-7xl max-h-[90vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={`/api/attachments/${lightboxImage.id}/view`}
+              alt={lightboxImage.original_filename}
+              className="max-w-full max-h-[80vh] object-contain rounded shadow-2xl"
+            />
+            <div className="mt-4 text-center">
+              <p className="text-white text-sm font-medium">{lightboxImage.original_filename}</p>
+              <div className="flex items-center justify-center gap-4 mt-2">
+                <button
+                  onClick={() => handleDownloadAttachment(lightboxImage)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 rounded hover:bg-gray-100"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </button>
+              </div>
             </div>
           </div>
         </div>

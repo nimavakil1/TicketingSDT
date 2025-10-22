@@ -209,6 +209,7 @@ class AttachmentInfo(BaseModel):
     mime_type: Optional[str]
     file_size: Optional[int]
     extraction_status: str
+    extracted_text: Optional[str]
     created_at: datetime
     gmail_message_id: Optional[str]
 
@@ -1503,6 +1504,7 @@ async def get_ticket_attachments(
             mime_type=att.mime_type,
             file_size=att.file_size,
             extraction_status=att.extraction_status,
+            extracted_text=att.extracted_text,
             created_at=att.created_at,
             gmail_message_id=att.gmail_message_id
         )
@@ -1537,6 +1539,37 @@ async def download_attachment(
         path=str(file_path),
         filename=attachment.original_filename,
         media_type=attachment.mime_type or 'application/octet-stream'
+    )
+
+
+@app.get("/api/attachments/{attachment_id}/view")
+async def view_attachment(
+    attachment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """View/preview an attachment file inline (for images)"""
+    attachment = db.query(Attachment).filter(Attachment.id == attachment_id).first()
+
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    # Build full file path
+    import os
+    from pathlib import Path
+
+    # Attachments are stored in attachments directory
+    base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+    file_path = base_dir / attachment.file_path
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found on disk")
+
+    # Return file for inline display (without Content-Disposition header forcing download)
+    return FileResponse(
+        path=str(file_path),
+        media_type=attachment.mime_type or 'application/octet-stream',
+        headers={"Content-Disposition": f"inline; filename=\"{attachment.original_filename}\""}
     )
 
 
@@ -1651,6 +1684,7 @@ async def upload_attachment(
             mime_type=attachment.mime_type,
             file_size=attachment.file_size,
             extraction_status=attachment.extraction_status,
+            extracted_text=attachment.extracted_text,
             created_at=attachment.created_at,
             gmail_message_id=attachment.gmail_message_id
         )

@@ -95,6 +95,7 @@ export interface Attachment {
   mime_type: string | null;
   file_size: number | null;
   extraction_status: string;
+  extracted_text: string | null;
   created_at: string;
   gmail_message_id: string | null;
 }
