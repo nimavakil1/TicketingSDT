@@ -170,7 +170,7 @@ class MessageService:
             # Send message via ticketing API
             if pending_message.message_type == "supplier":
                 result = self.ticketing_client.send_message_to_supplier(
-                    ticket_id=ticket_state.ticket_id,
+                    ticket_number=ticket_state.ticket_number,
                     message=pending_message.body,
                     ticket_status_id=ticket_state.ticket_status_id,
                     owner_id=ticket_state.owner_id,
@@ -181,7 +181,7 @@ class MessageService:
 
             elif pending_message.message_type == "customer":
                 result = self.ticketing_client.send_message_to_customer(
-                    ticket_id=ticket_state.ticket_id,
+                    ticket_number=ticket_state.ticket_number,
                     message=pending_message.body,
                     ticket_status_id=ticket_state.ticket_status_id,
                     owner_id=ticket_state.owner_id,
@@ -192,7 +192,7 @@ class MessageService:
 
             elif pending_message.message_type == "internal":
                 result = self.ticketing_client.send_internal_message(
-                    ticket_id=ticket_state.ticket_id,
+                    ticket_number=ticket_state.ticket_number,
                     message=pending_message.body,
                     ticket_status_id=ticket_state.ticket_status_id,
                     owner_id=ticket_state.owner_id,

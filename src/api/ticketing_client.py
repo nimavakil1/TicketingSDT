@@ -179,6 +179,287 @@ class TicketingAPIClient:
             logger.error(f"Failed to send message on ticket {ticket_number}: {e}")
             return False
 
+    def send_message_to_customer(
+        self,
+        ticket_number: str,
+        message: str,
+        ticket_status_id: Optional[int] = None,
+        owner_id: Optional[int] = None,
+        email_address: Optional[str] = None,
+        cc_email_address: Optional[str] = None,
+        attachments: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a message to customer with optional attachments
+
+        Returns:
+            API response dict with 'succeeded', 'messages', etc.
+        """
+        try:
+            logger.info(
+                "Sending message to customer",
+                ticket_number=ticket_number,
+                has_attachments=bool(attachments)
+            )
+
+            # Build payload
+            payload = {
+                'message': message,
+                'to_supplier': False
+            }
+
+            # Add optional fields if provided
+            if ticket_status_id is not None:
+                payload['ticket_status_id'] = ticket_status_id
+            if owner_id is not None:
+                payload['owner_id'] = owner_id
+            if email_address:
+                payload['email_address'] = email_address
+            if cc_email_address:
+                payload['cc_email_address'] = cc_email_address
+
+            # Use multipart if there are attachments, otherwise JSON
+            if attachments:
+                self._ensure_authenticated()
+                url = f"{self.base_url}/tickets/{ticket_number}/messages"
+
+                # Build multipart request
+                files_param = {k: (None, str(v)) for k, v in payload.items()}
+
+                # Add file attachments
+                for att_path in attachments:
+                    import os
+                    if os.path.exists(att_path):
+                        filename = os.path.basename(att_path)
+                        with open(att_path, 'rb') as f:
+                            content = f.read()
+                        # Guess MIME type
+                        mime_type = 'application/octet-stream'
+                        if att_path.lower().endswith(('.jpg', '.jpeg')):
+                            mime_type = 'image/jpeg'
+                        elif att_path.lower().endswith('.png'):
+                            mime_type = 'image/png'
+
+                        if isinstance(files_param, dict):
+                            files_param = list(files_param.items())
+                        files_param.append(('attachments', (filename, content, mime_type)))
+
+                response = self.session.post(url, files=files_param, timeout=30)
+
+                # Re-authenticate if token expired
+                if response.status_code == 401:
+                    logger.info("Token expired, re-authenticating")
+                    self._authenticate()
+                    response = self.session.post(url, files=files_param, timeout=30)
+
+                response.raise_for_status()
+                result = response.json() if response.text else {}
+            else:
+                result = self._make_request('POST', f'/tickets/{ticket_number}/messages', json=payload)
+
+            # Ensure result has 'succeeded' key
+            if 'succeeded' not in result:
+                result = {'succeeded': True, 'messages': []}
+
+            logger.info(
+                "Customer message sent",
+                ticket_number=ticket_number,
+                succeeded=result.get('succeeded')
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to send customer message: {e}")
+            return {
+                'succeeded': False,
+                'messages': [str(e)]
+            }
+
+    def send_message_to_supplier(
+        self,
+        ticket_number: str,
+        message: str,
+        ticket_status_id: Optional[int] = None,
+        owner_id: Optional[int] = None,
+        email_address: Optional[str] = None,
+        cc_email_address: Optional[str] = None,
+        attachments: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a message to supplier with optional attachments
+
+        Returns:
+            API response dict with 'succeeded', 'messages', etc.
+        """
+        try:
+            logger.info(
+                "Sending message to supplier",
+                ticket_number=ticket_number,
+                has_attachments=bool(attachments)
+            )
+
+            # Build payload
+            payload = {
+                'message': message,
+                'to_supplier': True
+            }
+
+            # Add optional fields if provided
+            if ticket_status_id is not None:
+                payload['ticket_status_id'] = ticket_status_id
+            if owner_id is not None:
+                payload['owner_id'] = owner_id
+            if email_address:
+                payload['email_address'] = email_address
+            if cc_email_address:
+                payload['cc_email_address'] = cc_email_address
+
+            # Use multipart if there are attachments, otherwise JSON
+            if attachments:
+                self._ensure_authenticated()
+                url = f"{self.base_url}/tickets/{ticket_number}/messages"
+
+                # Build multipart request
+                files_param = {k: (None, str(v)) for k, v in payload.items()}
+
+                # Add file attachments
+                for att_path in attachments:
+                    import os
+                    if os.path.exists(att_path):
+                        filename = os.path.basename(att_path)
+                        with open(att_path, 'rb') as f:
+                            content = f.read()
+                        # Guess MIME type
+                        mime_type = 'application/octet-stream'
+                        if att_path.lower().endswith(('.jpg', '.jpeg')):
+                            mime_type = 'image/jpeg'
+                        elif att_path.lower().endswith('.png'):
+                            mime_type = 'image/png'
+
+                        if isinstance(files_param, dict):
+                            files_param = list(files_param.items())
+                        files_param.append(('attachments', (filename, content, mime_type)))
+
+                response = self.session.post(url, files=files_param, timeout=30)
+
+                # Re-authenticate if token expired
+                if response.status_code == 401:
+                    logger.info("Token expired, re-authenticating")
+                    self._authenticate()
+                    response = self.session.post(url, files=files_param, timeout=30)
+
+                response.raise_for_status()
+                result = response.json() if response.text else {}
+            else:
+                result = self._make_request('POST', f'/tickets/{ticket_number}/messages', json=payload)
+
+            # Ensure result has 'succeeded' key
+            if 'succeeded' not in result:
+                result = {'succeeded': True, 'messages': []}
+
+            logger.info(
+                "Supplier message sent",
+                ticket_number=ticket_number,
+                succeeded=result.get('succeeded')
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to send supplier message: {e}")
+            return {
+                'succeeded': False,
+                'messages': [str(e)]
+            }
+
+    def send_internal_message(
+        self,
+        ticket_number: str,
+        message: str,
+        ticket_status_id: Optional[int] = None,
+        owner_id: Optional[int] = None,
+        attachments: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Send an internal note with optional attachments
+
+        Returns:
+            API response dict with 'succeeded', 'messages', etc.
+        """
+        try:
+            logger.info(
+                "Sending internal note",
+                ticket_number=ticket_number,
+                has_attachments=bool(attachments)
+            )
+
+            # Build payload
+            payload = {
+                'note': message
+            }
+
+            # Add optional fields if provided
+            if ticket_status_id is not None:
+                payload['ticket_status_id'] = ticket_status_id
+            if owner_id is not None:
+                payload['owner_id'] = owner_id
+
+            # Use multipart if there are attachments, otherwise JSON
+            if attachments:
+                self._ensure_authenticated()
+                url = f"{self.base_url}/tickets/{ticket_number}/notes"
+
+                # Build multipart request
+                files_param = {k: (None, str(v)) for k, v in payload.items()}
+
+                # Add file attachments
+                for att_path in attachments:
+                    import os
+                    if os.path.exists(att_path):
+                        filename = os.path.basename(att_path)
+                        with open(att_path, 'rb') as f:
+                            content = f.read()
+                        # Guess MIME type
+                        mime_type = 'application/octet-stream'
+                        if att_path.lower().endswith(('.jpg', '.jpeg')):
+                            mime_type = 'image/jpeg'
+                        elif att_path.lower().endswith('.png'):
+                            mime_type = 'image/png'
+
+                        if isinstance(files_param, dict):
+                            files_param = list(files_param.items())
+                        files_param.append(('attachments', (filename, content, mime_type)))
+
+                response = self.session.post(url, files=files_param, timeout=30)
+
+                # Re-authenticate if token expired
+                if response.status_code == 401:
+                    logger.info("Token expired, re-authenticating")
+                    self._authenticate()
+                    response = self.session.post(url, files=files_param, timeout=30)
+
+                response.raise_for_status()
+                result = response.json() if response.text else {}
+            else:
+                result = self._make_request('POST', f'/tickets/{ticket_number}/notes', json=payload)
+
+            # Ensure result has 'succeeded' key
+            if 'succeeded' not in result:
+                result = {'succeeded': True, 'messages': []}
+
+            logger.info(
+                "Internal note sent",
+                ticket_number=ticket_number,
+                succeeded=result.get('succeeded')
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to send internal note: {e}")
+            return {
+                'succeeded': False,
+                'messages': [str(e)]
+            }
+
     def create_ticket(
         self,
         subject: str,
