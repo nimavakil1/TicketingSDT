@@ -125,9 +125,11 @@ class TicketingAPIClient:
         """Get ticket(s) by Amazon order number"""
         try:
             logger.info(f"Fetching ticket by Amazon order number", order_number=order_number)
-            response = self._make_request('GET', f'/tickets/by-amazon-order/{order_number}')
-            tickets = response.get('tickets', [])
-            return tickets if tickets else None
+            response = self._make_request('GET', f'/tickets/tickets/GetTicketsByAmazonOrderNumber?amazonOrderNumber={order_number}')
+            # API returns a list directly, same as GetTicketsByTicketNumber
+            if isinstance(response, list):
+                return response if response else None
+            return response.get('tickets', []) if response else None
         except TicketingAPIError:
             return None
 
@@ -135,9 +137,12 @@ class TicketingAPIClient:
         """Get ticket(s) by purchase order number"""
         try:
             logger.info(f"Fetching ticket by PO number", po_number=po_number)
-            response = self._make_request('GET', f'/tickets/by-po/{po_number}')
-            tickets = response.get('tickets', [])
-            return tickets if tickets else None
+            # Using similar endpoint structure as Amazon order number
+            response = self._make_request('GET', f'/tickets/tickets/GetTicketsByPurchaseOrderNumber?purchaseOrderNumber={po_number}')
+            # API likely returns a list directly
+            if isinstance(response, list):
+                return response if response else None
+            return response.get('tickets', []) if response else None
         except TicketingAPIError:
             return None
 

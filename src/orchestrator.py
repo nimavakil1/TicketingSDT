@@ -592,18 +592,11 @@ class SupportAgentOrchestrator:
                     error=str(e)
                 )
 
-        # Try order number (with variants)
+        # Try order number
         if identifiers.get('order_number'):
             order_num = identifiers['order_number']
             try:
                 tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_num)
-                if not tickets:
-                    # Try variants
-                    for ref in (f"{order_num}-1", f"{order_num}_1"):
-                        tickets = self.ticketing_client.get_ticket_by_amazon_order_number(ref)
-                        if tickets:
-                            break
-
                 if tickets:
                     logger.info(
                         "Found existing ticket in API by order number",
