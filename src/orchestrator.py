@@ -235,25 +235,26 @@ class SupportAgentOrchestrator:
                 )
                 # Create ticket without order number
                 order_num = None
-                created = self._create_ticket_in_old_system(email_data, order_num)
+                ticket_number = self._create_ticket_in_old_system(email_data, order_num)
 
-                if created:
-                    # Try to find the newly created ticket
-                    ticket_data = self._search_for_ticket_with_retries(
-                        {'order_number': None, 'ticket_number': None, 'purchase_order_number': None}
-                    )
-
-                    if ticket_data:
-                        ticket_state = self._create_ticket_state(session, ticket_data, order_num)
-                        # Mark for escalation
-                        ticket_state.escalated = True
-                        ticket_state.escalation_reason = "No identifiers found in email (no order number, ticket number, or PO)"
-                        ticket_state.escalation_date = datetime.utcnow()
-                        session.commit()
-                        logger.info(
-                            "Created ticket and marked for escalation",
-                            ticket_number=ticket_state.ticket_number
-                        )
+                if ticket_number:
+                    # Fetch the newly created ticket
+                    try:
+                        tickets = self.ticketing_client.get_ticket_by_ticket_number(ticket_number)
+                        if tickets:
+                            ticket_data = tickets[0] if isinstance(tickets, list) else tickets
+                            ticket_state = self._create_ticket_state(session, ticket_data, order_num)
+                            # Mark for escalation
+                            ticket_state.escalated = True
+                            ticket_state.escalation_reason = "No identifiers found in email (no order number, ticket number, or PO)"
+                            ticket_state.escalation_date = datetime.utcnow()
+                            session.commit()
+                            logger.info(
+                                "Created ticket and marked for escalation",
+                                ticket_number=ticket_state.ticket_number
+                            )
+                    except Exception as e:
+                        logger.error("Failed to fetch escalated ticket", ticket_number=ticket_number, error=str(e))
 
             # If still no ticket after all attempts, schedule retry
             if not ticket_data or not ticket_state:
@@ -640,17 +641,17 @@ class SupportAgentOrchestrator:
         self,
         email_data: Dict[str, Any],
         order_number: Optional[str] = None
-    ) -> bool:
+    ) -> Optional[str]:
         """
         Create a new ticket in the old ticketing system.
-        Note: The API confirms creation but doesn't return the ticket number.
+        The API returns the ticket number in the 'serviceResult' field.
 
         Args:
             email_data: Email data
             order_number: Amazon order number if available
 
         Returns:
-            True if ticket created successfully
+            Ticket number if created successfully, None otherwise
         """
         subject = email_data.get('subject', '')
         body = email_data.get('body', '')
@@ -671,11 +672,15 @@ class SupportAgentOrchestrator:
                 order_number=order_number
             )
 
+            # Extract ticket number from serviceResult
+            ticket_number = result.get('serviceResult')
+
             logger.info(
                 "Ticket created in old system",
+                ticket_number=ticket_number,
                 result=result
             )
-            return True
+            return ticket_number
 
         except TicketingAPIError as e:
             logger.error(
@@ -683,7 +688,7 @@ class SupportAgentOrchestrator:
                 error=str(e),
                 order_number=order_number
             )
-            return False
+            return None
 
     def _search_for_ticket_with_retries(
         self,
@@ -808,21 +813,23 @@ class SupportAgentOrchestrator:
 
         logger.info("Step 3: Creating new ticket in old system")
         order_num = identifiers.get('order_number')
-        created = self._create_ticket_in_old_system(email_data, order_num)
+        ticket_number = self._create_ticket_in_old_system(email_data, order_num)
 
-        if not created:
+        if not ticket_number:
             logger.error("Failed to create ticket in old system")
             return (None, None)
 
-        # Step 4: Search for newly created ticket with retries
-        logger.info("Step 4: Searching for newly created ticket")
-        ticket_data = self._search_for_ticket_with_retries(identifiers)
+        # Step 4: Fetch newly created ticket by ticket number
+        logger.info("Step 4: Fetching newly created ticket", ticket_number=ticket_number)
 
-        if not ticket_data:
-            logger.error(
-                "Could not find newly created ticket after retries",
-                identifiers=identifiers
-            )
+        try:
+            tickets = self.ticketing_client.get_ticket_by_ticket_number(ticket_number)
+            if not tickets:
+                logger.error("Ticket not found by ticket number", ticket_number=ticket_number)
+                return (None, None)
+            ticket_data = tickets[0] if isinstance(tickets, list) else tickets
+        except Exception as e:
+            logger.error("Failed to fetch ticket", ticket_number=ticket_number, error=str(e))
             return (None, None)
 
         # Step 5: Import ticket to our DB
