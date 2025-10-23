@@ -31,7 +31,7 @@ def test_upsert_ticket():
     """Test creating a ticket with the provided Amazon order number"""
 
     # Amazon order number from user
-    amazon_order_number = "408-1508747-7774717"
+    amazon_order_number = "028-1374358-5033950"
 
     print(f"\n{'='*70}")
     print(f"Testing UpsertTicket API")
