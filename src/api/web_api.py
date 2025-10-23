@@ -1303,6 +1303,80 @@ async def refresh_ticket(
         raise HTTPException(status_code=500, detail=f"Failed to refresh ticket: {str(e)}")
 
 
+@app.patch("/api/tickets/{ticket_number}/status")
+async def update_ticket_status_endpoint(
+    ticket_number: str,
+    status_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update ticket's custom status"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        # Get new status
+        new_status = db.query(CustomStatus).filter(
+            CustomStatus.id == status_id
+        ).first()
+
+        if not new_status:
+            raise HTTPException(status_code=404, detail="Status not found")
+
+        # Get old status name for logging
+        old_status_name = None
+        if ticket.custom_status_id:
+            old_status = db.query(CustomStatus).filter(
+                CustomStatus.id == ticket.custom_status_id
+            ).first()
+            if old_status:
+                old_status_name = old_status.name
+
+        # Update status
+        ticket.custom_status_id = status_id
+        db.commit()
+
+        # Log the status change
+        from src.utils.audit_logger import log_status_change
+        if old_status_name and old_status_name != new_status.name:
+            log_status_change(
+                db=db,
+                ticket_number=ticket_number,
+                old_status_name=old_status_name,
+                new_status_name=new_status.name,
+                user_id=current_user.id
+            )
+
+        logger.info(
+            "Ticket status updated via API",
+            ticket_number=ticket_number,
+            old_status=old_status_name,
+            new_status=new_status.name,
+            user=current_user.username
+        )
+
+        return {
+            "success": True,
+            "message": "Status updated successfully",
+            "new_status": {
+                "id": new_status.id,
+                "name": new_status.name,
+                "color": new_status.color
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to update ticket status", ticket_number=ticket_number, error=str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update status: {str(e)}")
+
+
 # Email sending endpoint
 class SendEmailRequest(BaseModel):
     to: str
