@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create ticket for order 305-6285326-3917108
+Create ticket for order 405-8989219-6726713
 Sends ALL fields as specified in API documentation
 """
 import sys
@@ -17,7 +17,7 @@ import string
 import json
 
 print("\n" + "="*70)
-print("Creating Ticket for Order: 305-6285326-3917108")
+print("Creating Ticket for Order: 405-8989219-6726713")
 print("="*70 + "\n")
 
 client = TicketingAPIClient()
@@ -29,7 +29,7 @@ current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f") + " +
 gmail_thread_id = ''.join(random.choices(string.digits, k=16))
 
 print("Sending ALL fields as per API documentation:")
-print(f"  SalesOrderReference: 305-6285326-3917108 (string, required)")
+print(f"  SalesOrderReference: 405-8989219-6726713 (string, required)")
 print(f"  TicketTypeId: 2 (int, required - Tracking)")
 print(f"  ContactName: Customer Support Test (string, required)")
 print(f"  Comment: Test ticket creation via API (string, optional)")
@@ -42,7 +42,7 @@ print(f"  Attachments: None (file, optional, multiple)")
 print()
 
 response = client.upsert_ticket(
-    sales_order_reference="305-6285326-3917108",
+    sales_order_reference="405-8989219-6726713",
     ticket_type_id=2,
     contact_name="Customer Support Test",
     comment="Test ticket creation via API",
