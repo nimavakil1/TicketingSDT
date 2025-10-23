@@ -225,12 +225,6 @@ class TicketingAPIClient:
             if entrance_gmail_thread_id:
                 form_data['EntranceGmailThreadId'] = entrance_gmail_thread_id
 
-            # Prepare files if attachments provided
-            files = []
-            if attachments:
-                for filename, content, mime_type in attachments:
-                    files.append(('Attachments', (filename, content, mime_type)))
-
             # Make request with form data
             self._ensure_authenticated()
             url = f"{self.base_url}/tickets/tickets/UpsertTicket"
@@ -240,7 +234,7 @@ class TicketingAPIClient:
                 "Sending UpsertTicket request",
                 url=url,
                 form_data=form_data,
-                has_files=bool(files)
+                has_attachments=bool(attachments)
             )
 
             # Log request headers for debugging
@@ -250,16 +244,20 @@ class TicketingAPIClient:
             )
 
             try:
-                # Force multipart/form-data encoding (API requires this)
-                # By passing files with at least one entry, requests will use multipart
-                if not files:
-                    # Add a dummy field to force multipart/form-data encoding
-                    # This is required by the API even when no files are attached
-                    files_param = [('', ('', ''))]
-                else:
-                    files_param = files
+                # Build clean multipart request
+                # Use files parameter with (None, value) for text fields to force multipart/form-data
+                # without sending dummy/empty file parts that cause validation failures
+                files_param = {k: (None, str(v)) for k, v in form_data.items()}
 
-                response = self.session.post(url, data=form_data, files=files_param, timeout=30)
+                # Add actual file attachments if provided
+                if attachments:
+                    for filename, content, mime_type in attachments:
+                        # files_param becomes a list when we add actual files
+                        if isinstance(files_param, dict):
+                            files_param = list(files_param.items())
+                        files_param.append(('Attachments', (filename, content, mime_type)))
+
+                response = self.session.post(url, files=files_param, timeout=30)
 
                 # Log request details
                 logger.info(
@@ -274,7 +272,7 @@ class TicketingAPIClient:
                 if response.status_code == 401:
                     logger.info("Token expired, re-authenticating")
                     self._authenticate()
-                    response = self.session.post(url, data=form_data, files=files_param, timeout=30)
+                    response = self.session.post(url, files=files_param, timeout=30)
 
                 # Log response details
                 logger.info(
