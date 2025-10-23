@@ -10,6 +10,7 @@ import {
   LogOut,
   Bot,
   MessageSquare,
+  Clock,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -29,6 +30,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/emails', icon: Mail, label: 'Email Queue' },
     { to: '/tickets', icon: Ticket, label: 'Tickets' },
+    { to: '/pending-messages', icon: Clock, label: 'Pending Messages' },
     { to: '/ai-decisions', icon: Brain, label: 'AI Decisions' },
     { to: '/feedback', icon: MessageSquare, label: 'Feedback' },
     { to: '/settings', icon: Settings, label: 'Settings' },

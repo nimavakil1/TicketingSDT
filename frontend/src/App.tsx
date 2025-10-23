@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Emails from './pages/Emails';
 import Tickets from './pages/Tickets';
 import TicketDetail from './pages/TicketDetail';
+import PendingMessages from './pages/PendingMessages';
 import AIDecisions from './pages/AIDecisions';
 import Feedback from './pages/Feedback';
 import Settings from './pages/Settings';
@@ -65,6 +66,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <TicketDetail />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/pending-messages"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <PendingMessages />
             </Layout>
           </PrivateRoute>
         }
