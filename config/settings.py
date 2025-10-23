@@ -199,6 +199,11 @@ class Settings(BaseSettings):
         ge=10,
         description="Email polling interval"
     )
+    gmail_lookback_minutes: int = Field(
+        default=10,
+        ge=1,
+        description="How many minutes back to search for emails"
+    )
 
     # Prompt Configuration
     prompt_path: str = Field(
@@ -236,7 +241,7 @@ class Settings(BaseSettings):
         description="Minutes between retry attempts"
     )
 
-    @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', mode='before')
+    @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', 'gmail_lookback_minutes', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:
         """Convert string integers from env vars to int"""

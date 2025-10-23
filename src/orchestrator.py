@@ -78,8 +78,10 @@ class SupportAgentOrchestrator:
         logger.info("Checking for new emails")
 
         try:
-            # Get unprocessed messages
-            messages = self.gmail_monitor.get_unprocessed_messages()
+            # Get unprocessed messages with configured lookback window
+            messages = self.gmail_monitor.get_unprocessed_messages(
+                lookback_minutes=settings.gmail_lookback_minutes
+            )
 
             if not messages:
                 logger.debug("No new messages to process")
