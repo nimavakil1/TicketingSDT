@@ -41,6 +41,9 @@ const TicketDetail: React.FC = () => {
   const [lightboxImage, setLightboxImage] = useState<Attachment | null>(null);
   const [expandedTextAttachments, setExpandedTextAttachments] = useState<Set<number>>(new Set());
   const [imageBlobUrls, setImageBlobUrls] = useState<Map<number, string>>(new Map());
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLogsExpanded, setAuditLogsExpanded] = useState(false);
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -88,6 +91,19 @@ const TicketDetail: React.FC = () => {
       setImageBlobUrls(newBlobUrls);
     } catch (err) {
       console.error('Failed to load attachments:', err);
+    }
+  };
+
+  const loadAuditLogs = async () => {
+    if (!ticketNumber) return;
+    setLoadingAuditLogs(true);
+    try {
+      const response = await client.get(`/api/tickets/${ticketNumber}/audit-logs`);
+      setAuditLogs(response.data);
+    } catch (err) {
+      console.error('Failed to load audit logs:', err);
+    } finally {
+      setLoadingAuditLogs(false);
     }
   };
 
@@ -1640,6 +1656,79 @@ const TicketDetail: React.FC = () => {
             ))
           )}
         </div>
+      </div>
+
+      {/* Audit Log Section */}
+      <div className="bg-white rounded-lg shadow">
+        <button
+          onClick={() => {
+            setAuditLogsExpanded(!auditLogsExpanded);
+            if (!auditLogsExpanded && auditLogs.length === 0) {
+              loadAuditLogs();
+            }
+          }}
+          className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-gray-500" />
+            <h2 className="text-lg font-semibold text-gray-900">Activity Log</h2>
+            <span className="text-sm text-gray-500">({auditLogs.length} entries)</span>
+          </div>
+          {auditLogsExpanded ? (
+            <ChevronUp className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-500" />
+          )}
+        </button>
+
+        {auditLogsExpanded && (
+          <div className="border-t border-gray-200 px-6 py-4">
+            {loadingAuditLogs ? (
+              <div className="text-center py-8 text-gray-500">
+                Loading activity log...
+              </div>
+            ) : auditLogs.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No activity recorded yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {auditLogs.map((log: any) => (
+                  <div key={log.id} className="flex gap-4 border-b border-gray-100 pb-3 last:border-0">
+                    <div className="flex-shrink-0 w-32 text-xs text-gray-500">
+                      {formatInCET(log.created_at)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-start gap-2">
+                        <User className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <div className="text-sm">
+                            <span className="font-medium text-gray-700">{log.username}</span>
+                            <span className="text-gray-600"> {log.action_description}</span>
+                          </div>
+                          {log.field_name && (
+                            <div className="mt-1 text-xs text-gray-500">
+                              <span className="font-medium">{log.field_name}:</span>
+                              {log.old_value && (
+                                <span className="ml-1">
+                                  <span className="line-through text-red-600">{log.old_value}</span>
+                                  {' → '}
+                                </span>
+                              )}
+                              {log.new_value && (
+                                <span className="text-green-600">{log.new_value}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Feedback Notes Modal */}
