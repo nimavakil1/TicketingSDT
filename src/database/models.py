@@ -492,7 +492,7 @@ class TicketAuditLog(Base):
     new_value = Column(Text)  # New value
 
     # Additional context
-    metadata = Column(JSON)  # Additional JSON data (message IDs, attachment info, etc.)
+    extra_data = Column(JSON)  # Additional JSON data (message IDs, attachment info, etc.)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 

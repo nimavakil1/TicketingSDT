@@ -210,7 +210,7 @@ class TicketAuditLogInfo(BaseModel):
     field_name: Optional[str]
     old_value: Optional[str]
     new_value: Optional[str]
-    metadata: Optional[Dict[str, Any]]
+    extra_data: Optional[Dict[str, Any]]
     created_at: datetime
 
 
@@ -1836,7 +1836,7 @@ async def get_ticket_audit_logs(
             field_name=log.field_name,
             old_value=log.old_value,
             new_value=log.new_value,
-            metadata=log.metadata,
+            extra_data=log.extra_data,
             created_at=log.created_at
         )
         for log in logs
