@@ -770,7 +770,6 @@ const TicketDetail: React.FC = () => {
                 <AlertTriangle className="h-6 w-6 text-red-500" />
               )}
             </div>
-            <p className="text-gray-600 mt-1">{ticket.customer_email}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">

@@ -43,8 +43,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex items-center gap-3 px-6 py-6 border-b">
             <Bot className="h-8 w-8 text-indigo-600" />
             <div>
-              <h1 className="text-lg font-bold text-gray-900">AI Support Agent</h1>
-              <p className="text-xs text-gray-500">Management Dashboard</p>
+              <h1 className="text-lg font-bold text-gray-900">AI Ticketing Agent</h1>
             </div>
           </div>
 
