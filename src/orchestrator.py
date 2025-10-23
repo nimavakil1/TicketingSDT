@@ -25,6 +25,7 @@ from src.database.models import (
 )
 from src.utils.message_service import MessageService
 from src.utils.message_formatter import MessageFormatter
+from src.utils.audit_logger import log_ticket_created
 
 logger = structlog.get_logger(__name__)
 
@@ -694,6 +695,13 @@ class SupportAgentOrchestrator:
 
         session.add(ticket_state)
         session.commit()
+
+        # Log ticket creation
+        log_ticket_created(
+            db=session,
+            ticket_number=ticket_state.ticket_number,
+            created_by="System"
+        )
 
         logger.info("Created ticket state", ticket_number=ticket_state.ticket_number)
 

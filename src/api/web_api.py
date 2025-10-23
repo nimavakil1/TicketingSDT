@@ -29,6 +29,10 @@ from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
 from src.utils.text_filter import TextFilter
 from src.utils.status_manager import update_ticket_status
+from src.utils.audit_logger import (
+    log_message_sent, log_attachment_added, log_ticket_reprocessed,
+    log_ticket_analyzed, log_ticket_refreshed, log_field_update
+)
 from src.scheduler.message_retry_scheduler import start_scheduler, stop_scheduler
 
 logger = structlog.get_logger(__name__)
@@ -831,6 +835,13 @@ async def reprocess_ticket(
         ticket.updated_at = datetime.utcnow()
         db.commit()
 
+        # Log the reprocess action
+        log_ticket_reprocessed(
+            db=db,
+            ticket_number=ticket_number,
+            user_id=current_user.id
+        )
+
         logger.info("Ticket reprocessed", ticket_number=ticket_number, decision_id=new_decision.id)
 
         # Send internal note to ticketing system
@@ -1134,6 +1145,13 @@ async def analyze_ticket(
 
         db.commit()
 
+        # Log the analysis action
+        log_ticket_analyzed(
+            db=db,
+            ticket_number=ticket_number,
+            user_id=current_user.id
+        )
+
         logger.info("Manual AI analysis completed", ticket_number=ticket_number, decision_id=new_decision.id)
 
         return {
@@ -1255,6 +1273,13 @@ async def refresh_ticket(
 
         db.commit()
         db.refresh(ticket)
+
+        # Log the refresh action
+        log_ticket_refreshed(
+            db=db,
+            ticket_number=ticket_number,
+            user_id=current_user.id
+        )
 
         logger.info("Ticket refreshed from ticketing system", ticket_number=ticket_number)
 
@@ -1425,6 +1450,15 @@ async def send_email_via_gmail(
 
             db.commit()
 
+        # Log the email being sent
+        log_message_sent(
+            db=db,
+            ticket_number=ticket_number,
+            message_type="customer_email",
+            recipient=to,
+            user_id=current_user.id
+        )
+
         logger.info(
             "Email sent via Gmail and saved to history",
             ticket_number=ticket_number,
@@ -1508,6 +1542,14 @@ async def save_internal_note(
         )
         db.add(internal_note)
         db.commit()
+
+        # Log the internal comment
+        log_message_sent(
+            db=db,
+            ticket_number=ticket_number,
+            message_type="internal_note",
+            user_id=current_user.id
+        )
 
         logger.info(
             "Internal note saved",
@@ -1728,6 +1770,15 @@ async def upload_attachment(
         db.add(attachment)
         db.commit()
         db.refresh(attachment)
+
+        # Log the attachment upload
+        log_attachment_added(
+            db=db,
+            ticket_number=ticket_number,
+            filename=file.filename,
+            file_size=len(file_content),
+            user_id=current_user.id
+        )
 
         logger.info("Attachment uploaded",
                    ticket_number=ticket_number,
