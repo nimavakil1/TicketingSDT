@@ -561,58 +561,58 @@ async def get_ticket_detail(
         AIDecisionLog.ticket_id == ticket.id
     ).order_by(AIDecisionLog.timestamp.desc()).all()
 
-    # For imported tickets, get messages from database
-    # For live tickets, fetch from ticketing system API
+    # Get messages from BOTH database and ticketing API
+    # This ensures both imported emails and manually sent messages appear
     messages = []
 
-    if ticket.current_state == 'imported':
-        # Get messages from processed_emails table
-        from sqlalchemy import text
-        result = db.execute(text("""
-            SELECT id, gmail_message_id, processed_at, subject, from_address, message_body
-            FROM processed_emails
-            WHERE ticket_id = :ticket_id
-            ORDER BY processed_at ASC
-        """), {"ticket_id": ticket.id}).fetchall()
+    # First, get messages from database (includes Gmail-sent messages and internal notes)
+    from sqlalchemy import text
+    db_result = db.execute(text("""
+        SELECT id, gmail_message_id, processed_at, subject, from_address, message_body
+        FROM processed_emails
+        WHERE ticket_id = :ticket_id
+        ORDER BY processed_at ASC
+    """), {"ticket_id": ticket.id}).fetchall()
 
-        for row in result:
-            email_id, gmail_message_id, processed_at, subject, from_address, message_body = row
+    for row in db_result:
+        email_id, gmail_message_id, processed_at, subject, from_address, message_body = row
 
-            # Determine message type from subject
-            subject_lower = (subject or "").lower()
-            if "from customer" in subject_lower:
-                message_type = "customer"
-                is_internal = False
-            elif "to customer" in subject_lower:
-                message_type = "operator_to_customer"
-                is_internal = False
-            elif "to supplier" in subject_lower:
-                message_type = "operator_to_supplier"
-                is_internal = False
-            elif "from supplier" in subject_lower:
-                message_type = "supplier"
-                is_internal = False
-            elif "internal" in subject_lower:
-                message_type = "internal"
-                is_internal = True
-            else:
-                message_type = "unknown"
-                is_internal = False
+        # Determine message type from subject
+        subject_lower = (subject or "").lower()
+        if "from customer" in subject_lower:
+            message_type = "customer"
+            is_internal = False
+        elif "to customer" in subject_lower or from_address == settings.gmail_support_email:
+            message_type = "operator_to_customer"
+            is_internal = False
+        elif "to supplier" in subject_lower:
+            message_type = "operator_to_supplier"
+            is_internal = False
+        elif "from supplier" in subject_lower:
+            message_type = "supplier"
+            is_internal = False
+        elif "internal" in subject_lower or from_address == "Internal":
+            message_type = "internal"
+            is_internal = True
+        else:
+            message_type = "unknown"
+            is_internal = False
 
-            message = {
-                "id": email_id,
-                "gmail_message_id": gmail_message_id,
-                "createdAt": processed_at if processed_at else None,  # Already a string from DB
-                "messageText": message_body or "(No content)",
-                "messageType": message_type,
-                "isInternal": is_internal,
-                "authorName": None,
-                "authorEmail": from_address,
-                "sourceType": "email"
-            }
-            messages.append(message)
-    else:
-        # Fetch ticket messages from ticketing system API
+        message = {
+            "id": f"db_{email_id}",
+            "gmail_message_id": gmail_message_id,
+            "createdAt": processed_at if processed_at else None,
+            "messageText": message_body or "(No content)",
+            "messageType": message_type,
+            "isInternal": is_internal,
+            "authorName": None,
+            "authorEmail": from_address,
+            "sourceType": "email"
+        }
+        messages.append(message)
+
+    # Then, fetch ticket messages from ticketing system API (if not imported)
+    if ticket.current_state != 'imported':
         from src.api.ticketing_client import TicketingAPIClient
         try:
             ticketing_client = TicketingAPIClient()
@@ -678,10 +678,15 @@ async def get_ticket_detail(
                     }
                     messages.append(message)
 
-                logger.info("Fetched ticket messages", ticket_number=ticket_number, message_count=len(messages))
+                logger.info("Fetched ticket messages from API", ticket_number=ticket_number, api_message_count=len(ticket_details))
         except Exception as e:
             logger.warning("Failed to fetch ticket messages from ticketing API", error=str(e), ticket_number=ticket_number)
             # Continue without messages rather than failing
+
+    # Sort all messages by timestamp
+    messages.sort(key=lambda m: m.get("createdAt") or "")
+
+    logger.info("Total messages", ticket_number=ticket_number, message_count=len(messages))
 
     return {
         "ticket_number": ticket.ticket_number,
