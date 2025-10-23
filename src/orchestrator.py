@@ -325,10 +325,7 @@ class SupportAgentOrchestrator:
                 analysis=analysis,
                 ticket_id=ticket_state.ticket_id,
                 ticket_number=ticket_state.ticket_number,
-                ticket_status_id=ticket_state.ticket_status_id,
-                owner_id=raw_api_owner_id,  # Pass raw value from API, not database fallback
-                db_session=session,
-                gmail_message_id=gmail_message_id
+                owner_id=raw_api_owner_id  # Pass raw value from API, not database fallback
             )
 
             logger.info("Action dispatched", result=action_result.get('action'))
@@ -481,10 +478,7 @@ class SupportAgentOrchestrator:
                             analysis=analysis,
                             ticket_id=ticket_state.ticket_id,
                             ticket_number=ticket_state.ticket_number,
-                            ticket_status_id=ticket_state.ticket_status_id,
-                            owner_id=ticket_state.owner_id,
-                            db_session=session,
-                            gmail_message_id=email_data['id']
+                            owner_id=ticket_state.owner_id
                         )
                         session.delete(item)
                         session.commit()
