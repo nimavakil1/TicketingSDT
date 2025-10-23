@@ -107,8 +107,8 @@ def test_upsert_ticket():
             # Format with 6 digits for microseconds (not 3 for milliseconds)
             current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f") + " +00:00"
 
-            # Generate a realistic Gmail thread ID (16 hex characters)
-            gmail_thread_id = ''.join(random.choices(string.hexdigits.lower(), k=16))
+            # Generate a realistic Gmail thread ID (16-digit number as string)
+            gmail_thread_id = ''.join(random.choices(string.digits, k=16))
 
             print(f"\nAttempt 2: With ALL optional fields (including date and Gmail thread)")
             print(f"  EntranceEmailDate: {current_time}")

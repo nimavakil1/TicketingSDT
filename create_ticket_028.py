@@ -25,8 +25,8 @@ client = TicketingAPIClient()
 # Generate current timestamp with 6 digits for microseconds
 current_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f") + " +00:00"
 
-# Generate random gmail thread ID (16-char hex)
-gmail_thread_id = ''.join(random.choices(string.hexdigits.lower(), k=16))
+# Generate random gmail thread ID (16-digit number as string)
+gmail_thread_id = ''.join(random.choices(string.digits, k=16))
 
 print("Sending ALL fields as per API documentation:")
 print(f"  SalesOrderReference: 028-1374358-5033950 (string, required)")
