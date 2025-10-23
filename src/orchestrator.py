@@ -344,7 +344,7 @@ class SupportAgentOrchestrator:
                 session=session,
                 email_data=email_data,
                 ticket_state=ticket_state,
-                order_number=order_number,
+                order_number=identifiers.get('order_number'),
                 success=True
             )
 
