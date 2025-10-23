@@ -100,6 +100,15 @@ class TicketingAPIClient:
             logger.error(f"API request failed: {method} {url} - {e}")
             raise TicketingAPIError(f"API request failed: {e}")
 
+    def get_ticket_by_id(self, ticket_id: str) -> Optional[Dict[str, Any]]:
+        """Get ticket by ticket ID"""
+        try:
+            logger.info(f"Fetching ticket by ID", ticket_id=ticket_id)
+            response = self._make_request('GET', f'/tickets/tickets/{ticket_id}')
+            return response if response else None
+        except TicketingAPIError:
+            return None
+
     def get_ticket_by_ticket_number(self, ticket_number: str) -> Optional[List[Dict[str, Any]]]:
         """Get ticket(s) by ticket number"""
         try:

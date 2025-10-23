@@ -238,11 +238,10 @@ class SupportAgentOrchestrator:
                 ticket_number = self._create_ticket_in_old_system(email_data, order_num)
 
                 if ticket_number:
-                    # Fetch the newly created ticket
+                    # Fetch the newly created ticket by ID
                     try:
-                        tickets = self.ticketing_client.get_ticket_by_ticket_number(ticket_number)
-                        if tickets:
-                            ticket_data = tickets[0] if isinstance(tickets, list) else tickets
+                        ticket_data = self.ticketing_client.get_ticket_by_id(ticket_number)
+                        if ticket_data:
                             ticket_state = self._create_ticket_state(session, ticket_data, order_num)
                             # Mark for escalation
                             ticket_state.escalated = True
@@ -254,7 +253,7 @@ class SupportAgentOrchestrator:
                                 ticket_number=ticket_state.ticket_number
                             )
                     except Exception as e:
-                        logger.error("Failed to fetch escalated ticket", ticket_number=ticket_number, error=str(e))
+                        logger.error("Failed to fetch escalated ticket", ticket_id=ticket_number, error=str(e))
 
             # If still no ticket after all attempts, schedule retry
             if not ticket_data or not ticket_state:
@@ -819,17 +818,16 @@ class SupportAgentOrchestrator:
             logger.error("Failed to create ticket in old system")
             return (None, None)
 
-        # Step 4: Fetch newly created ticket by ticket number
-        logger.info("Step 4: Fetching newly created ticket", ticket_number=ticket_number)
+        # Step 4: Fetch newly created ticket by ticket ID
+        logger.info("Step 4: Fetching newly created ticket", ticket_id=ticket_number)
 
         try:
-            tickets = self.ticketing_client.get_ticket_by_ticket_number(ticket_number)
-            if not tickets:
-                logger.error("Ticket not found by ticket number", ticket_number=ticket_number)
+            ticket_data = self.ticketing_client.get_ticket_by_id(ticket_number)
+            if not ticket_data:
+                logger.error("Ticket not found by ID", ticket_id=ticket_number)
                 return (None, None)
-            ticket_data = tickets[0] if isinstance(tickets, list) else tickets
         except Exception as e:
-            logger.error("Failed to fetch ticket", ticket_number=ticket_number, error=str(e))
+            logger.error("Failed to fetch ticket", ticket_id=ticket_number, error=str(e))
             return (None, None)
 
         # Step 5: Import ticket to our DB
