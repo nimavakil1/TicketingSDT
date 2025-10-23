@@ -44,9 +44,9 @@ print()
 print("="*70)
 print("STEP 1: Authentication Request")
 print("="*70)
-auth_url = f"{base_url}/Account/SignIn"
+auth_url = f"{base_url}/Account/login"
 auth_data = {
-    'userName': username,
+    'username': username,
     'password': password
 }
 print(f"URL: {auth_url}")
@@ -61,11 +61,12 @@ print(f"Auth Response Headers: {dict(auth_response.headers)}")
 auth_result = auth_response.json()
 print(f"Auth Response Body: {json.dumps(auth_result, indent=2)}")
 
-if not auth_result.get('succeeded'):
-    print("\n❌ Authentication failed!")
+token = auth_result.get('access_token')
+if not token:
+    print("\n❌ Authentication failed - no access_token in response!")
+    print(f"Response: {json.dumps(auth_result, indent=2)}")
     sys.exit(1)
 
-token = auth_result['dataItems'][0]['token']
 print(f"\n✅ Got token: {token[:20]}...")
 
 # Step 2: UpsertTicket
