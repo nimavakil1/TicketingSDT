@@ -44,6 +44,12 @@ const TicketDetail: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLogsExpanded, setAuditLogsExpanded] = useState(false);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editedMessageBody, setEditedMessageBody] = useState('');
+  const [editedMessageSubject, setEditedMessageSubject] = useState('');
+  const [processingMessage, setProcessingMessage] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState<number | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -529,6 +535,53 @@ const TicketDetail: React.FC = () => {
       setTimeout(() => setReprocessMessage(null), 5000);
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleApproveMessage = async (messageId: number, withEdits: boolean) => {
+    setProcessingMessage(true);
+    try {
+      const approval: any = {
+        action: 'approve',
+        updated_data: withEdits ? {
+          body: editedMessageBody,
+          subject: editedMessageSubject,
+        } : undefined
+      };
+
+      await messagesApi.approveMessage(messageId, approval);
+      await loadPendingMessages();
+      setEditingMessageId(null);
+      setEditedMessageBody('');
+      setEditedMessageSubject('');
+
+      // Reload ticket to show updated message history
+      await loadTicket();
+    } catch (err: any) {
+      console.error('Failed to approve message:', err);
+      alert('Failed to approve message: ' + (err.message || 'Unknown error'));
+    } finally {
+      setProcessingMessage(false);
+    }
+  };
+
+  const handleRejectMessage = async (messageId: number) => {
+    setProcessingMessage(true);
+    try {
+      const approval = {
+        action: 'reject',
+        rejection_reason: rejectionReason
+      };
+
+      await messagesApi.approveMessage(messageId, approval);
+      await loadPendingMessages();
+      setShowRejectDialog(null);
+      setRejectionReason('');
+    } catch (err: any) {
+      console.error('Failed to reject message:', err);
+      alert('Failed to reject message: ' + (err.message || 'Unknown error'));
+    } finally {
+      setProcessingMessage(false);
     }
   };
 
@@ -1182,11 +1235,13 @@ const TicketDetail: React.FC = () => {
       {/* Pending Messages */}
       {pendingMessages.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Pending Messages</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            AI-Generated Messages Pending Approval
+          </h2>
           <div className="space-y-4">
             {pendingMessages.map((msg) => (
               <div key={msg.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-900">
                       To: {msg.message_type.charAt(0).toUpperCase() + msg.message_type.slice(1)}
@@ -1194,26 +1249,164 @@ const TicketDetail: React.FC = () => {
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       msg.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                       msg.status === 'sent' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'
+                      msg.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
                     }`}>
                       {msg.status}
                     </span>
+                    {msg.confidence_score !== null && (
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        msg.confidence_score >= 0.8 ? 'bg-green-100 text-green-800' :
+                        msg.confidence_score >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {(msg.confidence_score * 100).toFixed(0)}% confidence
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-gray-500">
                     {formatInCET(msg.created_at)}
                   </span>
                 </div>
-                <p className="text-sm font-medium text-gray-900 mb-1">{msg.subject}</p>
-                <p className="text-sm text-gray-600 line-clamp-2">{msg.body}</p>
-                {msg.confidence_score !== null && (
-                  <div className="mt-2">
-                    <span className="text-xs text-gray-500">
-                      Confidence: {(msg.confidence_score * 100).toFixed(0)}%
-                    </span>
+
+                {editingMessageId === msg.id ? (
+                  // Edit mode
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Subject
+                      </label>
+                      <input
+                        type="text"
+                        value={editedMessageSubject}
+                        onChange={(e) => setEditedMessageSubject(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Message Body
+                      </label>
+                      <textarea
+                        value={editedMessageBody}
+                        onChange={(e) => setEditedMessageBody(e.target.value)}
+                        rows={8}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApproveMessage(msg.id, true)}
+                        disabled={processingMessage}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
+                      >
+                        {processingMessage ? 'Saving...' : 'Save & Approve'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingMessageId(null);
+                          setEditedMessageBody('');
+                          setEditedMessageSubject('');
+                        }}
+                        disabled={processingMessage}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // View mode
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 mb-2">{msg.subject}</p>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap mb-3">{msg.body}</p>
+
+                    {msg.status === 'pending' && (
+                      <div className="flex gap-2 mt-3 pt-3 border-t">
+                        <button
+                          onClick={() => handleApproveMessage(msg.id, false)}
+                          disabled={processingMessage}
+                          className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                        >
+                          {processingMessage ? 'Processing...' : 'Approve & Send'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingMessageId(msg.id);
+                            setEditedMessageBody(msg.body);
+                            setEditedMessageSubject(msg.subject || '');
+                          }}
+                          disabled={processingMessage}
+                          className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setShowRejectDialog(msg.id)}
+                          disabled={processingMessage}
+                          className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:bg-gray-400"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+
+                    {msg.status === 'sent' && msg.sent_at && (
+                      <p className="text-xs text-green-600 mt-2">
+                        Sent at {formatInCET(msg.sent_at)}
+                      </p>
+                    )}
+
+                    {msg.status === 'rejected' && msg.rejection_reason && (
+                      <div className="mt-2 p-2 bg-red-50 rounded">
+                        <p className="text-xs text-red-600">
+                          <strong>Rejection reason:</strong> {msg.rejection_reason}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reject Dialog */}
+      {showRejectDialog !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Reject Message
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Please provide a reason for rejecting this message:
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={4}
+              placeholder="Reason for rejection..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-4"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowRejectDialog(null);
+                  setRejectionReason('');
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRejectMessage(showRejectDialog)}
+                disabled={!rejectionReason.trim() || processingMessage}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"
+              >
+                {processingMessage ? 'Rejecting...' : 'Confirm Rejection'}
+              </button>
+            </div>
           </div>
         </div>
       )}
