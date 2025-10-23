@@ -190,83 +190,58 @@ class TicketingAPIClient:
         attachments: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Send a message to customer with optional attachments
+        Send a message to customer via Gmail API
 
         Returns:
             API response dict with 'succeeded', 'messages', etc.
         """
         try:
+            from src.email.gmail_sender import GmailSender
+            from config.settings import settings
+
             logger.info(
-                "Sending message to customer",
+                "Sending message to customer via Gmail",
                 ticket_number=ticket_number,
+                to=email_address,
                 has_attachments=bool(attachments)
             )
 
-            # Build payload
-            payload = {
-                'message': message,
-                'to_supplier': False
-            }
+            if not email_address:
+                return {
+                    'succeeded': False,
+                    'messages': ['No customer email address provided']
+                }
 
-            # Add optional fields if provided
-            if ticket_status_id is not None:
-                payload['ticket_status_id'] = ticket_status_id
-            if owner_id is not None:
-                payload['owner_id'] = owner_id
-            if email_address:
-                payload['email_address'] = email_address
-            if cc_email_address:
-                payload['cc_email_address'] = cc_email_address
+            # Send via Gmail
+            gmail_sender = GmailSender()
 
-            # Use multipart if there are attachments, otherwise JSON
-            if attachments:
-                self._ensure_authenticated()
-                url = f"{self.base_url}/tickets/{ticket_number}/messages"
+            # Parse CC addresses
+            cc_list = cc_email_address.split(',') if cc_email_address else None
 
-                # Build multipart request
-                files_param = {k: (None, str(v)) for k, v in payload.items()}
+            # Build subject
+            subject = f"Re: Ticket {ticket_number}"
 
-                # Add file attachments
-                for att_path in attachments:
-                    import os
-                    if os.path.exists(att_path):
-                        filename = os.path.basename(att_path)
-                        with open(att_path, 'rb') as f:
-                            content = f.read()
-                        # Guess MIME type
-                        mime_type = 'application/octet-stream'
-                        if att_path.lower().endswith(('.jpg', '.jpeg')):
-                            mime_type = 'image/jpeg'
-                        elif att_path.lower().endswith('.png'):
-                            mime_type = 'image/png'
-
-                        if isinstance(files_param, dict):
-                            files_param = list(files_param.items())
-                        files_param.append(('attachments', (filename, content, mime_type)))
-
-                response = self.session.post(url, files=files_param, timeout=30)
-
-                # Re-authenticate if token expired
-                if response.status_code == 401:
-                    logger.info("Token expired, re-authenticating")
-                    self._authenticate()
-                    response = self.session.post(url, files=files_param, timeout=30)
-
-                response.raise_for_status()
-                result = response.json() if response.text else {}
-            else:
-                result = self._make_request('POST', f'/tickets/{ticket_number}/messages', json=payload)
-
-            # Ensure result has 'succeeded' key
-            if 'succeeded' not in result:
-                result = {'succeeded': True, 'messages': []}
+            result = gmail_sender.send_email(
+                to=email_address,
+                subject=subject,
+                body=message,
+                cc=cc_list,
+                attachments=attachments
+            )
 
             logger.info(
-                "Customer message sent",
+                "Customer message sent via Gmail",
                 ticket_number=ticket_number,
-                succeeded=result.get('succeeded')
+                message_id=result.get('id'),
+                succeeded=True
             )
-            return result
+
+            return {
+                'succeeded': True,
+                'messages': [],
+                'gmail_message_id': result.get('id'),
+                'gmail_thread_id': result.get('threadId')
+            }
 
         except Exception as e:
             logger.error(f"Failed to send customer message: {e}")
@@ -286,83 +261,57 @@ class TicketingAPIClient:
         attachments: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Send a message to supplier with optional attachments
+        Send a message to supplier via Gmail API
 
         Returns:
             API response dict with 'succeeded', 'messages', etc.
         """
         try:
+            from src.email.gmail_sender import GmailSender
+
             logger.info(
-                "Sending message to supplier",
+                "Sending message to supplier via Gmail",
                 ticket_number=ticket_number,
+                to=email_address,
                 has_attachments=bool(attachments)
             )
 
-            # Build payload
-            payload = {
-                'message': message,
-                'to_supplier': True
-            }
+            if not email_address:
+                return {
+                    'succeeded': False,
+                    'messages': ['No supplier email address provided']
+                }
 
-            # Add optional fields if provided
-            if ticket_status_id is not None:
-                payload['ticket_status_id'] = ticket_status_id
-            if owner_id is not None:
-                payload['owner_id'] = owner_id
-            if email_address:
-                payload['email_address'] = email_address
-            if cc_email_address:
-                payload['cc_email_address'] = cc_email_address
+            # Send via Gmail
+            gmail_sender = GmailSender()
 
-            # Use multipart if there are attachments, otherwise JSON
-            if attachments:
-                self._ensure_authenticated()
-                url = f"{self.base_url}/tickets/{ticket_number}/messages"
+            # Parse CC addresses
+            cc_list = cc_email_address.split(',') if cc_email_address else None
 
-                # Build multipart request
-                files_param = {k: (None, str(v)) for k, v in payload.items()}
+            # Build subject
+            subject = f"Re: Ticket {ticket_number}"
 
-                # Add file attachments
-                for att_path in attachments:
-                    import os
-                    if os.path.exists(att_path):
-                        filename = os.path.basename(att_path)
-                        with open(att_path, 'rb') as f:
-                            content = f.read()
-                        # Guess MIME type
-                        mime_type = 'application/octet-stream'
-                        if att_path.lower().endswith(('.jpg', '.jpeg')):
-                            mime_type = 'image/jpeg'
-                        elif att_path.lower().endswith('.png'):
-                            mime_type = 'image/png'
-
-                        if isinstance(files_param, dict):
-                            files_param = list(files_param.items())
-                        files_param.append(('attachments', (filename, content, mime_type)))
-
-                response = self.session.post(url, files=files_param, timeout=30)
-
-                # Re-authenticate if token expired
-                if response.status_code == 401:
-                    logger.info("Token expired, re-authenticating")
-                    self._authenticate()
-                    response = self.session.post(url, files=files_param, timeout=30)
-
-                response.raise_for_status()
-                result = response.json() if response.text else {}
-            else:
-                result = self._make_request('POST', f'/tickets/{ticket_number}/messages', json=payload)
-
-            # Ensure result has 'succeeded' key
-            if 'succeeded' not in result:
-                result = {'succeeded': True, 'messages': []}
+            result = gmail_sender.send_email(
+                to=email_address,
+                subject=subject,
+                body=message,
+                cc=cc_list,
+                attachments=attachments
+            )
 
             logger.info(
-                "Supplier message sent",
+                "Supplier message sent via Gmail",
                 ticket_number=ticket_number,
-                succeeded=result.get('succeeded')
+                message_id=result.get('id'),
+                succeeded=True
             )
-            return result
+
+            return {
+                'succeeded': True,
+                'messages': [],
+                'gmail_message_id': result.get('id'),
+                'gmail_thread_id': result.get('threadId')
+            }
 
         except Exception as e:
             logger.error(f"Failed to send supplier message: {e}")
@@ -380,78 +329,30 @@ class TicketingAPIClient:
         attachments: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Send an internal note with optional attachments
+        Add an internal note (just uses add_internal_note since internal messages don't get emailed)
 
         Returns:
             API response dict with 'succeeded', 'messages', etc.
         """
         try:
             logger.info(
-                "Sending internal note",
-                ticket_number=ticket_number,
-                has_attachments=bool(attachments)
+                "Adding internal note",
+                ticket_number=ticket_number
             )
 
-            # Build payload
-            payload = {
-                'note': message
-            }
+            # Use existing add_internal_note method
+            success = self.add_internal_note(ticket_number, message)
 
-            # Add optional fields if provided
-            if ticket_status_id is not None:
-                payload['ticket_status_id'] = ticket_status_id
-            if owner_id is not None:
-                payload['owner_id'] = owner_id
-
-            # Use multipart if there are attachments, otherwise JSON
-            if attachments:
-                self._ensure_authenticated()
-                url = f"{self.base_url}/tickets/{ticket_number}/notes"
-
-                # Build multipart request
-                files_param = {k: (None, str(v)) for k, v in payload.items()}
-
-                # Add file attachments
-                for att_path in attachments:
-                    import os
-                    if os.path.exists(att_path):
-                        filename = os.path.basename(att_path)
-                        with open(att_path, 'rb') as f:
-                            content = f.read()
-                        # Guess MIME type
-                        mime_type = 'application/octet-stream'
-                        if att_path.lower().endswith(('.jpg', '.jpeg')):
-                            mime_type = 'image/jpeg'
-                        elif att_path.lower().endswith('.png'):
-                            mime_type = 'image/png'
-
-                        if isinstance(files_param, dict):
-                            files_param = list(files_param.items())
-                        files_param.append(('attachments', (filename, content, mime_type)))
-
-                response = self.session.post(url, files=files_param, timeout=30)
-
-                # Re-authenticate if token expired
-                if response.status_code == 401:
-                    logger.info("Token expired, re-authenticating")
-                    self._authenticate()
-                    response = self.session.post(url, files=files_param, timeout=30)
-
-                response.raise_for_status()
-                result = response.json() if response.text else {}
+            if success:
+                return {
+                    'succeeded': True,
+                    'messages': []
+                }
             else:
-                result = self._make_request('POST', f'/tickets/{ticket_number}/notes', json=payload)
-
-            # Ensure result has 'succeeded' key
-            if 'succeeded' not in result:
-                result = {'succeeded': True, 'messages': []}
-
-            logger.info(
-                "Internal note sent",
-                ticket_number=ticket_number,
-                succeeded=result.get('succeeded')
-            )
-            return result
+                return {
+                    'succeeded': False,
+                    'messages': ['Failed to add internal note']
+                }
 
         except Exception as e:
             logger.error(f"Failed to send internal note: {e}")
