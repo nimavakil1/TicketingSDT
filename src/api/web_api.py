@@ -239,6 +239,11 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool]
 
 
+class TicketIdentifiersUpdate(BaseModel):
+    order_number: Optional[str] = None
+    purchase_order_number: Optional[str] = None
+
+
 # Initialize database session maker
 SessionMaker = init_database()
 
@@ -1375,6 +1380,95 @@ async def update_ticket_status_endpoint(
         logger.error("Failed to update ticket status", ticket_number=ticket_number, error=str(e))
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update status: {str(e)}")
+
+
+@app.patch("/api/tickets/{ticket_number}/identifiers")
+async def update_ticket_identifiers(
+    ticket_number: str,
+    update: TicketIdentifiersUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update ticket identifiers (order_number, purchase_order_number).
+    After updating, the ticket should be reprocessed to check if there's
+    an existing ticket in the old system with these identifiers.
+    """
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    try:
+        updated_fields = []
+
+        # Update order number if provided
+        if update.order_number is not None:
+            old_order_number = ticket.order_number
+            ticket.order_number = update.order_number if update.order_number.strip() else None
+
+            if old_order_number != ticket.order_number:
+                updated_fields.append(f"order_number: '{old_order_number}' → '{ticket.order_number}'")
+                log_field_update(
+                    db=db,
+                    ticket_number=ticket_number,
+                    field_name="order_number",
+                    old_value=old_order_number or "",
+                    new_value=ticket.order_number or "",
+                    user_id=current_user.id
+                )
+
+        # Update PO number if provided
+        if update.purchase_order_number is not None:
+            old_po = ticket.purchase_order_number
+            ticket.purchase_order_number = update.purchase_order_number if update.purchase_order_number.strip() else None
+
+            if old_po != ticket.purchase_order_number:
+                updated_fields.append(f"purchase_order_number: '{old_po}' → '{ticket.purchase_order_number}'")
+                log_field_update(
+                    db=db,
+                    ticket_number=ticket_number,
+                    field_name="purchase_order_number",
+                    old_value=old_po or "",
+                    new_value=ticket.purchase_order_number or "",
+                    user_id=current_user.id
+                )
+
+        if not updated_fields:
+            return {
+                "success": True,
+                "message": "No changes made",
+                "should_reprocess": False
+            }
+
+        ticket.updated_at = datetime.utcnow()
+        db.commit()
+
+        logger.info(
+            "Ticket identifiers updated",
+            ticket_number=ticket_number,
+            updated_fields=updated_fields,
+            user=current_user.username
+        )
+
+        return {
+            "success": True,
+            "message": f"Updated: {', '.join(updated_fields)}",
+            "should_reprocess": True,  # Frontend should prompt to reprocess
+            "updated_identifiers": {
+                "order_number": ticket.order_number,
+                "purchase_order_number": ticket.purchase_order_number
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to update ticket identifiers", ticket_number=ticket_number, error=str(e))
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update identifiers: {str(e)}")
 
 
 # Email sending endpoint

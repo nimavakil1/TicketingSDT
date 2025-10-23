@@ -486,9 +486,11 @@ class GmailMonitor:
         Extract ticket number from email text.
 
         Ticket numbers follow patterns like:
-        - DE12345678
+        - DE12345678, FR12345678, ES12345678, etc.
         - Ticket #DE12345678
         - Ticket: DE12345678
+
+        Supports any 2-letter country code prefix.
 
         Args:
             text: Email subject or body text
@@ -497,10 +499,10 @@ class GmailMonitor:
             Ticket number if found, None otherwise
         """
         patterns = [
-            r'\b(DE\d{8})\b',                           # Plain DE########
-            r'Ticket\s*[:#-]?\s*(DE\d{8})',             # With 'Ticket' prefix
-            r'ticket\s+number\s*[:=]?\s*(DE\d{8})',     # With 'ticket number'
-            r'Ticketnummer\s*[:=]?\s*(DE\d{8})',        # German
+            r'\b([A-Z]{2}\d{8})\b',                           # Plain XX########
+            r'Ticket\s*[:#-]?\s*([A-Z]{2}\d{8})',             # With 'Ticket' prefix
+            r'ticket\s+number\s*[:=]?\s*([A-Z]{2}\d{8})',     # With 'ticket number'
+            r'Ticketnummer\s*[:=]?\s*([A-Z]{2}\d{8})',        # German
         ]
 
         for pattern in patterns:
