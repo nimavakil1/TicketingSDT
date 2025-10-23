@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, Attachment, init_database
+from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, Attachment, TicketAuditLog, init_database
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
@@ -198,6 +198,20 @@ class AttachmentInfo(BaseModel):
     extracted_text: Optional[str]
     created_at: datetime
     gmail_message_id: Optional[str]
+
+
+class TicketAuditLogInfo(BaseModel):
+    id: int
+    ticket_id: int
+    user_id: Optional[int]
+    username: Optional[str]  # For display
+    action_type: str
+    action_description: str
+    field_name: Optional[str]
+    old_value: Optional[str]
+    new_value: Optional[str]
+    metadata: Optional[Dict[str, Any]]
+    created_at: datetime
 
 
 class PromptApprovalRequest(BaseModel):
@@ -1789,6 +1803,44 @@ async def delete_attachment(
                     attachment_id=attachment_id,
                     error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to delete attachment: {str(e)}")
+
+
+# Audit Log endpoints
+@app.get("/api/tickets/{ticket_number}/audit-logs")
+async def get_ticket_audit_logs(
+    ticket_number: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 100
+) -> List[TicketAuditLogInfo]:
+    """Get audit log for a ticket"""
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    logs = db.query(TicketAuditLog).filter(
+        TicketAuditLog.ticket_id == ticket.id
+    ).order_by(TicketAuditLog.created_at.desc()).limit(limit).all()
+
+    return [
+        TicketAuditLogInfo(
+            id=log.id,
+            ticket_id=log.ticket_id,
+            user_id=log.user_id,
+            username=log.user.username if log.user else "System",
+            action_type=log.action_type,
+            action_description=log.action_description,
+            field_name=log.field_name,
+            old_value=log.old_value,
+            new_value=log.new_value,
+            metadata=log.metadata,
+            created_at=log.created_at
+        )
+        for log in logs
+    ]
 
 
 # AI Decision Log endpoints

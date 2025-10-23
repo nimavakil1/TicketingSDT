@@ -471,6 +471,39 @@ class Attachment(Base):
         return f"<Attachment(id={self.id}, filename={self.filename}, ticket_id={self.ticket_id})>"
 
 
+class TicketAuditLog(Base):
+    """
+    Audit log for all ticket-related actions
+    Tracks who did what and when for compliance and debugging
+    """
+    __tablename__ = 'ticket_audit_logs'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_id = Column(Integer, ForeignKey('ticket_states.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # Null for system actions
+
+    # Action details
+    action_type = Column(String(50), nullable=False, index=True)  # 'status_change', 'message_sent', 'field_update', etc.
+    action_description = Column(Text, nullable=False)  # Human-readable description
+
+    # Change tracking
+    field_name = Column(String(100))  # Which field changed (if applicable)
+    old_value = Column(Text)  # Previous value
+    new_value = Column(Text)  # New value
+
+    # Additional context
+    metadata = Column(JSON)  # Additional JSON data (message IDs, attachment info, etc.)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Relationships
+    ticket = relationship('TicketState', backref='audit_logs')
+    user = relationship('User', backref='audit_logs')
+
+    def __repr__(self):
+        return f"<TicketAuditLog(id={self.id}, ticket_id={self.ticket_id}, action={self.action_type})>"
+
+
 # Database initialization
 def init_database(database_url: Optional[str] = None) -> sessionmaker:
     """
