@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Create ticket for order 405-3523854-4331510
-Sends ALL fields as specified in API documentation
+A/B TEST: Create ticket for KNOWN-GOOD order 028-1374358-5033950
+This order worked in Postman for the API team
+Tests if the issue is order-specific or format-specific
 """
 import sys
 from pathlib import Path
@@ -18,7 +19,8 @@ import json
 import time
 
 print("\n" + "="*70)
-print("Creating Ticket for Order: 405-3523854-4331510")
+print("A/B TEST: Using KNOWN-GOOD order from Postman")
+print("Creating Ticket for Order: 028-1374358-5033950")
 print("="*70 + "\n")
 
 client = TicketingAPIClient()
@@ -33,7 +35,7 @@ random_part = ''.join(random.choices(string.digits, k=6))  # 6 random digits
 gmail_thread_id = timestamp_part + random_part  # Total 16 digits
 
 print("Sending ALL fields as per API documentation:")
-print(f"  SalesOrderReference: 405-3523854-4331510 (string, required)")
+print(f"  SalesOrderReference: 028-1374358-5033950 (string, required) [KNOWN-GOOD ORDER]")
 print(f"  TicketTypeId: 2 (int, required - Tracking)")
 print(f"  ContactName: Customer Support Test (string, required)")
 print(f"  Comment: Test ticket creation via API (string, optional)")
@@ -46,7 +48,7 @@ print(f"  Attachments: None (file, optional, multiple)")
 print()
 
 response = client.upsert_ticket(
-    sales_order_reference="405-3523854-4331510",
+    sales_order_reference="028-1374358-5033950",
     ticket_type_id=2,
     contact_name="Customer Support Test",
     comment="Test ticket creation via API",
