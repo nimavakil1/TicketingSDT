@@ -744,13 +744,23 @@ async def get_ticket_detail(
     }
 
 
+class ReprocessRequest(BaseModel):
+    force_merge: bool = False  # If True, merge with found ticket even if it's different
+
+
 @app.post("/api/tickets/{ticket_number}/reprocess")
 async def reprocess_ticket(
     ticket_number: str,
+    request: ReprocessRequest = ReprocessRequest(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Reprocess a ticket - run AI analysis again on the last email"""
+    """
+    Reprocess a ticket - run AI analysis again on the last email.
+
+    If identifiers (order_number, purchase_order_number) were recently added,
+    checks if a ticket already exists in the old system and optionally merges.
+    """
     ticket = db.query(TicketState).filter(
         TicketState.ticket_number == ticket_number
     ).first()
@@ -759,15 +769,128 @@ async def reprocess_ticket(
         raise HTTPException(status_code=404, detail="Ticket not found")
 
     try:
-        # Fetch ticket data from API
         from src.api.ticketing_client import TicketingAPIClient
         ticketing_client = TicketingAPIClient()
+
+        # STEP 1: Check if identifiers exist and search old system
+        existing_ticket_in_old_system = None
+        merge_candidate = None
+        merge_occurred = False
+        old_ticket_number_before_merge = None
+
+        if ticket.order_number or ticket.purchase_order_number:
+            logger.info(
+                "Checking for existing ticket in old system with identifiers",
+                ticket_number=ticket_number,
+                order_number=ticket.order_number,
+                purchase_order_number=ticket.purchase_order_number
+            )
+
+            # Try order number first (priority)
+            if ticket.order_number:
+                try:
+                    found_tickets = ticketing_client.get_ticket_by_amazon_order_number(ticket.order_number)
+                    if not found_tickets:
+                        # Try variants
+                        for variant in [f"{ticket.order_number}-1", f"{ticket.order_number}_1"]:
+                            found_tickets = ticketing_client.get_ticket_by_amazon_order_number(variant)
+                            if found_tickets:
+                                break
+
+                    if found_tickets and len(found_tickets) > 0:
+                        # Select latest ticket
+                        found_tickets.sort(key=lambda t: t.get('ticketNumber', ''), reverse=True)
+                        merge_candidate = found_tickets[0]
+                        logger.info(
+                            "Found existing ticket by order number",
+                            our_ticket=ticket_number,
+                            found_ticket=merge_candidate.get('ticketNumber')
+                        )
+                except Exception as e:
+                    logger.warning("Error searching by order number", error=str(e))
+
+            # Try PO number if no match yet
+            if not merge_candidate and ticket.purchase_order_number:
+                try:
+                    found_tickets = ticketing_client.get_ticket_by_purchase_order_number(ticket.purchase_order_number)
+                    if found_tickets and len(found_tickets) > 0:
+                        found_tickets.sort(key=lambda t: t.get('ticketNumber', ''), reverse=True)
+                        merge_candidate = found_tickets[0]
+                        logger.info(
+                            "Found existing ticket by PO number",
+                            our_ticket=ticket_number,
+                            found_ticket=merge_candidate.get('ticketNumber')
+                        )
+                except Exception as e:
+                    logger.warning("Error searching by PO number", error=str(e))
+
+        # STEP 2: Handle merge candidate
+        if merge_candidate:
+            found_ticket_number = merge_candidate.get('ticketNumber')
+
+            # Check if it's the same ticket (no merge needed)
+            if found_ticket_number == ticket_number:
+                logger.info("Found ticket is the same as current ticket, no merge needed")
+                existing_ticket_in_old_system = merge_candidate
+            else:
+                # Different ticket found - need confirmation to merge
+                if not request.force_merge:
+                    return {
+                        "success": False,
+                        "requires_confirmation": True,
+                        "message": f"Found existing ticket {found_ticket_number} in old system with these identifiers",
+                        "merge_candidate": {
+                            "ticket_number": found_ticket_number,
+                            "customer_name": merge_candidate.get('contactName'),
+                            "customer_email": merge_candidate.get('contactEmail'),
+                            "order_number": merge_candidate.get('orderDetails', {}).get('orderNumber'),
+                            "created_at": merge_candidate.get('createdAt')
+                        },
+                        "action_required": "Set force_merge=true to merge with this ticket"
+                    }
+
+                # Merge confirmed - update our ticket to point to the found ticket
+                logger.info(
+                    "Merging tickets",
+                    our_ticket=ticket_number,
+                    target_ticket=found_ticket_number
+                )
+
+                # Update ticket_number and ticket_id to point to the found ticket
+                old_ticket_number_before_merge = ticket.ticket_number
+                ticket.ticket_number = found_ticket_number
+                ticket.ticket_id = merge_candidate.get('id')
+                merge_occurred = True
+
+                # Log the merge
+                from src.utils.audit_logger import log_field_update
+                log_field_update(
+                    db=db,
+                    ticket_number=found_ticket_number,
+                    field_name="merged_from",
+                    old_value="",
+                    new_value=f"Merged from {old_ticket_number_before_merge}",
+                    user_id=current_user.id
+                )
+
+                db.commit()
+
+                logger.info(
+                    "Tickets merged successfully",
+                    old_ticket=old_ticket_number_before_merge,
+                    new_ticket=found_ticket_number
+                )
+
+                existing_ticket_in_old_system = merge_candidate
+                ticket_number = found_ticket_number  # Update for rest of processing
+
+        # STEP 3: Fetch ticket data from API (either original or merged ticket)
         ticket_data = ticketing_client.get_ticket_by_ticket_number(ticket_number)
 
         if not ticket_data or len(ticket_data) == 0:
             raise HTTPException(status_code=404, detail="Ticket not found in ticketing system")
 
-        ticket_api_data = ticket_data[0]
+        ticket_api_data = existing_ticket_in_old_system or ticket_data[0]
 
         # Get the email from ticketing API
         ticket_details = ticket_api_data.get("ticketDetails", [])
@@ -882,13 +1005,22 @@ async def reprocess_ticket(
                         error=str(note_error))
             # Don't fail the whole operation if note fails
 
-        return {
+        response = {
             "success": True,
             "message": "Ticket reprocessed successfully",
             "decision_id": new_decision.id,
             "requires_escalation": analysis.get('requires_escalation'),
             "confidence": analysis.get('confidence')
         }
+
+        # Add merge information if a merge occurred
+        if merge_occurred:
+            response["merged"] = True
+            response["old_ticket_number"] = old_ticket_number_before_merge
+            response["new_ticket_number"] = ticket_number
+            response["message"] = f"Ticket merged with {ticket_number} and reprocessed successfully"
+
+        return response
 
     except HTTPException:
         raise
