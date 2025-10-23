@@ -5,6 +5,7 @@ Handles communication with the external ticketing system API
 import os
 import requests
 from typing import Optional, List, Dict, Any
+from datetime import datetime
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -163,6 +164,42 @@ class TicketingAPIClient:
         except TicketingAPIError as e:
             logger.error(f"Failed to send message on ticket {ticket_number}: {e}")
             return False
+
+    def create_ticket(
+        self,
+        subject: str,
+        body: str,
+        customer_email: str,
+        order_number: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new ticket in the ticketing system (simplified wrapper).
+
+        Args:
+            subject: Email subject
+            body: Email body
+            customer_email: Customer email address
+            order_number: Optional Amazon order number
+
+        Returns:
+            API response dict with 'succeeded', 'messages', etc.
+        """
+        # Extract customer name from email (before @)
+        contact_name = customer_email.split('@')[0] if customer_email else 'Unknown'
+
+        # Use order number as sales_order_reference if provided, otherwise use email subject
+        sales_order_ref = order_number if order_number else subject[:50]
+
+        # Create ticket with type 0 (Unknown) - AI will classify later
+        return self.upsert_ticket(
+            sales_order_reference=sales_order_ref,
+            ticket_type_id=0,  # Unknown type
+            contact_name=contact_name,
+            entrance_email_body=body,
+            entrance_email_subject=subject,
+            entrance_email_sender_address=customer_email,
+            entrance_email_date=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f +00:00')
+        )
 
     def upsert_ticket(
         self,

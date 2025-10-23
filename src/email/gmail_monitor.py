@@ -481,6 +481,70 @@ class GmailMonitor:
 
         return None
 
+    def extract_ticket_number(self, text: str) -> Optional[str]:
+        """
+        Extract ticket number from email text.
+
+        Ticket numbers follow patterns like:
+        - DE12345678
+        - Ticket #DE12345678
+        - Ticket: DE12345678
+
+        Args:
+            text: Email subject or body text
+
+        Returns:
+            Ticket number if found, None otherwise
+        """
+        patterns = [
+            r'\b(DE\d{8})\b',                           # Plain DE########
+            r'Ticket\s*[:#-]?\s*(DE\d{8})',             # With 'Ticket' prefix
+            r'ticket\s+number\s*[:=]?\s*(DE\d{8})',     # With 'ticket number'
+            r'Ticketnummer\s*[:=]?\s*(DE\d{8})',        # German
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                ticket_num = match.group(1).upper()
+                logger.debug("Extracted ticket number", ticket_number=ticket_num)
+                return ticket_num
+
+        return None
+
+    def extract_identifiers(self, subject: str, body: str) -> Dict[str, Optional[str]]:
+        """
+        Extract all identifiers from email with priority handling.
+
+        Priority: ticket_number > order_number > purchase_order_number
+
+        Args:
+            subject: Email subject
+            body: Email body
+
+        Returns:
+            Dictionary with 'ticket_number', 'order_number', 'purchase_order_number'
+        """
+        identifiers = {
+            'ticket_number': None,
+            'order_number': None,
+            'purchase_order_number': None
+        }
+
+        # Try ticket number (highest priority)
+        identifiers['ticket_number'] = self.extract_ticket_number(subject) or \
+                                       self.extract_ticket_number(body)
+
+        # Try Amazon order number
+        identifiers['order_number'] = self.extract_order_number(subject) or \
+                                     self.extract_order_number(body)
+
+        # Try purchase order number
+        identifiers['purchase_order_number'] = self.extract_purchase_order_number(subject) or \
+                                              self.extract_purchase_order_number(body)
+
+        return identifiers
+
     def parse_sender_info(self, from_field: str) -> Tuple[str, str]:
         """
         Parse sender name and email from 'From' header

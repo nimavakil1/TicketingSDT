@@ -206,53 +206,67 @@ class SupportAgentOrchestrator:
 
             # If existing but not successful, we'll retry (don't return here)
 
-            # Resolve ticket via multiple identifiers
-            order_number = self._extract_order_number(email_data)
-            ticket_data = None
-            ticket_state = None
+            # NEW WORKFLOW: Extract all identifiers and resolve ticket
+            subject_text = email_data.get('subject') or ''
+            body_text = email_data.get('body', '')
+            identifiers = self.gmail_monitor.extract_identifiers(subject_text, body_text)
 
-            if order_number:
-                logger.info("Extracted order number", order_number=order_number)
-                ticket_data, ticket_state = self._get_or_create_ticket(
-                    session=session,
-                    email_data=email_data,
-                    order_number=order_number
+            logger.info(
+                "Extracted identifiers from email",
+                gmail_id=gmail_message_id,
+                ticket_number=identifiers.get('ticket_number'),
+                order_number=identifiers.get('order_number'),
+                purchase_order_number=identifiers.get('purchase_order_number')
+            )
+
+            # Resolve ticket using new workflow
+            ticket_data, ticket_state = self._resolve_ticket_with_new_workflow(
+                session=session,
+                email_data=email_data,
+                identifiers=identifiers
+            )
+
+            # If no identifiers found, create ticket anyway and mark for escalation
+            if not ticket_data and not ticket_state and not any(identifiers.values()):
+                logger.warning(
+                    "No identifiers found, creating ticket and marking for escalation",
+                    gmail_id=gmail_message_id,
+                    subject=subject[:100]
                 )
-            else:
-                # Fallbacks: ticket number, then purchase order number
-                fallback_ticket = self._find_ticket_by_ticket_or_po(email_data)
-                if fallback_ticket:
-                    ticket_data = fallback_ticket
-                    # Ensure ticket state exists
-                    ticket_state = session.query(TicketState).filter_by(
-                        ticket_number=ticket_data.get('ticketNumber')
-                    ).first()
-                    if not ticket_state:
-                        ticket_state = self._create_ticket_state(session, ticket_data, order_number=None)
-                else:
-                    logger.warning(
-                        "Could not resolve any known identifier; scheduling retry",
-                        gmail_id=gmail_message_id,
-                        subject=subject
-                    )
-                    # Schedule retry and mark as failed (will retry later)
-                    self._schedule_retry(session, email_data, reason="no_identifier_found")
-                    self._mark_email_processed(
-                        session, email_data, None, None,
-                        success=False,
-                        error_message="No identifier found (order number, ticket number, or PO)"
-                    )
-                    # Don't mark in Gmail - allow retry
-                    return False
+                # Create ticket without order number
+                order_num = None
+                created = self._create_ticket_in_old_system(email_data, order_num)
 
-            # If still no ticket, schedule retry (Phase 1: never create)
+                if created:
+                    # Try to find the newly created ticket
+                    ticket_data = self._search_for_ticket_with_retries(
+                        {'order_number': None, 'ticket_number': None, 'purchase_order_number': None}
+                    )
+
+                    if ticket_data:
+                        ticket_state = self._create_ticket_state(session, ticket_data, order_num)
+                        # Mark for escalation
+                        ticket_state.escalated = True
+                        ticket_state.escalation_reason = "No identifiers found in email (no order number, ticket number, or PO)"
+                        ticket_state.escalation_date = datetime.utcnow()
+                        session.commit()
+                        logger.info(
+                            "Created ticket and marked for escalation",
+                            ticket_number=ticket_state.ticket_number
+                        )
+
+            # If still no ticket after all attempts, schedule retry
             if not ticket_data or not ticket_state:
-                logger.warning("Ticket not found; scheduling retry", order_number=order_number)
-                self._schedule_retry(session, email_data, reason="ticket_not_found")
+                logger.warning(
+                    "Could not resolve or create ticket; scheduling retry",
+                    gmail_id=gmail_message_id,
+                    identifiers=identifiers
+                )
+                self._schedule_retry(session, email_data, reason="ticket_resolution_failed")
                 self._mark_email_processed(
-                    session, email_data, None, order_number,
+                    session, email_data, None, identifiers.get('order_number'),
                     success=False,
-                    error_message=f"Ticket not found for order {order_number}"
+                    error_message="Could not resolve or create ticket"
                 )
                 # Don't mark in Gmail - allow retry
                 return False
@@ -489,6 +503,336 @@ class SupportAgentOrchestrator:
             return processed
         finally:
             session.close()
+
+    def _find_existing_ticket_in_db(
+        self,
+        session: Any,
+        identifiers: Dict[str, Optional[str]]
+    ) -> Optional[TicketState]:
+        """
+        Check if we already have a ticket for these identifiers in our database.
+        Priority: ticket_number > order_number > purchase_order_number
+
+        Args:
+            session: Database session
+            identifiers: Dict with ticket_number, order_number, purchase_order_number
+
+        Returns:
+            TicketState if found, None otherwise
+        """
+        # Try ticket number first (highest priority)
+        if identifiers.get('ticket_number'):
+            ticket = session.query(TicketState).filter_by(
+                ticket_number=identifiers['ticket_number']
+            ).first()
+            if ticket:
+                logger.info(
+                    "Found existing ticket in DB by ticket number",
+                    ticket_number=identifiers['ticket_number']
+                )
+                return ticket
+
+        # Try order number
+        if identifiers.get('order_number'):
+            ticket = session.query(TicketState).filter_by(
+                order_number=identifiers['order_number']
+            ).first()
+            if ticket:
+                logger.info(
+                    "Found existing ticket in DB by order number",
+                    order_number=identifiers['order_number'],
+                    ticket_number=ticket.ticket_number
+                )
+                return ticket
+
+        # Try purchase order number
+        if identifiers.get('purchase_order_number'):
+            ticket = session.query(TicketState).filter_by(
+                purchase_order_number=identifiers['purchase_order_number']
+            ).first()
+            if ticket:
+                logger.info(
+                    "Found existing ticket in DB by PO number",
+                    purchase_order_number=identifiers['purchase_order_number'],
+                    ticket_number=ticket.ticket_number
+                )
+                return ticket
+
+        return None
+
+    def _find_existing_ticket_in_api(
+        self,
+        identifiers: Dict[str, Optional[str]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if ticket exists in old ticketing system.
+        Priority: ticket_number > order_number > purchase_order_number
+
+        Args:
+            identifiers: Dict with ticket_number, order_number, purchase_order_number
+
+        Returns:
+            Ticket data from API if found, None otherwise
+        """
+        # Try ticket number first (highest priority)
+        if identifiers.get('ticket_number'):
+            try:
+                tickets = self.ticketing_client.get_ticket_by_ticket_number(
+                    identifiers['ticket_number']
+                )
+                if tickets:
+                    logger.info(
+                        "Found existing ticket in API by ticket number",
+                        ticket_number=identifiers['ticket_number']
+                    )
+                    return self._select_latest_ticket(tickets)
+            except TicketingAPIError as e:
+                logger.warning(
+                    "API error searching by ticket number",
+                    error=str(e)
+                )
+
+        # Try order number (with variants)
+        if identifiers.get('order_number'):
+            order_num = identifiers['order_number']
+            try:
+                tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_num)
+                if not tickets:
+                    # Try variants
+                    for ref in (f"{order_num}-1", f"{order_num}_1"):
+                        tickets = self.ticketing_client.get_ticket_by_amazon_order_number(ref)
+                        if tickets:
+                            break
+
+                if tickets:
+                    logger.info(
+                        "Found existing ticket in API by order number",
+                        order_number=order_num
+                    )
+                    return self._select_latest_ticket(tickets)
+            except TicketingAPIError as e:
+                logger.warning(
+                    "API error searching by order number",
+                    error=str(e)
+                )
+
+        # Try purchase order number
+        if identifiers.get('purchase_order_number'):
+            try:
+                tickets = self.ticketing_client.get_ticket_by_purchase_order_number(
+                    identifiers['purchase_order_number']
+                )
+                if tickets:
+                    logger.info(
+                        "Found existing ticket in API by PO number",
+                        purchase_order_number=identifiers['purchase_order_number']
+                    )
+                    return self._select_latest_ticket(tickets)
+            except TicketingAPIError as e:
+                logger.warning(
+                    "API error searching by PO number",
+                    error=str(e)
+                )
+
+        return None
+
+    def _create_ticket_in_old_system(
+        self,
+        email_data: Dict[str, Any],
+        order_number: Optional[str] = None
+    ) -> bool:
+        """
+        Create a new ticket in the old ticketing system.
+        Note: The API confirms creation but doesn't return the ticket number.
+
+        Args:
+            email_data: Email data
+            order_number: Amazon order number if available
+
+        Returns:
+            True if ticket created successfully
+        """
+        subject = email_data.get('subject', '')
+        body = email_data.get('body', '')
+        from_address = email_data.get('from', '')
+
+        logger.info(
+            "Creating new ticket in old system",
+            order_number=order_number,
+            subject=subject[:100]
+        )
+
+        try:
+            # Create ticket via API
+            result = self.ticketing_client.create_ticket(
+                subject=subject,
+                body=body,
+                customer_email=from_address,
+                order_number=order_number
+            )
+
+            logger.info(
+                "Ticket created in old system",
+                result=result
+            )
+            return True
+
+        except TicketingAPIError as e:
+            logger.error(
+                "Failed to create ticket in old system",
+                error=str(e),
+                order_number=order_number
+            )
+            return False
+
+    def _search_for_ticket_with_retries(
+        self,
+        identifiers: Dict[str, Optional[str]],
+        max_retries: int = 4,
+        retry_delays: list = [5, 10, 20, 120]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Search for newly created ticket with exponential backoff.
+        Old system may not index ticket immediately after creation.
+
+        Args:
+            identifiers: Dict with ticket_number, order_number, purchase_order_number
+            max_retries: Maximum number of retry attempts
+            retry_delays: Delay in seconds for each retry [5s, 10s, 20s, 120s]
+
+        Returns:
+            Ticket data if found, None otherwise
+        """
+        for attempt in range(max_retries):
+            if attempt > 0:
+                delay = retry_delays[attempt - 1] if attempt - 1 < len(retry_delays) else retry_delays[-1]
+                logger.info(
+                    "Waiting before retry",
+                    attempt=attempt + 1,
+                    delay_seconds=delay
+                )
+                time.sleep(delay)
+
+            logger.info(
+                "Searching for ticket",
+                attempt=attempt + 1,
+                max_retries=max_retries
+            )
+
+            ticket_data = self._find_existing_ticket_in_api(identifiers)
+            if ticket_data:
+                logger.info(
+                    "Found ticket after retry",
+                    attempt=attempt + 1,
+                    ticket_number=ticket_data.get('ticketNumber')
+                )
+                return ticket_data
+
+        logger.warning(
+            "Ticket not found after all retries",
+            max_retries=max_retries,
+            identifiers=identifiers
+        )
+        return None
+
+    def _resolve_ticket_with_new_workflow(
+        self,
+        session: Any,
+        email_data: Dict[str, Any],
+        identifiers: Dict[str, Optional[str]]
+    ) -> tuple[Optional[Dict], Optional[TicketState]]:
+        """
+        Resolve ticket using new workflow:
+        1. Check database for existing ticket
+        2. If not in DB, check old system API
+        3. If not in API, create ticket in old system
+        4. Search for newly created ticket with retries
+        5. Import ticket to our DB
+
+        Args:
+            session: Database session
+            email_data: Email data
+            identifiers: Dict with ticket_number, order_number, purchase_order_number
+
+        Returns:
+            Tuple of (ticket_data from API, ticket_state from DB)
+        """
+        # Step 1: Check our database first
+        logger.info("Step 1: Checking database for existing ticket")
+        ticket_state = self._find_existing_ticket_in_db(session, identifiers)
+
+        if ticket_state:
+            # Found in DB, get fresh data from API
+            try:
+                tickets = self.ticketing_client.get_ticket_by_ticket_number(
+                    ticket_state.ticket_number
+                )
+                if tickets:
+                    ticket_data = self._select_latest_ticket(tickets)
+                    logger.info(
+                        "Found ticket in DB, fetched fresh data from API",
+                        ticket_number=ticket_state.ticket_number
+                    )
+                    return (ticket_data, ticket_state)
+            except TicketingAPIError:
+                pass
+
+            # If API call failed, return what we have
+            return (None, ticket_state)
+
+        # Step 2: Not in DB, check old system API
+        logger.info("Step 2: Checking old system API for existing ticket")
+        ticket_data = self._find_existing_ticket_in_api(identifiers)
+
+        if ticket_data:
+            # Found in API, import to our DB
+            logger.info(
+                "Found ticket in API, importing to DB",
+                ticket_number=ticket_data.get('ticketNumber')
+            )
+            # Get order number from identifiers or ticket data
+            order_num = identifiers.get('order_number') or \
+                       ticket_data.get('orderDetails', {}).get('orderNumber')
+
+            ticket_state = self._create_ticket_state(session, ticket_data, order_num)
+            return (ticket_data, ticket_state)
+
+        # Step 3: Not in API, create new ticket
+        # Need at least one identifier to proceed
+        if not any(identifiers.values()):
+            logger.warning(
+                "No identifiers found, cannot create ticket",
+                subject=email_data.get('subject', '')[:100]
+            )
+            return (None, None)
+
+        logger.info("Step 3: Creating new ticket in old system")
+        order_num = identifiers.get('order_number')
+        created = self._create_ticket_in_old_system(email_data, order_num)
+
+        if not created:
+            logger.error("Failed to create ticket in old system")
+            return (None, None)
+
+        # Step 4: Search for newly created ticket with retries
+        logger.info("Step 4: Searching for newly created ticket")
+        ticket_data = self._search_for_ticket_with_retries(identifiers)
+
+        if not ticket_data:
+            logger.error(
+                "Could not find newly created ticket after retries",
+                identifiers=identifiers
+            )
+            return (None, None)
+
+        # Step 5: Import ticket to our DB
+        logger.info(
+            "Step 5: Importing newly created ticket to DB",
+            ticket_number=ticket_data.get('ticketNumber')
+        )
+        ticket_state = self._create_ticket_state(session, ticket_data, order_num)
+
+        return (ticket_data, ticket_state)
 
     def _find_ticket_by_ticket_or_po(self, email_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Try to locate an existing ticket by ticket number or purchase order number.

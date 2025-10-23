@@ -48,7 +48,7 @@ class TicketState(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticket_number = Column(String(50), unique=True, nullable=False, index=True)
     ticket_id = Column(Integer, nullable=False, index=True)  # API ticket ID
-    order_number = Column(String(50), index=True)
+    order_number = Column(String(50), unique=True, index=True)  # Unique constraint to prevent duplicate tickets for same order
     customer_name = Column(String(255))
     customer_email = Column(String(255))
     customer_language = Column(String(10))  # e.g., 'de-DE', 'en-US'
@@ -65,7 +65,7 @@ class TicketState(Base):
     supplier_ticket_references = Column(Text)  # Comma-separated list of supplier's ticket numbers
     supplier_phone = Column(String(50))
     supplier_contact_person = Column(String(255))
-    purchase_order_number = Column(String(50), index=True)  # PO number for supplier communication
+    purchase_order_number = Column(String(50), unique=True, index=True)  # Unique constraint to prevent duplicate tickets for same PO
 
     # Delivery/Tracking information
     tracking_number = Column(String(100))
