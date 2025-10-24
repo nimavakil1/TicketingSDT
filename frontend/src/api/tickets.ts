@@ -93,6 +93,7 @@ export interface Attachment {
   ticket_id: number;
   filename: string;
   original_filename: string;
+  file_path: string;
   mime_type: string | null;
   file_size: number | null;
   extraction_status: string;

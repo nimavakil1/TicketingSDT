@@ -196,6 +196,7 @@ class AttachmentInfo(BaseModel):
     ticket_id: int
     filename: str
     original_filename: str
+    file_path: str
     mime_type: Optional[str]
     file_size: Optional[int]
     extraction_status: str
@@ -2178,6 +2179,7 @@ async def upload_attachment(
             ticket_id=attachment.ticket_id,
             filename=attachment.filename,
             original_filename=attachment.original_filename,
+            file_path=attachment.file_path,
             mime_type=attachment.mime_type,
             file_size=attachment.file_size,
             extraction_status=attachment.extraction_status,
