@@ -1724,6 +1724,7 @@ async def send_email_via_gmail(
     attachment_paths = []
     try:
         from src.email.gmail_sender import GmailSender
+        from src.utils.message_formatter import MessageFormatter
         import os
         import tempfile
         import json
@@ -1731,6 +1732,31 @@ async def send_email_via_gmail(
         # Parse CC and BCC if provided as JSON strings
         cc_list = json.loads(cc) if cc else None
         bcc_list = json.loads(bcc) if bcc else None
+
+        # Check if this is a supplier email and format it with PO number
+        formatter = MessageFormatter()
+        is_supplier_email = ticket.supplier_email and to == ticket.supplier_email
+
+        formatted_subject = subject
+        formatted_body = body
+
+        if is_supplier_email and ticket.purchase_order_number:
+            # Add PO number to subject if not already there
+            if ticket.purchase_order_number not in subject:
+                if subject.startswith('Re:'):
+                    formatted_subject = f"Re: PO #{ticket.purchase_order_number} - {subject[4:]}"
+                else:
+                    formatted_subject = f"PO #{ticket.purchase_order_number} - {subject}"
+
+            # Add PO reference to body if not already there
+            if ticket.purchase_order_number not in body:
+                po_header = f"Regarding Purchase Order: {ticket.purchase_order_number}\n"
+                po_header += f"Our Ticket Reference: {ticket.ticket_number}\n\n"
+                formatted_body = po_header + body
+
+            logger.info("Added PO number to supplier email",
+                       ticket_number=ticket_number,
+                       po_number=ticket.purchase_order_number)
 
         # Save attachments temporarily
         if attachments:
@@ -1746,8 +1772,8 @@ async def send_email_via_gmail(
         gmail_sender = GmailSender()
         result = gmail_sender.send_email(
             to=to,
-            subject=subject,
-            body=body,
+            subject=formatted_subject,
+            body=formatted_body,
             cc=cc_list,
             bcc=bcc_list,
             attachments=attachment_paths if attachment_paths else None,
@@ -1761,9 +1787,9 @@ async def send_email_via_gmail(
             gmail_thread_id=result.get('threadId') or thread_id,
             ticket_id=ticket.id,
             order_number=ticket.order_number,
-            subject=subject,
+            subject=formatted_subject,
             from_address=settings.gmail_support_email,  # Our email address
-            message_body=body,
+            message_body=formatted_body,
             success=True,
             processed_at=datetime.now(timezone.utc)
         )
