@@ -968,26 +968,34 @@ class SupportAgentOrchestrator:
         customer_country = sales_order.get('customerCountry', '')
         customer_phone = sales_order.get('customerPhone', '')
 
-        # Extract tracking information from trackings array
-        trackings = sales_order.get('trackings', [])
-
-        # Find first valid tracking (non-empty traceUrl)
+        # Extract tracking information from purchaseOrders -> deliveries -> deliveryParcels
+        purchase_orders = sales_order.get('purchaseOrders', [])
         tracking_number = ''
         tracking_url = ''
         carrier_name = ''
 
-        for tracking in trackings:
-            if tracking.get('traceUrl') and tracking.get('traceUrl').strip():
-                tracking_number = tracking.get('trackingNumber', '')
-                tracking_url = tracking.get('traceUrl', '')
-                carrier_name = tracking.get('carrierName', '')
-                logger.info(
-                    "Found valid tracking during ticket creation",
-                    ticket_number=ticket_data.get('ticketNumber'),
-                    trackingNumber=tracking_number,
-                    traceUrl=tracking_url,
-                    carrierName=carrier_name
-                )
+        found_tracking = False
+        for purchase_order in purchase_orders:
+            deliveries = purchase_order.get('deliveries', [])
+            for delivery in deliveries:
+                delivery_parcels = delivery.get('deliveryParcels', [])
+                for parcel in delivery_parcels:
+                    if parcel.get('traceUrl') and parcel.get('traceUrl').strip():
+                        tracking_number = parcel.get('trackNumber', '')
+                        tracking_url = parcel.get('traceUrl', '')
+                        carrier_name = parcel.get('shipmentMethod', {}).get('name1', '')
+                        logger.info(
+                            "Found valid tracking during ticket creation",
+                            ticket_number=ticket_data.get('ticketNumber'),
+                            trackingNumber=tracking_number,
+                            traceUrl=tracking_url,
+                            carrierName=carrier_name
+                        )
+                        found_tracking = True
+                        break
+                if found_tracking:
+                    break
+            if found_tracking:
                 break
 
         delivery_status = sales_order.get('deliveryStatus', '')

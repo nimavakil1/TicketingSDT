@@ -1411,14 +1411,25 @@ async def refresh_ticket(
             ticket.customer_country = sales_order.get("deliveryCustomerCountryName") or ticket.customer_country
             ticket.customer_phone = sales_order.get("deliveryCustomerPhoneNumber") or ticket.customer_phone
 
-            # Extract tracking information from trackings array
-            trackings = sales_order.get("trackings", [])
-
-            # Find first valid tracking (non-empty traceUrl)
+            # Extract tracking information from purchaseOrders -> deliveries -> deliveryParcels
+            purchase_orders = sales_order.get("purchaseOrders", [])
             valid_tracking = None
-            for tracking in trackings:
-                if tracking.get("traceUrl") and tracking.get("traceUrl").strip():
-                    valid_tracking = tracking
+
+            for purchase_order in purchase_orders:
+                deliveries = purchase_order.get("deliveries", [])
+                for delivery in deliveries:
+                    delivery_parcels = delivery.get("deliveryParcels", [])
+                    for parcel in delivery_parcels:
+                        if parcel.get("traceUrl") and parcel.get("traceUrl").strip():
+                            valid_tracking = {
+                                "trackingNumber": parcel.get("trackNumber"),
+                                "traceUrl": parcel.get("traceUrl"),
+                                "carrierName": parcel.get("shipmentMethod", {}).get("name1")
+                            }
+                            break
+                    if valid_tracking:
+                        break
+                if valid_tracking:
                     break
 
             if valid_tracking:
@@ -1436,7 +1447,7 @@ async def refresh_ticket(
                 logger.info(
                     "No valid tracking found in API response",
                     ticket_number=ticket_number,
-                    trackings_count=len(trackings)
+                    purchase_orders_count=len(purchase_orders)
                 )
 
             ticket.delivery_status = sales_order.get("deliveryStatus") or ticket.delivery_status
