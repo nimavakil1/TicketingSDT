@@ -50,6 +50,8 @@ const TicketDetail: React.FC = () => {
   const [processingMessage, setProcessingMessage] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [attachmentsExpanded, setAttachmentsExpanded] = useState(false);
+  const [aiDecisionsExpanded, setAiDecisionsExpanded] = useState(false);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -872,7 +874,7 @@ const TicketDetail: React.FC = () => {
         </div>
 
         {/* Order Details */}
-        {(ticket.order_date || ticket.order_total || ticket.tracking_number || ticket.product_details) && (
+        {(ticket.order_date || ticket.product_details) && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
             <div className="space-y-3">
@@ -880,43 +882,6 @@ const TicketDetail: React.FC = () => {
                 <div>
                   <p className="text-xs text-gray-500">Order Date</p>
                   <p className="text-sm font-medium text-gray-900">{ticket.order_date}</p>
-                </div>
-              )}
-              {ticket.order_total !== undefined && ticket.order_total !== null && (
-                <div>
-                  <p className="text-xs text-gray-500">Order Total</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {ticket.order_total.toFixed(2)} {ticket.order_currency || 'EUR'}
-                  </p>
-                </div>
-              )}
-              {ticket.tracking_number && (
-                <div>
-                  <p className="text-xs text-gray-500">Tracking Number</p>
-                  {ticket.tracking_url ? (
-                    <a
-                      href={ticket.tracking_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800 underline"
-                    >
-                      {ticket.tracking_number}
-                    </a>
-                  ) : (
-                    <p className="text-sm font-medium text-gray-900">{ticket.tracking_number}</p>
-                  )}
-                </div>
-              )}
-              {ticket.carrier_name && (
-                <div>
-                  <p className="text-xs text-gray-500">Carrier</p>
-                  <p className="text-sm font-medium text-gray-900">{ticket.carrier_name}</p>
-                </div>
-              )}
-              {ticket.delivery_status && (
-                <div>
-                  <p className="text-xs text-gray-500">Delivery Status</p>
-                  <p className="text-sm font-medium text-gray-900">{ticket.delivery_status}</p>
                 </div>
               )}
               {ticket.expected_delivery_date && (
@@ -977,13 +942,11 @@ const TicketDetail: React.FC = () => {
             )}
             {ticket.customer_name && (
               <div>
-                <p className="text-xs text-gray-500">Name</p>
                 <p className="text-sm font-medium text-gray-900">{ticket.customer_name}</p>
               </div>
             )}
             {ticket.customer_address && (
               <div>
-                <p className="text-xs text-gray-500">Address</p>
                 <p className="text-sm font-medium text-gray-900">
                   {ticket.customer_address}
                   {ticket.customer_city && <><br />{ticket.customer_postal_code} {ticket.customer_city}</>}
@@ -993,7 +956,6 @@ const TicketDetail: React.FC = () => {
             )}
             {ticket.customer_phone && (
               <div>
-                <p className="text-xs text-gray-500">Phone</p>
                 <p className="text-sm font-medium text-gray-900">{ticket.customer_phone}</p>
               </div>
             )}
@@ -1006,14 +968,31 @@ const TicketDetail: React.FC = () => {
           <div className="space-y-3">
             {ticket.purchase_order_number && (
               <div>
-                <p className="text-xs text-gray-500">Purchase Order Number</p>
-                <p className="text-sm font-medium text-gray-900">{ticket.purchase_order_number}</p>
+                <p className="text-sm font-medium text-gray-900">PO#: {ticket.purchase_order_number}</p>
               </div>
             )}
             {ticket.supplier_name && (
               <div>
-                <p className="text-xs text-gray-500">Supplier Name</p>
                 <p className="text-sm font-medium text-gray-900">{ticket.supplier_name}</p>
+              </div>
+            )}
+            {ticket.tracking_number && ticket.carrier_name && (
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {ticket.carrier_name}:{' '}
+                  {ticket.tracking_url ? (
+                    <a
+                      href={ticket.tracking_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      {ticket.tracking_number}
+                    </a>
+                  ) : (
+                    ticket.tracking_number
+                  )}
+                </p>
               </div>
             )}
             {ticket.supplier_contact_person && (
@@ -1594,7 +1573,15 @@ const TicketDetail: React.FC = () => {
             <Paperclip className="h-5 w-5" />
             Manual Upload & Attachments Overview ({attachments.length})
           </h2>
+          <button
+            onClick={() => setAttachmentsExpanded(!attachmentsExpanded)}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {attachmentsExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
         </div>
+        {attachmentsExpanded && (
+          <>
         <p className="text-xs text-gray-500 mb-4">
           Upload files manually here. Email attachments are shown inline with their respective messages above.
         </p>
@@ -1736,13 +1723,24 @@ const TicketDetail: React.FC = () => {
             ))
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* AI Decisions */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          AI Decisions ({ticket.ai_decisions.length})
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            AI Decisions ({ticket.ai_decisions.length})
+          </h2>
+          <button
+            onClick={() => setAiDecisionsExpanded(!aiDecisionsExpanded)}
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {aiDecisionsExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </button>
+        </div>
+        {aiDecisionsExpanded && (
         <div className="space-y-4">
           {ticket.ai_decisions.length === 0 ? (
             <p className="text-gray-500 text-sm">No AI decisions recorded for this ticket.</p>
@@ -1848,6 +1846,7 @@ const TicketDetail: React.FC = () => {
             ))
           )}
         </div>
+        )}
       </div>
 
       {/* Audit Log Section */}
