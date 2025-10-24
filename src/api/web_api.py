@@ -1370,6 +1370,15 @@ async def refresh_ticket(
 
         # Extract data from salesOrder
         sales_order = ticket_api_data.get("salesOrder", {})
+
+        # Debug: Log entire API response for this ticket
+        import json
+        logger.info(
+            "Full API response for ticket",
+            ticket_number=ticket_number,
+            full_response=json.dumps(ticket_api_data, indent=2, default=str)
+        )
+
         if sales_order:
             # Use 'reference' field for Amazon order number (e.g., 303-5532872-4861939)
             # Always overwrite if reference exists
