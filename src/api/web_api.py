@@ -1411,20 +1411,34 @@ async def refresh_ticket(
             ticket.customer_country = sales_order.get("deliveryCustomerCountryName") or ticket.customer_country
             ticket.customer_phone = sales_order.get("deliveryCustomerPhoneNumber") or ticket.customer_phone
 
-            # Extract tracking information
-            # Debug: log available tracking fields
-            logger.info(
-                "Tracking data from API",
-                ticket_number=ticket_number,
-                trackingNumber=sales_order.get("trackingNumber"),
-                trackingUrl=sales_order.get("trackingUrl"),
-                carrierName=sales_order.get("carrierName"),
-                deliveryStatus=sales_order.get("deliveryStatus"),
-                available_keys=[k for k in sales_order.keys() if 'track' in k.lower() or 'carrier' in k.lower()]
-            )
-            ticket.tracking_number = sales_order.get("trackingNumber") or ticket.tracking_number
-            ticket.tracking_url = sales_order.get("trackingUrl") or ticket.tracking_url
-            ticket.carrier_name = sales_order.get("carrierName") or ticket.carrier_name
+            # Extract tracking information from trackings array
+            trackings = sales_order.get("trackings", [])
+
+            # Find first valid tracking (non-empty traceUrl)
+            valid_tracking = None
+            for tracking in trackings:
+                if tracking.get("traceUrl") and tracking.get("traceUrl").strip():
+                    valid_tracking = tracking
+                    break
+
+            if valid_tracking:
+                logger.info(
+                    "Found valid tracking from API",
+                    ticket_number=ticket_number,
+                    trackingNumber=valid_tracking.get("trackingNumber"),
+                    traceUrl=valid_tracking.get("traceUrl"),
+                    carrierName=valid_tracking.get("carrierName")
+                )
+                ticket.tracking_number = valid_tracking.get("trackingNumber") or ticket.tracking_number
+                ticket.tracking_url = valid_tracking.get("traceUrl") or ticket.tracking_url
+                ticket.carrier_name = valid_tracking.get("carrierName") or ticket.carrier_name
+            else:
+                logger.info(
+                    "No valid tracking found in API response",
+                    ticket_number=ticket_number,
+                    trackings_count=len(trackings)
+                )
+
             ticket.delivery_status = sales_order.get("deliveryStatus") or ticket.delivery_status
             ticket.expected_delivery_date = sales_order.get("expectedDeliveryDate") or ticket.expected_delivery_date
 

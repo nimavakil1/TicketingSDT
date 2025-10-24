@@ -968,20 +968,28 @@ class SupportAgentOrchestrator:
         customer_country = sales_order.get('customerCountry', '')
         customer_phone = sales_order.get('customerPhone', '')
 
-        # Extract tracking information
-        # Debug: log available tracking fields
-        logger.info(
-            "Tracking data from API during ticket creation",
-            ticket_number=ticket_data.get('ticketNumber'),
-            trackingNumber=sales_order.get('trackingNumber'),
-            trackingUrl=sales_order.get('trackingUrl'),
-            carrierName=sales_order.get('carrierName'),
-            deliveryStatus=sales_order.get('deliveryStatus'),
-            available_keys=[k for k in sales_order.keys() if 'track' in k.lower() or 'carrier' in k.lower()]
-        )
-        tracking_number = sales_order.get('trackingNumber', '')
-        tracking_url = sales_order.get('trackingUrl', '')
-        carrier_name = sales_order.get('carrierName', '')
+        # Extract tracking information from trackings array
+        trackings = sales_order.get('trackings', [])
+
+        # Find first valid tracking (non-empty traceUrl)
+        tracking_number = ''
+        tracking_url = ''
+        carrier_name = ''
+
+        for tracking in trackings:
+            if tracking.get('traceUrl') and tracking.get('traceUrl').strip():
+                tracking_number = tracking.get('trackingNumber', '')
+                tracking_url = tracking.get('traceUrl', '')
+                carrier_name = tracking.get('carrierName', '')
+                logger.info(
+                    "Found valid tracking during ticket creation",
+                    ticket_number=ticket_data.get('ticketNumber'),
+                    trackingNumber=tracking_number,
+                    traceUrl=tracking_url,
+                    carrierName=carrier_name
+                )
+                break
+
         delivery_status = sales_order.get('deliveryStatus', '')
         expected_delivery_date = sales_order.get('expectedDeliveryDate', '')
 
