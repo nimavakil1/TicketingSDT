@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 import structlog
 
-from src.database.models import PendingMessage, TicketState, AIDecisionLog, MessageTemplate
+from src.database.models import PendingMessage, TicketState, AIDecisionLog, MessageTemplate, ProcessedEmail
 from src.utils.message_formatter import MessageFormatter
 from src.utils.cc_manager import CCManager
 from src.api.ticketing_client import TicketingAPIClient
@@ -198,6 +198,29 @@ class MessageService:
                     owner_id=ticket_state.owner_id,
                     attachments=pending_message.attachments
                 )
+
+                # Save internal message to database for message history
+                if result.get('succeeded'):
+                    import uuid
+                    from datetime import timezone
+                    internal_msg_id = f"internal_{ticket_state.ticket_number}_{uuid.uuid4().hex[:8]}"
+
+                    recent_email = self.db.query(ProcessedEmail).filter(
+                        ProcessedEmail.ticket_id == ticket_state.id
+                    ).order_by(ProcessedEmail.processed_at.desc()).first()
+
+                    internal_note = ProcessedEmail(
+                        gmail_message_id=internal_msg_id,
+                        gmail_thread_id=recent_email.gmail_thread_id if recent_email else None,
+                        ticket_id=ticket_state.id,
+                        order_number=ticket_state.order_number,
+                        subject=pending_message.subject or "Internal note",
+                        from_address="Internal",
+                        message_body=pending_message.body,
+                        success=True,
+                        processed_at=datetime.now(timezone.utc)
+                    )
+                    self.db.add(internal_note)
 
             # Check if successful
             if result.get('succeeded'):

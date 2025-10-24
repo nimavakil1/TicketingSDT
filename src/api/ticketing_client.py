@@ -329,33 +329,26 @@ class TicketingAPIClient:
         attachments: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        Add an internal note (just uses add_internal_note since internal messages don't get emailed)
+        Internal messages are only saved to database, not posted to old system
 
         Returns:
             API response dict with 'succeeded', 'messages', etc.
         """
         try:
             logger.info(
-                "Adding internal note",
+                "Internal message - saved to database only (not posted to ticketing API)",
                 ticket_number=ticket_number
             )
 
-            # Use existing add_internal_note method
-            success = self.add_internal_note(ticket_number, message)
-
-            if success:
-                return {
-                    'succeeded': True,
-                    'messages': []
-                }
-            else:
-                return {
-                    'succeeded': False,
-                    'messages': ['Failed to add internal note']
-                }
+            # Internal messages are only saved to database, not to ticketing API
+            # This is handled by message_service which saves to ProcessedEmail table
+            return {
+                'succeeded': True,
+                'messages': []
+            }
 
         except Exception as e:
-            logger.error(f"Failed to send internal note: {e}")
+            logger.error(f"Failed to process internal message: {e}")
             return {
                 'succeeded': False,
                 'messages': [str(e)]
