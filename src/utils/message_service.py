@@ -166,6 +166,17 @@ class MessageService:
         # Get ticket state
         ticket_state = pending_message.ticket
 
+        # Convert relative attachment paths to absolute paths
+        absolute_attachments = None
+        if pending_message.attachments:
+            from pathlib import Path
+            base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+            absolute_attachments = []
+            for rel_path in pending_message.attachments:
+                abs_path = str(base_dir / rel_path)
+                absolute_attachments.append(abs_path)
+                logger.debug("Converted attachment path", relative=rel_path, absolute=abs_path)
+
         try:
             # Send message via ticketing API
             if pending_message.message_type == "supplier":
@@ -176,7 +187,7 @@ class MessageService:
                     owner_id=ticket_state.owner_id,
                     email_address=pending_message.recipient_email,
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
-                    attachments=pending_message.attachments,
+                    attachments=absolute_attachments,
                     db_session=self.db
                 )
 
@@ -210,7 +221,7 @@ class MessageService:
                     owner_id=ticket_state.owner_id,
                     email_address=pending_message.recipient_email,
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
-                    attachments=pending_message.attachments,
+                    attachments=absolute_attachments,
                     db_session=self.db
                 )
 
@@ -242,7 +253,7 @@ class MessageService:
                     message=pending_message.body,
                     ticket_status_id=ticket_state.ticket_status_id,
                     owner_id=ticket_state.owner_id,
-                    attachments=pending_message.attachments
+                    attachments=absolute_attachments
                 )
 
                 # Save internal message to database for message history
