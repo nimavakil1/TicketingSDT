@@ -683,8 +683,32 @@ async def get_ticket_detail(
             logger.warning("Failed to fetch ticket messages from ticketing API", error=str(e), ticket_number=ticket_number)
             # Continue without messages rather than failing
 
-    # Sort all messages by timestamp
-    messages.sort(key=lambda m: m.get("createdAt") or "")
+    # Sort all messages by timestamp (convert to datetime for proper sorting)
+    from dateutil import parser as date_parser
+
+    def parse_timestamp(timestamp):
+        """Parse timestamp and convert to UTC datetime for sorting"""
+        if not timestamp:
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+        if isinstance(timestamp, datetime):
+            # Already a datetime object
+            if timestamp.tzinfo is None:
+                # Naive datetime, assume UTC
+                return timestamp.replace(tzinfo=timezone.utc)
+            return timestamp.astimezone(timezone.utc)
+
+        # String timestamp - parse it
+        try:
+            dt = date_parser.parse(str(timestamp))
+            if dt.tzinfo is None:
+                # Naive datetime, assume UTC
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+        except Exception:
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+    messages.sort(key=lambda m: parse_timestamp(m.get("createdAt")))
 
     logger.info("Total messages", ticket_number=ticket_number, message_count=len(messages))
 
