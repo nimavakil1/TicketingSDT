@@ -604,7 +604,7 @@ async def get_ticket_detail(
         message = {
             "id": f"db_{email_id}",
             "gmail_message_id": gmail_message_id,
-            "createdAt": processed_at if processed_at else None,
+            "createdAt": ensure_utc(processed_at),
             "messageText": message_body or "(No content)",
             "messageType": message_type,
             "isInternal": is_internal,
