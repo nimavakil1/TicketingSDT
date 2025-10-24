@@ -440,12 +440,17 @@ Customer communication language: {language}
         """
 
         if ticket_data:
+            # Extract PO number
+            purchase_orders = ticket_data.get('salesOrder', {}).get('purchaseOrders', [])
+            po_number = purchase_orders[0].get('purchaseOrderNumber', 'N/A') if purchase_orders else 'N/A'
+
             prompt += f"""
 Existing Ticket Information:
 - Ticket Number: {ticket_data.get('ticketNumber', 'N/A')}
 - Order Number: {ticket_data.get('salesOrder', {}).get('customerNumber', 'N/A')}
+- Purchase Order Number (PO#): {po_number}
 - Customer: {ticket_data.get('contactName', 'N/A')}
-- Supplier: {ticket_data.get('salesOrder', {}).get('purchaseOrders', [{}])[0].get('supplierName', 'N/A') if ticket_data.get('salesOrder', {}).get('purchaseOrders') else 'N/A'}
+- Supplier: {purchase_orders[0].get('supplierName', 'N/A') if purchase_orders else 'N/A'}
 - Product: {ticket_data.get('salesOrder', {}).get('salesOrderItems', [{}])[0].get('productTitle', 'N/A') if ticket_data.get('salesOrder', {}).get('salesOrderItems') else 'N/A'}
 """
 
@@ -525,6 +530,9 @@ Guidelines:
 8. If uncertain or complex issue: Set requires_escalation to true
 9. Reference order numbers and ticket numbers in responses
 10. Keep customer responses concise but complete
+11. CRITICAL: When a Purchase Order Number (PO#) is provided above, you MUST use it exactly as shown
+12. NEVER make up, guess, or hallucinate PO numbers - only use the PO number provided in "Existing Ticket Information"
+13. If you need to reference a PO number but none is provided above, set requires_escalation to true
 
 Provide ONLY the JSON response, no additional text.
 """
