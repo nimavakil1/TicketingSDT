@@ -549,6 +549,9 @@ async def get_ticket_detail(
     db: Session = Depends(get_db)
 ):
     """Get detailed ticket information including AI decisions and message history"""
+    # Expire all to ensure we get fresh data from database
+    db.expire_all()
+
     ticket = db.query(TicketState).filter(
         TicketState.ticket_number == ticket_number
     ).first()
