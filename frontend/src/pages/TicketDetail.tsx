@@ -47,6 +47,7 @@ const TicketDetail: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editedMessageBody, setEditedMessageBody] = useState('');
   const [editedMessageSubject, setEditedMessageSubject] = useState('');
+  const [editedMessageAttachments, setEditedMessageAttachments] = useState<File[]>([]);
   const [processingMessage, setProcessingMessage] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -292,6 +293,57 @@ const TicketDetail: React.FC = () => {
 
   const removeComposeAttachment = (index: number) => {
     setComposeAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEditedMessageFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif', '.bmp', '.webp', '.docx', '.txt', '.csv', '.xlsx', '.xls'];
+      const dangerousExtensions = ['.exe', '.bat', '.sh', '.cmd', '.com', '.scr', '.vbs', '.js', '.jar', '.app', '.dmg', '.msi'];
+      const maxSize = 100 * 1024 * 1024;
+      const validFiles: File[] = [];
+      const errors: string[] = [];
+
+      Array.from(files).forEach((file) => {
+        const fileName = file.name.toLowerCase();
+        const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+
+        // Check for dangerous types
+        if (dangerousExtensions.includes(fileExt)) {
+          errors.push(`${file.name}: Executable files not allowed`);
+          return;
+        }
+
+        // Check allowed types
+        if (!allowedExtensions.includes(fileExt)) {
+          errors.push(`${file.name}: File type '${fileExt}' not allowed`);
+          return;
+        }
+
+        // Check file size
+        if (file.size > maxSize) {
+          errors.push(`${file.name}: Exceeds 100MB limit`);
+          return;
+        }
+
+        validFiles.push(file);
+      });
+
+      if (errors.length > 0) {
+        alert('Some files were rejected:\n' + errors.join('\n'));
+      }
+
+      if (validFiles.length > 0) {
+        setEditedMessageAttachments(prev => [...prev, ...validFiles]);
+      }
+
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
+  const removeEditedMessageAttachment = (index: number) => {
+    setEditedMessageAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleComposeMessage = (recipientType: 'customer' | 'supplier' | 'internal') => {
@@ -543,11 +595,29 @@ const TicketDetail: React.FC = () => {
   const handleApproveMessage = async (messageId: number, withEdits: boolean) => {
     setProcessingMessage(true);
     try {
+      let attachmentPaths: string[] = [];
+
+      // Upload attachments if any
+      if (editedMessageAttachments.length > 0 && ticket) {
+        for (const file of editedMessageAttachments) {
+          try {
+            const attachment = await ticketsApi.uploadAttachment(ticket.ticket_number, file);
+            attachmentPaths.push(attachment.file_path);
+          } catch (err) {
+            console.error('Failed to upload attachment:', file.name, err);
+            alert(`Failed to upload attachment: ${file.name}`);
+            setProcessingMessage(false);
+            return;
+          }
+        }
+      }
+
       const approval: any = {
         action: 'approve',
         updated_data: withEdits ? {
           body: editedMessageBody,
           subject: editedMessageSubject,
+          attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined,
         } : undefined
       };
 
@@ -556,6 +626,7 @@ const TicketDetail: React.FC = () => {
       setEditingMessageId(null);
       setEditedMessageBody('');
       setEditedMessageSubject('');
+      setEditedMessageAttachments([]);
 
       // Reload ticket to show updated message history
       await loadTicket();
@@ -1272,6 +1343,44 @@ const TicketDetail: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Attachments
+                      </label>
+                      <div className="space-y-2">
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif,.bmp,.docx,.txt,.csv,.xlsx,.xls"
+                          onChange={handleEditedMessageFileSelect}
+                          className="block w-full text-sm text-gray-500
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-lg file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-indigo-50 file:text-indigo-700
+                            hover:file:bg-indigo-100"
+                        />
+                        {editedMessageAttachments.length > 0 && (
+                          <div className="space-y-1">
+                            {editedMessageAttachments.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                <div className="flex items-center gap-2">
+                                  <Paperclip className="h-4 w-4 text-gray-400" />
+                                  <span className="text-sm text-gray-700">{file.name}</span>
+                                  <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                                </div>
+                                <button
+                                  onClick={() => removeEditedMessageAttachment(index)}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <XCircle className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleApproveMessage(msg.id, true)}
@@ -1285,6 +1394,7 @@ const TicketDetail: React.FC = () => {
                           setEditingMessageId(null);
                           setEditedMessageBody('');
                           setEditedMessageSubject('');
+                          setEditedMessageAttachments([]);
                         }}
                         disabled={processingMessage}
                         className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:bg-gray-300"
