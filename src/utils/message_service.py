@@ -176,7 +176,8 @@ class MessageService:
                     owner_id=ticket_state.owner_id,
                     email_address=pending_message.recipient_email,
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
-                    attachments=pending_message.attachments
+                    attachments=pending_message.attachments,
+                    db_session=self.db
                 )
 
                 # Save supplier message to database for message history
@@ -209,7 +210,8 @@ class MessageService:
                     owner_id=ticket_state.owner_id,
                     email_address=pending_message.recipient_email,
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
-                    attachments=pending_message.attachments
+                    attachments=pending_message.attachments,
+                    db_session=self.db
                 )
 
                 # Save customer message to database for message history

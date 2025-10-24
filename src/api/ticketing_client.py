@@ -187,10 +187,14 @@ class TicketingAPIClient:
         owner_id: Optional[int] = None,
         email_address: Optional[str] = None,
         cc_email_address: Optional[str] = None,
-        attachments: Optional[List[str]] = None
+        attachments: Optional[List[str]] = None,
+        db_session = None
     ) -> Dict[str, Any]:
         """
         Send a message to customer via Gmail API
+
+        If db_session is provided, will look up the most recent customer message
+        to thread the reply properly.
 
         Returns:
             API response dict with 'succeeded', 'messages', etc.
@@ -218,21 +222,68 @@ class TicketingAPIClient:
             # Parse CC addresses
             cc_list = cc_email_address.split(',') if cc_email_address else None
 
-            # Build subject
+            # Build subject - will be used for new threads, preserved for existing threads
             subject = f"Re: Ticket {ticket_number}"
+
+            # Try to find the most recent customer message to thread the reply
+            reply_to_message_id = None
+            thread_id = None
+
+            if db_session:
+                try:
+                    from src.database.models import ProcessedEmail, TicketState
+
+                    # Get ticket_id from ticket_number
+                    ticket_state = db_session.query(TicketState).filter(
+                        TicketState.ticket_number == ticket_number
+                    ).first()
+
+                    if ticket_state:
+                        # Find the most recent email in this ticket's conversation
+                        recent_customer_email = db_session.query(ProcessedEmail).filter(
+                            ProcessedEmail.ticket_id == ticket_state.id,
+                            ProcessedEmail.gmail_message_id.isnot(None)
+                        ).order_by(ProcessedEmail.processed_at.desc()).first()
+
+                        if recent_customer_email and recent_customer_email.gmail_message_id:
+                            reply_to_message_id = recent_customer_email.gmail_message_id
+                            thread_id = recent_customer_email.gmail_thread_id
+
+                            # Extract subject from the original message to preserve it
+                            if recent_customer_email.subject:
+                                subject = recent_customer_email.subject
+                                # Ensure it starts with Re: if it's a reply
+                                if not subject.startswith('Re:'):
+                                    subject = f"Re: {subject}"
+
+                            logger.info(
+                                "Threading customer reply",
+                                reply_to_message_id=reply_to_message_id,
+                                thread_id=thread_id,
+                                subject=subject
+                            )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to find previous customer message for threading",
+                        error=str(e)
+                    )
+                    # Continue without threading
 
             result = gmail_sender.send_email(
                 to=email_address,
                 subject=subject,
                 body=message,
                 cc=cc_list,
-                attachments=attachments
+                attachments=attachments,
+                reply_to_message_id=reply_to_message_id,
+                thread_id=thread_id
             )
 
             logger.info(
                 "Customer message sent via Gmail",
                 ticket_number=ticket_number,
                 message_id=result.get('id'),
+                threaded=bool(thread_id),
                 succeeded=True
             )
 
@@ -258,10 +309,14 @@ class TicketingAPIClient:
         owner_id: Optional[int] = None,
         email_address: Optional[str] = None,
         cc_email_address: Optional[str] = None,
-        attachments: Optional[List[str]] = None
+        attachments: Optional[List[str]] = None,
+        db_session = None
     ) -> Dict[str, Any]:
         """
         Send a message to supplier via Gmail API
+
+        If db_session is provided, will look up the most recent supplier message
+        to thread the reply properly.
 
         Returns:
             API response dict with 'succeeded', 'messages', etc.
@@ -288,21 +343,69 @@ class TicketingAPIClient:
             # Parse CC addresses
             cc_list = cc_email_address.split(',') if cc_email_address else None
 
-            # Build subject
+            # Build subject - will be used for new threads, preserved for existing threads
             subject = f"Re: Ticket {ticket_number}"
+
+            # Try to find the most recent supplier message to thread the reply
+            reply_to_message_id = None
+            thread_id = None
+
+            if db_session:
+                try:
+                    from src.database.models import ProcessedEmail, TicketState
+
+                    # Get ticket_id from ticket_number
+                    ticket_state = db_session.query(TicketState).filter(
+                        TicketState.ticket_number == ticket_number
+                    ).first()
+
+                    if ticket_state:
+                        # Find the most recent email from supplier (to address matches supplier email)
+                        # Look for messages where from_address is the supplier or to_address is support
+                        recent_supplier_email = db_session.query(ProcessedEmail).filter(
+                            ProcessedEmail.ticket_id == ticket_state.id,
+                            ProcessedEmail.gmail_message_id.isnot(None)
+                        ).order_by(ProcessedEmail.processed_at.desc()).first()
+
+                        if recent_supplier_email and recent_supplier_email.gmail_message_id:
+                            reply_to_message_id = recent_supplier_email.gmail_message_id
+                            thread_id = recent_supplier_email.gmail_thread_id
+
+                            # Extract subject from the original message to preserve it
+                            if recent_supplier_email.subject:
+                                subject = recent_supplier_email.subject
+                                # Ensure it starts with Re: if it's a reply
+                                if not subject.startswith('Re:'):
+                                    subject = f"Re: {subject}"
+
+                            logger.info(
+                                "Threading supplier reply",
+                                reply_to_message_id=reply_to_message_id,
+                                thread_id=thread_id,
+                                subject=subject
+                            )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to find previous supplier message for threading",
+                        error=str(e)
+                    )
+                    # Continue without threading
 
             result = gmail_sender.send_email(
                 to=email_address,
                 subject=subject,
                 body=message,
                 cc=cc_list,
-                attachments=attachments
+                attachments=attachments,
+                reply_to_message_id=reply_to_message_id,
+                thread_id=thread_id
             )
 
             logger.info(
                 "Supplier message sent via Gmail",
                 ticket_number=ticket_number,
                 message_id=result.get('id'),
+                threaded=bool(thread_id),
                 succeeded=True
             )
 
