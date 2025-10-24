@@ -1380,6 +1380,7 @@ async def refresh_ticket(
 
             # Extract tracking information
             ticket.tracking_number = sales_order.get("trackingNumber") or ticket.tracking_number
+            ticket.tracking_url = sales_order.get("trackingUrl") or ticket.tracking_url
             ticket.carrier_name = sales_order.get("carrierName") or ticket.carrier_name
             ticket.delivery_status = sales_order.get("deliveryStatus") or ticket.delivery_status
             ticket.expected_delivery_date = sales_order.get("expectedDeliveryDate") or ticket.expected_delivery_date
