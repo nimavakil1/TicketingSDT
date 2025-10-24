@@ -1403,6 +1403,16 @@ async def refresh_ticket(
             ticket.customer_phone = sales_order.get("deliveryCustomerPhoneNumber") or ticket.customer_phone
 
             # Extract tracking information
+            # Debug: log available tracking fields
+            logger.info(
+                "Tracking data from API",
+                ticket_number=ticket_number,
+                trackingNumber=sales_order.get("trackingNumber"),
+                trackingUrl=sales_order.get("trackingUrl"),
+                carrierName=sales_order.get("carrierName"),
+                deliveryStatus=sales_order.get("deliveryStatus"),
+                available_keys=[k for k in sales_order.keys() if 'track' in k.lower() or 'carrier' in k.lower()]
+            )
             ticket.tracking_number = sales_order.get("trackingNumber") or ticket.tracking_number
             ticket.tracking_url = sales_order.get("trackingUrl") or ticket.tracking_url
             ticket.carrier_name = sales_order.get("carrierName") or ticket.carrier_name

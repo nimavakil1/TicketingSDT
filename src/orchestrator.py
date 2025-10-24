@@ -969,6 +969,16 @@ class SupportAgentOrchestrator:
         customer_phone = sales_order.get('customerPhone', '')
 
         # Extract tracking information
+        # Debug: log available tracking fields
+        logger.info(
+            "Tracking data from API during ticket creation",
+            ticket_number=ticket_data.get('ticketNumber'),
+            trackingNumber=sales_order.get('trackingNumber'),
+            trackingUrl=sales_order.get('trackingUrl'),
+            carrierName=sales_order.get('carrierName'),
+            deliveryStatus=sales_order.get('deliveryStatus'),
+            available_keys=[k for k in sales_order.keys() if 'track' in k.lower() or 'carrier' in k.lower()]
+        )
         tracking_number = sales_order.get('trackingNumber', '')
         tracking_url = sales_order.get('trackingUrl', '')
         carrier_name = sales_order.get('carrierName', '')
