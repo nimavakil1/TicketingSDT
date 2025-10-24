@@ -179,6 +179,28 @@ class MessageService:
                     attachments=pending_message.attachments
                 )
 
+                # Save supplier message to database for message history
+                if result.get('succeeded'):
+                    import uuid
+                    from datetime import timezone
+
+                    recent_email = self.db.query(ProcessedEmail).filter(
+                        ProcessedEmail.ticket_id == ticket_state.id
+                    ).order_by(ProcessedEmail.processed_at.desc()).first()
+
+                    supplier_msg = ProcessedEmail(
+                        gmail_message_id=result.get('gmail_message_id', f"supplier_{ticket_state.ticket_number}_{uuid.uuid4().hex[:8]}"),
+                        gmail_thread_id=result.get('gmail_thread_id') or (recent_email.gmail_thread_id if recent_email else None),
+                        ticket_id=ticket_state.id,
+                        order_number=ticket_state.order_number,
+                        subject=pending_message.subject or f"To supplier - Ticket {ticket_state.ticket_number}",
+                        from_address=settings.gmail_support_email,
+                        message_body=pending_message.body,
+                        success=True,
+                        processed_at=datetime.now(timezone.utc)
+                    )
+                    self.db.add(supplier_msg)
+
             elif pending_message.message_type == "customer":
                 result = self.ticketing_client.send_message_to_customer(
                     ticket_number=ticket_state.ticket_number,
@@ -189,6 +211,28 @@ class MessageService:
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
                     attachments=pending_message.attachments
                 )
+
+                # Save customer message to database for message history
+                if result.get('succeeded'):
+                    import uuid
+                    from datetime import timezone
+
+                    recent_email = self.db.query(ProcessedEmail).filter(
+                        ProcessedEmail.ticket_id == ticket_state.id
+                    ).order_by(ProcessedEmail.processed_at.desc()).first()
+
+                    customer_msg = ProcessedEmail(
+                        gmail_message_id=result.get('gmail_message_id', f"customer_{ticket_state.ticket_number}_{uuid.uuid4().hex[:8]}"),
+                        gmail_thread_id=result.get('gmail_thread_id') or (recent_email.gmail_thread_id if recent_email else None),
+                        ticket_id=ticket_state.id,
+                        order_number=ticket_state.order_number,
+                        subject=pending_message.subject or f"To customer - Ticket {ticket_state.ticket_number}",
+                        from_address=settings.gmail_support_email,
+                        message_body=pending_message.body,
+                        success=True,
+                        processed_at=datetime.now(timezone.utc)
+                    )
+                    self.db.add(customer_msg)
 
             elif pending_message.message_type == "internal":
                 result = self.ticketing_client.send_internal_message(
