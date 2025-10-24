@@ -601,6 +601,14 @@ async def get_ticket_detail(
             message_type = "unknown"
             is_internal = False
 
+        # Convert processed_at to datetime if it's a string
+        if processed_at and isinstance(processed_at, str):
+            from dateutil import parser as date_parser
+            try:
+                processed_at = date_parser.parse(processed_at)
+            except:
+                processed_at = None
+
         message = {
             "id": f"db_{email_id}",
             "gmail_message_id": gmail_message_id,
