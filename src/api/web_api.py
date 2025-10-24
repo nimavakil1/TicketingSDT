@@ -1982,6 +1982,7 @@ async def get_ticket_attachments(
             ticket_id=att.ticket_id,
             filename=att.filename,
             original_filename=att.original_filename,
+            file_path=att.file_path,
             mime_type=att.mime_type,
             file_size=att.file_size,
             extraction_status=att.extraction_status,
