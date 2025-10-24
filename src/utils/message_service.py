@@ -58,7 +58,20 @@ class MessageService:
                 ticket_data=self._enrich_ticket_data(ticket_state, ticket_data),
                 subject=custom_subject
             )
-            recipient_email = ticket_state.supplier_email or self._get_supplier_email(ticket_data)
+            # Try multiple sources for supplier email
+            recipient_email = (
+                ticket_state.supplier_email or
+                self._get_supplier_email(ticket_data) or
+                self._lookup_supplier_email_from_db(ticket_state.supplier_name)
+            )
+
+            # Update ticket_state with the found email for future use
+            if recipient_email and not ticket_state.supplier_email:
+                ticket_state.supplier_email = recipient_email
+                self.db.commit()
+                logger.info("Updated ticket with supplier email",
+                           ticket_number=ticket_state.ticket_number,
+                           supplier_email=recipient_email)
 
         elif message_type == "customer":
             subject, body = self.formatter.format_customer_message(
@@ -480,3 +493,52 @@ class MessageService:
             return score / 100.0
 
         return None
+
+    def _lookup_supplier_email_from_db(self, supplier_name: Optional[str]) -> Optional[str]:
+        """
+        Look up supplier email from suppliers table by name
+
+        Args:
+            supplier_name: Name of supplier
+
+        Returns:
+            Supplier email if found, None otherwise
+        """
+        if not supplier_name:
+            return None
+
+        try:
+            from src.database.models import Supplier
+
+            # Try exact match first
+            supplier = self.db.query(Supplier).filter(
+                Supplier.name == supplier_name
+            ).first()
+
+            if supplier:
+                logger.info("Found supplier email from database",
+                           supplier_name=supplier_name,
+                           email=supplier.default_email)
+                return supplier.default_email
+
+            # Try partial match (for names like "2. Lyreco Deutschland GmbH")
+            supplier = self.db.query(Supplier).filter(
+                Supplier.name.contains(supplier_name.split('. ', 1)[-1] if '. ' in supplier_name else supplier_name)
+            ).first()
+
+            if supplier:
+                logger.info("Found supplier email from database (partial match)",
+                           supplier_name=supplier_name,
+                           matched_name=supplier.name,
+                           email=supplier.default_email)
+                return supplier.default_email
+
+            logger.warning("Supplier not found in database",
+                          supplier_name=supplier_name)
+            return None
+
+        except Exception as e:
+            logger.error("Failed to lookup supplier email",
+                        supplier_name=supplier_name,
+                        error=str(e))
+            return None
