@@ -293,8 +293,20 @@ class MessageFormatter:
         # Combine header with message body
         full_body = "\n".join(header_parts) + message_body
 
-        # Add signature
-        full_body += "\n\nBest regards,\nCustomer Support Team"
+        # Check if message already has a signature
+        signature_patterns = [
+            r'Mit freundlichen Gr[üu]ßen',
+            r'Best regards',
+            r'Kind regards',
+            r'Sincerely',
+            r'Ihr.*Team',
+            r'Your.*Team'
+        ]
+        has_signature = any(re.search(pattern, message_body, re.IGNORECASE) for pattern in signature_patterns)
+
+        # Add signature only if message doesn't already have one
+        if not has_signature:
+            full_body += "\n\nBest regards,\nCustomer Support Team"
 
         return full_body
 
@@ -319,8 +331,22 @@ class MessageFormatter:
             ticket_ref = f"Ticket Reference: {ticket_number}"
             signature = "Best regards,\nCustomer Support Team"
 
-        # Build full body
-        full_body = f"{greeting}\n\n{ref_line}\n{ticket_ref}\n\n{message_body}\n\n{signature}"
+        # Check if message already has a signature
+        signature_patterns = [
+            r'Mit freundlichen Gr[üu]ßen',
+            r'Best regards',
+            r'Kind regards',
+            r'Sincerely',
+            r'Ihr.*Team',
+            r'Your.*Team'
+        ]
+        has_signature = any(re.search(pattern, message_body, re.IGNORECASE) for pattern in signature_patterns)
+
+        # Build full body (only add signature if message doesn't already have one)
+        if has_signature:
+            full_body = f"{greeting}\n\n{ref_line}\n{ticket_ref}\n\n{message_body}"
+        else:
+            full_body = f"{greeting}\n\n{ref_line}\n{ticket_ref}\n\n{message_body}\n\n{signature}"
 
         return full_body
 
