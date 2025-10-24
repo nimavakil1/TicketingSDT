@@ -179,25 +179,29 @@ class MessageService:
         # Get ticket state
         ticket_state = pending_message.ticket
 
-        # If this is a supplier message and email is missing, try to look it up
-        if pending_message.message_type == "supplier" and not pending_message.recipient_email:
-            logger.warning("Supplier message missing recipient email, attempting lookup",
-                          pending_message_id=pending_message_id,
-                          ticket_number=ticket_state.ticket_number)
+        # If this is a supplier message and email is missing or invalid, try to look it up
+        if pending_message.message_type == "supplier":
+            # Check if email is missing or invalid (placeholder, no @, etc.)
+            email = pending_message.recipient_email
+            if not email or '@' not in email or 'SUPPLIER_EMAIL_HERE' in email or 'example.com' in email:
+                logger.warning("Supplier message has missing/invalid recipient email, attempting lookup",
+                              pending_message_id=pending_message_id,
+                              ticket_number=ticket_state.ticket_number,
+                              current_email=email)
 
-            supplier_email = self._lookup_supplier_email_from_db(ticket_state.supplier_name)
-            if supplier_email:
-                pending_message.recipient_email = supplier_email
-                ticket_state.supplier_email = supplier_email
-                self.db.commit()
-                logger.info("Updated pending message with supplier email",
-                           pending_message_id=pending_message_id,
-                           supplier_email=supplier_email)
-            else:
-                logger.error("Failed to find supplier email",
-                            pending_message_id=pending_message_id,
-                            supplier_name=ticket_state.supplier_name)
-                return False
+                supplier_email = self._lookup_supplier_email_from_db(ticket_state.supplier_name)
+                if supplier_email:
+                    pending_message.recipient_email = supplier_email
+                    ticket_state.supplier_email = supplier_email
+                    self.db.commit()
+                    logger.info("Updated pending message with supplier email",
+                               pending_message_id=pending_message_id,
+                               supplier_email=supplier_email)
+                else:
+                    logger.error("Failed to find supplier email",
+                                pending_message_id=pending_message_id,
+                                supplier_name=ticket_state.supplier_name)
+                    return False
 
         # Convert relative attachment paths to absolute paths
         absolute_attachments = None
