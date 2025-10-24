@@ -970,6 +970,7 @@ class SupportAgentOrchestrator:
 
         # Extract tracking information
         tracking_number = sales_order.get('trackingNumber', '')
+        tracking_url = sales_order.get('trackingUrl', '')
         carrier_name = sales_order.get('carrierName', '')
         delivery_status = sales_order.get('deliveryStatus', '')
         expected_delivery_date = sales_order.get('expectedDeliveryDate', '')
@@ -1016,6 +1017,7 @@ class SupportAgentOrchestrator:
             supplier_email=supplier_email,
             supplier_phone=supplier_phone,
             tracking_number=tracking_number,
+            tracking_url=tracking_url,
             carrier_name=carrier_name,
             delivery_status=delivery_status,
             expected_delivery_date=expected_delivery_date,

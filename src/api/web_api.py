@@ -1848,16 +1848,7 @@ async def save_internal_note(
         db.add(internal_note)
         db.commit()
 
-        # Also save to ticketing API so it shows up in the UI
-        try:
-            from src.api.ticketing_client import TicketingAPIClient
-            ticketing_client = TicketingAPIClient()
-            note_text = f"{request.subject}\n\n{request.body}" if request.subject else request.body
-            ticketing_client.add_internal_note(ticket_number, note_text)
-            logger.info("Internal note saved to ticketing API", ticket_number=ticket_number)
-        except Exception as api_error:
-            logger.warning("Failed to save internal note to ticketing API", error=str(api_error))
-            # Don't fail the whole request if ticketing API save fails
+        # Internal notes are only saved to database, not posted to old ticketing system
 
         # Log the internal comment
         log_message_sent(
