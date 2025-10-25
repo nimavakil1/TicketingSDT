@@ -1,0 +1,25 @@
+[Unit]
+Description=AI Support Agent Orchestrator (Email Processing)
+After=network.target
+
+[Service]
+Type=simple
+User=ai
+WorkingDirectory=/home/ai/TicketingSDT
+EnvironmentFile=/home/ai/TicketingSDT/.env
+ExecStart=/usr/bin/python3 /home/ai/TicketingSDT/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ai/TicketingSDT/logs/support_agent.log
+StandardError=append:/home/ai/TicketingSDT/logs/support_agent.log
+
+# Ensure only one instance runs
+RuntimeDirectory=support_agent_orchestrator
+PIDFile=/run/support_agent_orchestrator/orchestrator.pid
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
