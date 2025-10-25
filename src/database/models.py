@@ -504,6 +504,69 @@ class TicketAuditLog(Base):
         return f"<TicketAuditLog(id={self.id}, ticket_id={self.ticket_id}, action={self.action_type})>"
 
 
+class AIMessageExample(Base):
+    """
+    Store good and bad message examples for AI training and validation
+    Used to show the AI what to do and what not to do
+    """
+    __tablename__ = 'ai_message_examples'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    language = Column(String(10), nullable=False, index=True)  # 'de-DE', 'en-US', 'fr-FR', etc.
+    recipient_type = Column(String(20), nullable=False, index=True)  # 'customer' or 'supplier'
+    scenario = Column(String(50), nullable=False, index=True)  # 'tracking_inquiry', 'return_request', etc.
+
+    # Example content
+    example_type = Column(String(10), nullable=False, index=True)  # 'good' or 'bad'
+    message_text = Column(Text, nullable=False)
+
+    # Violation details (for bad examples)
+    violation_type = Column(String(50))  # 'language_mixing', 'wrong_signature', 'promise', 'wrong_language'
+    explanation = Column(Text)  # Why this is good/bad
+
+    # Management
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id = Column(Integer, ForeignKey('users.id'))
+
+    # Relationships
+    created_by = relationship('User', backref='created_message_examples')
+
+    def __repr__(self):
+        return f"<AIMessageExample(id={self.id}, lang={self.language}, type={self.example_type}, scenario={self.scenario})>"
+
+
+class BlockedPromisePhrase(Base):
+    """
+    Store phrases that should never appear in AI-generated messages
+    These are promises we don't want the AI to make to customers
+    """
+    __tablename__ = 'blocked_promise_phrases'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    language = Column(String(10), nullable=False, index=True)  # 'de-DE', 'en-US', 'fr-FR', etc.
+    phrase = Column(Text, nullable=False)
+    is_regex = Column(Boolean, default=False, nullable=False)
+
+    # Context
+    category = Column(String(50), index=True)  # 'time_promise', 'update_promise', 'guarantee', etc.
+    description = Column(String(255))  # Why this phrase is blocked
+    suggested_alternative = Column(Text)  # What to say instead
+
+    # Management
+    enabled = Column(Boolean, default=True, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id = Column(Integer, ForeignKey('users.id'))
+
+    # Relationships
+    created_by = relationship('User', backref='created_blocked_phrases')
+
+    def __repr__(self):
+        return f"<BlockedPromisePhrase(id={self.id}, lang={self.language}, phrase={self.phrase[:50]})>"
+
+
 # Database initialization
 def init_database(database_url: Optional[str] = None) -> sessionmaker:
     """
