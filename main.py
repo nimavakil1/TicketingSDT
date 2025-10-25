@@ -69,6 +69,8 @@ def main():
     )
     logger.info("=" * 60)
 
+    orchestrator = None
+
     try:
         # Initialize and run orchestrator
         orchestrator = SupportAgentOrchestrator()
@@ -80,6 +82,15 @@ def main():
 
     except Exception as e:
         logger.error("Fatal error", error=str(e), exc_info=True)
+
+        # Send alert if error alerting is configured
+        if orchestrator and hasattr(orchestrator, 'error_alerting') and orchestrator.error_alerting:
+            import traceback
+            orchestrator.error_alerting.alert_orchestrator_crash(
+                error_message=str(e),
+                traceback_str=traceback.format_exc()
+            )
+
         sys.exit(1)
 
 

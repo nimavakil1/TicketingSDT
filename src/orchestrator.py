@@ -14,6 +14,7 @@ from src.ai.ai_engine import AIEngine
 from src.dispatcher.action_dispatcher import ActionDispatcher
 from src.utils.supplier_manager import SupplierManager
 from src.utils.text_filter import TextFilter
+from src.utils.error_alerting import ErrorAlerting
 from src.database.models import (
     ProcessedEmail,
     TicketState,
@@ -47,6 +48,23 @@ class SupportAgentOrchestrator:
         self.gmail_monitor = GmailMonitor()
         self.ticketing_client = TicketingAPIClient()
         self.ai_engine = AIEngine()
+
+        # Initialize error alerting if configured
+        self.error_alerting = None
+        if settings.error_alerts_enabled and settings.error_alert_email:
+            try:
+                from src.email.gmail_sender import GmailSender
+                gmail_sender = GmailSender()
+                self.error_alerting = ErrorAlerting(
+                    alert_email=settings.error_alert_email,
+                    gmail_sender=gmail_sender,
+                    rate_limit_minutes=settings.error_alert_rate_limit_minutes
+                )
+                logger.info("Error alerting enabled", alert_email=settings.error_alert_email)
+            except Exception as e:
+                logger.warning("Failed to initialize error alerting", error=str(e))
+        else:
+            logger.info("Error alerting disabled")
 
         logger.info(
             "Orchestrator initialized",

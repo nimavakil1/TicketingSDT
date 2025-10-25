@@ -247,6 +247,21 @@ class Settings(BaseSettings):
         description="Minutes between retry attempts"
     )
 
+    # Error Alerting Configuration
+    error_alerts_enabled: bool = Field(
+        default=True,
+        description="Enable error alerting via email"
+    )
+    error_alert_email: str = Field(
+        default="",
+        description="Email address to send error alerts to (empty = disabled)"
+    )
+    error_alert_rate_limit_minutes: int = Field(
+        default=30,
+        ge=5,
+        description="Minimum minutes between alerts of same type"
+    )
+
     @field_validator('default_owner_id', 'supplier_reminder_hours', 'ai_max_tokens', 'email_poll_interval_seconds', 'gmail_max_results', 'gmail_lookback_minutes', mode='before')
     @classmethod
     def validate_integers(cls, v: Union[str, int]) -> int:
