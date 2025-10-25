@@ -239,7 +239,8 @@ class MessageService:
                     email_address=pending_message.recipient_email,
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
                     attachments=absolute_attachments,
-                    db_session=self.db
+                    db_session=self.db,
+                    subject=pending_message.subject
                 )
 
                 # Save supplier message to database for message history
@@ -273,7 +274,8 @@ class MessageService:
                     email_address=pending_message.recipient_email,
                     cc_email_address=",".join(pending_message.cc_emails) if pending_message.cc_emails else None,
                     attachments=absolute_attachments,
-                    db_session=self.db
+                    db_session=self.db,
+                    subject=pending_message.subject
                 )
 
                 # Save customer message to database for message history

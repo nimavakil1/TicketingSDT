@@ -188,7 +188,8 @@ class TicketingAPIClient:
         email_address: Optional[str] = None,
         cc_email_address: Optional[str] = None,
         attachments: Optional[List[str]] = None,
-        db_session = None
+        db_session = None,
+        subject: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Send a message to customer via Gmail API
@@ -222,8 +223,9 @@ class TicketingAPIClient:
             # Parse CC addresses
             cc_list = cc_email_address.split(',') if cc_email_address else None
 
-            # Build subject - will be used for new threads, preserved for existing threads
-            subject = f"Re: Ticket {ticket_number}"
+            # Use provided subject or build a default one
+            if not subject:
+                subject = f"Re: Ticket {ticket_number}"
 
             # Try to find the most recent customer message to thread the reply
             reply_to_message_id = None
@@ -248,13 +250,6 @@ class TicketingAPIClient:
                         if recent_customer_email and recent_customer_email.gmail_message_id:
                             reply_to_message_id = recent_customer_email.gmail_message_id
                             thread_id = recent_customer_email.gmail_thread_id
-
-                            # Extract subject from the original message to preserve it
-                            if recent_customer_email.subject:
-                                subject = recent_customer_email.subject
-                                # Ensure it starts with Re: if it's a reply
-                                if not subject.startswith('Re:'):
-                                    subject = f"Re: {subject}"
 
                             logger.info(
                                 "Threading customer reply",
@@ -310,7 +305,8 @@ class TicketingAPIClient:
         email_address: Optional[str] = None,
         cc_email_address: Optional[str] = None,
         attachments: Optional[List[str]] = None,
-        db_session = None
+        db_session = None,
+        subject: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Send a message to supplier via Gmail API
@@ -343,8 +339,9 @@ class TicketingAPIClient:
             # Parse CC addresses
             cc_list = cc_email_address.split(',') if cc_email_address else None
 
-            # Build subject - will be used for new threads, preserved for existing threads
-            subject = f"Re: Ticket {ticket_number}"
+            # Use provided subject or build a default one
+            if not subject:
+                subject = f"Re: Ticket {ticket_number}"
 
             # Try to find the most recent supplier message to thread the reply
             reply_to_message_id = None
@@ -370,13 +367,6 @@ class TicketingAPIClient:
                         if recent_supplier_email and recent_supplier_email.gmail_message_id:
                             reply_to_message_id = recent_supplier_email.gmail_message_id
                             thread_id = recent_supplier_email.gmail_thread_id
-
-                            # Extract subject from the original message to preserve it
-                            if recent_supplier_email.subject:
-                                subject = recent_supplier_email.subject
-                                # Ensure it starts with Re: if it's a reply
-                                if not subject.startswith('Re:'):
-                                    subject = f"Re: {subject}"
 
                             logger.info(
                                 "Threading supplier reply",
