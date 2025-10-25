@@ -1265,6 +1265,7 @@ class SupportAgentOrchestrator:
                 order_number=order_number,
                 subject=email_data.get('subject') or '',
                 from_address=email_data.get('from', ''),
+                message_body=email_data.get('body', ''),
                 success=success,
                 error_message=error_message
             )
