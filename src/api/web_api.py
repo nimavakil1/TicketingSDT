@@ -240,6 +240,77 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool]
 
 
+class AIMessageExampleInfo(BaseModel):
+    id: int
+    language: str
+    recipient_type: str
+    scenario: str
+    example_type: str
+    message_text: str
+    violation_type: Optional[str]
+    explanation: Optional[str]
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+    created_by_username: Optional[str] = None
+
+
+class AIMessageExampleCreate(BaseModel):
+    language: str
+    recipient_type: str
+    scenario: str
+    example_type: str
+    message_text: str
+    violation_type: Optional[str] = None
+    explanation: Optional[str] = None
+    enabled: bool = True
+
+
+class AIMessageExampleUpdate(BaseModel):
+    language: Optional[str] = None
+    recipient_type: Optional[str] = None
+    scenario: Optional[str] = None
+    example_type: Optional[str] = None
+    message_text: Optional[str] = None
+    violation_type: Optional[str] = None
+    explanation: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class BlockedPromisePhraseInfo(BaseModel):
+    id: int
+    language: str
+    phrase: str
+    is_regex: bool
+    category: Optional[str]
+    description: Optional[str]
+    suggested_alternative: Optional[str]
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+    created_by_username: Optional[str] = None
+
+
+class BlockedPromisePhraseCreate(BaseModel):
+    language: str
+    phrase: str
+    is_regex: bool = False
+    category: Optional[str] = None
+    description: Optional[str] = None
+    suggested_alternative: Optional[str] = None
+    enabled: bool = True
+
+
+class BlockedPromisePhraseUpdate(BaseModel):
+    language: Optional[str] = None
+    phrase: Optional[str] = None
+    is_regex: Optional[bool] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
+    suggested_alternative: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
 class TicketIdentifiersUpdate(BaseModel):
     order_number: Optional[str] = None
     purchase_order_number: Optional[str] = None
@@ -3761,6 +3832,324 @@ async def update_setting(
     logger.info(f"System setting updated: {key}={value} by user {current_user.username}")
 
     return {"key": key, "value": value, "message": "Setting updated successfully"}
+
+
+# ============================================================================
+# AI Message Examples Endpoints
+# ============================================================================
+
+@app.get("/api/ai-examples", response_model=List[AIMessageExampleInfo])
+async def get_ai_examples(
+    language: Optional[str] = None,
+    recipient_type: Optional[str] = None,
+    example_type: Optional[str] = None,
+    enabled_only: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all AI message examples with optional filters"""
+    from src.database.models import AIMessageExample
+
+    query = db.query(AIMessageExample)
+
+    if language:
+        query = query.filter(AIMessageExample.language == language)
+    if recipient_type:
+        query = query.filter(AIMessageExample.recipient_type == recipient_type)
+    if example_type:
+        query = query.filter(AIMessageExample.example_type == example_type)
+    if enabled_only:
+        query = query.filter(AIMessageExample.enabled == True)
+
+    examples = query.order_by(AIMessageExample.created_at.desc()).all()
+
+    return [
+        AIMessageExampleInfo(
+            id=ex.id,
+            language=ex.language,
+            recipient_type=ex.recipient_type,
+            scenario=ex.scenario,
+            example_type=ex.example_type,
+            message_text=ex.message_text,
+            violation_type=ex.violation_type,
+            explanation=ex.explanation,
+            enabled=ex.enabled,
+            created_at=ex.created_at,
+            updated_at=ex.updated_at,
+            created_by_username=ex.created_by.username if ex.created_by else None
+        )
+        for ex in examples
+    ]
+
+
+@app.post("/api/ai-examples", response_model=AIMessageExampleInfo)
+async def create_ai_example(
+    example: AIMessageExampleCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new AI message example"""
+    from src.database.models import AIMessageExample
+
+    new_example = AIMessageExample(
+        language=example.language,
+        recipient_type=example.recipient_type,
+        scenario=example.scenario,
+        example_type=example.example_type,
+        message_text=example.message_text,
+        violation_type=example.violation_type,
+        explanation=example.explanation,
+        enabled=example.enabled,
+        created_by_user_id=current_user.id
+    )
+
+    db.add(new_example)
+    db.commit()
+    db.refresh(new_example)
+
+    logger.info(f"AI example created by {current_user.username}", example_id=new_example.id)
+
+    return AIMessageExampleInfo(
+        id=new_example.id,
+        language=new_example.language,
+        recipient_type=new_example.recipient_type,
+        scenario=new_example.scenario,
+        example_type=new_example.example_type,
+        message_text=new_example.message_text,
+        violation_type=new_example.violation_type,
+        explanation=new_example.explanation,
+        enabled=new_example.enabled,
+        created_at=new_example.created_at,
+        updated_at=new_example.updated_at,
+        created_by_username=current_user.username
+    )
+
+
+@app.put("/api/ai-examples/{example_id}", response_model=AIMessageExampleInfo)
+async def update_ai_example(
+    example_id: int,
+    example_update: AIMessageExampleUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing AI message example"""
+    from src.database.models import AIMessageExample
+
+    example = db.query(AIMessageExample).filter(AIMessageExample.id == example_id).first()
+    if not example:
+        raise HTTPException(status_code=404, detail="Example not found")
+
+    # Update fields
+    if example_update.language is not None:
+        example.language = example_update.language
+    if example_update.recipient_type is not None:
+        example.recipient_type = example_update.recipient_type
+    if example_update.scenario is not None:
+        example.scenario = example_update.scenario
+    if example_update.example_type is not None:
+        example.example_type = example_update.example_type
+    if example_update.message_text is not None:
+        example.message_text = example_update.message_text
+    if example_update.violation_type is not None:
+        example.violation_type = example_update.violation_type
+    if example_update.explanation is not None:
+        example.explanation = example_update.explanation
+    if example_update.enabled is not None:
+        example.enabled = example_update.enabled
+
+    db.commit()
+    db.refresh(example)
+
+    logger.info(f"AI example updated by {current_user.username}", example_id=example.id)
+
+    return AIMessageExampleInfo(
+        id=example.id,
+        language=example.language,
+        recipient_type=example.recipient_type,
+        scenario=example.scenario,
+        example_type=example.example_type,
+        message_text=example.message_text,
+        violation_type=example.violation_type,
+        explanation=example.explanation,
+        enabled=example.enabled,
+        created_at=example.created_at,
+        updated_at=example.updated_at,
+        created_by_username=example.created_by.username if example.created_by else None
+    )
+
+
+@app.delete("/api/ai-examples/{example_id}")
+async def delete_ai_example(
+    example_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete an AI message example"""
+    from src.database.models import AIMessageExample
+
+    example = db.query(AIMessageExample).filter(AIMessageExample.id == example_id).first()
+    if not example:
+        raise HTTPException(status_code=404, detail="Example not found")
+
+    db.delete(example)
+    db.commit()
+
+    logger.info(f"AI example deleted by {current_user.username}", example_id=example_id)
+
+    return {"message": "Example deleted successfully"}
+
+
+# ============================================================================
+# Blocked Promise Phrases Endpoints
+# ============================================================================
+
+@app.get("/api/blocked-phrases", response_model=List[BlockedPromisePhraseInfo])
+async def get_blocked_phrases(
+    language: Optional[str] = None,
+    enabled_only: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all blocked promise phrases with optional filters"""
+    from src.database.models import BlockedPromisePhrase
+
+    query = db.query(BlockedPromisePhrase)
+
+    if language:
+        query = query.filter(BlockedPromisePhrase.language == language)
+    if enabled_only:
+        query = query.filter(BlockedPromisePhrase.enabled == True)
+
+    phrases = query.order_by(BlockedPromisePhrase.created_at.desc()).all()
+
+    return [
+        BlockedPromisePhraseInfo(
+            id=ph.id,
+            language=ph.language,
+            phrase=ph.phrase,
+            is_regex=ph.is_regex,
+            category=ph.category,
+            description=ph.description,
+            suggested_alternative=ph.suggested_alternative,
+            enabled=ph.enabled,
+            created_at=ph.created_at,
+            updated_at=ph.updated_at,
+            created_by_username=ph.created_by.username if ph.created_by else None
+        )
+        for ph in phrases
+    ]
+
+
+@app.post("/api/blocked-phrases", response_model=BlockedPromisePhraseInfo)
+async def create_blocked_phrase(
+    phrase: BlockedPromisePhraseCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new blocked promise phrase"""
+    from src.database.models import BlockedPromisePhrase
+
+    new_phrase = BlockedPromisePhrase(
+        language=phrase.language,
+        phrase=phrase.phrase,
+        is_regex=phrase.is_regex,
+        category=phrase.category,
+        description=phrase.description,
+        suggested_alternative=phrase.suggested_alternative,
+        enabled=phrase.enabled,
+        created_by_user_id=current_user.id
+    )
+
+    db.add(new_phrase)
+    db.commit()
+    db.refresh(new_phrase)
+
+    logger.info(f"Blocked phrase created by {current_user.username}", phrase_id=new_phrase.id)
+
+    return BlockedPromisePhraseInfo(
+        id=new_phrase.id,
+        language=new_phrase.language,
+        phrase=new_phrase.phrase,
+        is_regex=new_phrase.is_regex,
+        category=new_phrase.category,
+        description=new_phrase.description,
+        suggested_alternative=new_phrase.suggested_alternative,
+        enabled=new_phrase.enabled,
+        created_at=new_phrase.created_at,
+        updated_at=new_phrase.updated_at,
+        created_by_username=current_user.username
+    )
+
+
+@app.put("/api/blocked-phrases/{phrase_id}", response_model=BlockedPromisePhraseInfo)
+async def update_blocked_phrase(
+    phrase_id: int,
+    phrase_update: BlockedPromisePhraseUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing blocked promise phrase"""
+    from src.database.models import BlockedPromisePhrase
+
+    phrase = db.query(BlockedPromisePhrase).filter(BlockedPromisePhrase.id == phrase_id).first()
+    if not phrase:
+        raise HTTPException(status_code=404, detail="Phrase not found")
+
+    # Update fields
+    if phrase_update.language is not None:
+        phrase.language = phrase_update.language
+    if phrase_update.phrase is not None:
+        phrase.phrase = phrase_update.phrase
+    if phrase_update.is_regex is not None:
+        phrase.is_regex = phrase_update.is_regex
+    if phrase_update.category is not None:
+        phrase.category = phrase_update.category
+    if phrase_update.description is not None:
+        phrase.description = phrase_update.description
+    if phrase_update.suggested_alternative is not None:
+        phrase.suggested_alternative = phrase_update.suggested_alternative
+    if phrase_update.enabled is not None:
+        phrase.enabled = phrase_update.enabled
+
+    db.commit()
+    db.refresh(phrase)
+
+    logger.info(f"Blocked phrase updated by {current_user.username}", phrase_id=phrase.id)
+
+    return BlockedPromisePhraseInfo(
+        id=phrase.id,
+        language=phrase.language,
+        phrase=phrase.phrase,
+        is_regex=phrase.is_regex,
+        category=phrase.category,
+        description=phrase.description,
+        suggested_alternative=phrase.suggested_alternative,
+        enabled=phrase.enabled,
+        created_at=phrase.created_at,
+        updated_at=phrase.updated_at,
+        created_by_username=phrase.created_by.username if phrase.created_by else None
+    )
+
+
+@app.delete("/api/blocked-phrases/{phrase_id}")
+async def delete_blocked_phrase(
+    phrase_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a blocked promise phrase"""
+    from src.database.models import BlockedPromisePhrase
+
+    phrase = db.query(BlockedPromisePhrase).filter(BlockedPromisePhrase.id == phrase_id).first()
+    if not phrase:
+        raise HTTPException(status_code=404, detail="Phrase not found")
+
+    db.delete(phrase)
+    db.commit()
+
+    logger.info(f"Blocked phrase deleted by {current_user.username}", phrase_id=phrase_id)
+
+    return {"message": "Phrase deleted successfully"}
 
 
 # Include status management router
