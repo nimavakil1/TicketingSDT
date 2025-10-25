@@ -37,6 +37,22 @@ from src.scheduler.message_retry_scheduler import start_scheduler, stop_schedule
 
 logger = structlog.get_logger(__name__)
 
+
+# Helper function to get absolute attachments directory path
+def get_attachments_dir():
+    """Get absolute path to attachments directory"""
+    import os
+    from pathlib import Path
+
+    attachments_dir = settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments'
+    if not os.path.isabs(attachments_dir):
+        # Make relative paths absolute by prepending project root
+        project_root = Path(settings.get_project_root())
+        return project_root / attachments_dir
+    else:
+        return Path(attachments_dir)
+
+
 # FastAPI app
 app = FastAPI(
     title="AI Support Agent API",
@@ -1876,7 +1892,7 @@ async def send_email_via_gmail(
             import uuid
             from src.email.text_extractor import TextExtractor
 
-            base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+            base_dir = get_attachments_dir()
             email_dir = base_dir / f"email_{ticket_number}"
             email_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2104,11 +2120,10 @@ async def download_attachment(
         raise HTTPException(status_code=404, detail="Attachment not found")
 
     # Build full file path
-    import os
     from pathlib import Path
 
     # Attachments are stored in attachments directory
-    base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+    base_dir = get_attachments_dir()
     file_path = base_dir / attachment.file_path
 
     if not file_path.exists():
@@ -2134,11 +2149,10 @@ async def view_attachment(
         raise HTTPException(status_code=404, detail="Attachment not found")
 
     # Build full file path
-    import os
     from pathlib import Path
 
-    # Attachments are stored in attachments directory
-    base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+    # Attachments are stored in attachments directory relative to project root
+    base_dir = get_attachments_dir()
     file_path = base_dir / attachment.file_path
 
     if not file_path.exists():
@@ -2199,7 +2213,7 @@ async def upload_attachment(
             raise HTTPException(status_code=400, detail="File size exceeds 100MB limit")
 
         # Create upload directory for this ticket
-        base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+        base_dir = get_attachments_dir()
         upload_dir = base_dir / f"uploaded_{ticket_number}"
         upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2318,7 +2332,7 @@ async def delete_attachment(
         from pathlib import Path
 
         # Delete file from disk
-        base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+        base_dir = get_attachments_dir()
         file_path = base_dir / attachment.file_path
 
         if file_path.exists():

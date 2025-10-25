@@ -120,6 +120,12 @@ class Settings(BaseSettings):
         description="Database connection string"
     )
 
+    # Attachments Configuration
+    attachments_dir: str = Field(
+        default="attachments",
+        description="Directory for storing email attachments (relative to project root)"
+    )
+
     # Web UI Configuration
     jwt_secret_key: str = Field(
         default="change-this-secret-key-in-production-use-openssl-rand-hex-32",

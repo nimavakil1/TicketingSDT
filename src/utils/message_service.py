@@ -17,6 +17,21 @@ from config.settings import settings
 logger = structlog.get_logger(__name__)
 
 
+# Helper function to get absolute attachments directory path
+def get_attachments_dir():
+    """Get absolute path to attachments directory"""
+    import os
+    from pathlib import Path
+
+    attachments_dir = settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments'
+    if not os.path.isabs(attachments_dir):
+        # Make relative paths absolute by prepending project root
+        project_root = Path(settings.get_project_root())
+        return project_root / attachments_dir
+    else:
+        return Path(attachments_dir)
+
+
 class MessageService:
     """Service for managing pending messages and sending approved messages"""
 
@@ -206,8 +221,7 @@ class MessageService:
         # Convert relative attachment paths to absolute paths
         absolute_attachments = None
         if pending_message.attachments:
-            from pathlib import Path
-            base_dir = Path(settings.attachments_dir if hasattr(settings, 'attachments_dir') else 'attachments')
+            base_dir = get_attachments_dir()
             absolute_attachments = []
             for rel_path in pending_message.attachments:
                 abs_path = str(base_dir / rel_path)
