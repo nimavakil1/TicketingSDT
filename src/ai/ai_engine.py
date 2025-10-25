@@ -519,6 +519,38 @@ Now provide your response in the following JSON format:
   }
 }
 
+CRITICAL LANGUAGE RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULE 1: STRICT LANGUAGE CONSISTENCY
+- Customer messages: MUST be in {language} ONLY
+- Supplier messages: MUST be in {supplier_language or settings.supplier_default_language} ONLY
+- NEVER MIX LANGUAGES within the same message
+- NEVER use English for German/French customers
+- NEVER use German/French for English suppliers
+
+RULE 2: MANDATORY SIGNATURES (Copy these EXACTLY)
+For German messages: "Mit freundlichen Grüßen,\\nIhr Papersmart Team"
+For French messages: "Cordialement,\\nVotre équipe Papersmart"
+For English messages: "Best regards,\\nThe Papersmart Team"
+
+RULE 3: NEVER MAKE PROMISES
+DO NOT write phrases like:
+❌ "sobald wir eine Sendungsbestätigung haben, werden wir Sie informieren"
+❌ "we will update you as soon as we hear back"
+❌ "nous vous informerons dès que possible"
+❌ "wir werden uns bald bei Ihnen melden"
+
+Instead, state facts:
+✅ "Wir haben den Lieferanten kontaktiert"
+✅ "We have contacted the supplier"
+✅ "Nous avons contacté le fournisseur"
+
+RULE 4: LANGUAGE DECLARATION
+Your JSON response MUST include:
+"customer_response_language": "{language}"
+"supplier_message_language": "{supplier_language or settings.supplier_default_language}"
+
 Guidelines:
 1. Respond in the SAME language as the customer email ({language})
 2. Be polite, professional, and helpful
