@@ -10,6 +10,7 @@ import TicketDetail from './pages/TicketDetail';
 import AIDecisions from './pages/AIDecisions';
 import Feedback from './pages/Feedback';
 import Settings from './pages/Settings';
+import AIManagement from './pages/AIManagement';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -95,6 +96,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <Settings />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/ai-management"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <AIManagement />
             </Layout>
           </PrivateRoute>
         }
