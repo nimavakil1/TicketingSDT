@@ -228,31 +228,28 @@ const Tickets: React.FC = () => {
                 style={{ width: `${columnWidths.ticketNumber}px` }}
               >
                 <div className="mb-1">Ticket #</div>
-                <div className="flex gap-1">
-                  <select
-                    value={filters.ticketNumber.operator}
-                    onChange={(e) => handleOperatorChange('ticketNumber', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '110px' }}
-                    title="Filter operator"
-                  >
-                    <option value="contains">Contains</option>
-                    <option value="not_contains">Not contains</option>
-                    <option value="begins_with">Begins with</option>
-                    <option value="ends_with">Ends with</option>
-                    <option value="equals">Equals</option>
-                    <option value="not_equals">Not equals</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={filters.ticketNumber.value}
-                    onChange={(e) => handleFilterChange('ticketNumber', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Filter..."
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+                <select
+                  value={filters.ticketNumber.operator}
+                  onChange={(e) => handleOperatorChange('ticketNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  title="Filter operator"
+                >
+                  <option value="contains">Contains</option>
+                  <option value="not_contains">Not contains</option>
+                  <option value="begins_with">Begins with</option>
+                  <option value="ends_with">Ends with</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not equals</option>
+                </select>
+                <input
+                  type="text"
+                  value={filters.ticketNumber.value}
+                  onChange={(e) => handleFilterChange('ticketNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'ticketNumber')}
@@ -263,31 +260,28 @@ const Tickets: React.FC = () => {
                 style={{ width: `${columnWidths.status}px` }}
               >
                 <div className="mb-1">Status</div>
-                <div className="flex gap-1">
-                  <select
-                    value={filters.status.operator}
-                    onChange={(e) => handleOperatorChange('status', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '110px' }}
-                    title="Filter operator"
-                  >
-                    <option value="contains">Contains</option>
-                    <option value="not_contains">Not contains</option>
-                    <option value="begins_with">Begins with</option>
-                    <option value="ends_with">Ends with</option>
-                    <option value="equals">Equals</option>
-                    <option value="not_equals">Not equals</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={filters.status.value}
-                    onChange={(e) => handleFilterChange('status', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Filter..."
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+                <select
+                  value={filters.status.operator}
+                  onChange={(e) => handleOperatorChange('status', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  title="Filter operator"
+                >
+                  <option value="contains">Contains</option>
+                  <option value="not_contains">Not contains</option>
+                  <option value="begins_with">Begins with</option>
+                  <option value="ends_with">Ends with</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not equals</option>
+                </select>
+                <input
+                  type="text"
+                  value={filters.status.value}
+                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'status')}
@@ -298,31 +292,28 @@ const Tickets: React.FC = () => {
                 style={{ width: `${columnWidths.amazonOrder}px` }}
               >
                 <div className="mb-1">Amazon Order Nr</div>
-                <div className="flex gap-1">
-                  <select
-                    value={filters.amazonOrder.operator}
-                    onChange={(e) => handleOperatorChange('amazonOrder', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '110px' }}
-                    title="Filter operator"
-                  >
-                    <option value="contains">Contains</option>
-                    <option value="not_contains">Not contains</option>
-                    <option value="begins_with">Begins with</option>
-                    <option value="ends_with">Ends with</option>
-                    <option value="equals">Equals</option>
-                    <option value="not_equals">Not equals</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={filters.amazonOrder.value}
-                    onChange={(e) => handleFilterChange('amazonOrder', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Filter..."
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+                <select
+                  value={filters.amazonOrder.operator}
+                  onChange={(e) => handleOperatorChange('amazonOrder', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  title="Filter operator"
+                >
+                  <option value="contains">Contains</option>
+                  <option value="not_contains">Not contains</option>
+                  <option value="begins_with">Begins with</option>
+                  <option value="ends_with">Ends with</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not equals</option>
+                </select>
+                <input
+                  type="text"
+                  value={filters.amazonOrder.value}
+                  onChange={(e) => handleFilterChange('amazonOrder', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'amazonOrder')}
@@ -333,31 +324,28 @@ const Tickets: React.FC = () => {
                 style={{ width: `${columnWidths.transaction}px` }}
               >
                 <div className="mb-1">Transaction Nr</div>
-                <div className="flex gap-1">
-                  <select
-                    value={filters.transaction.operator}
-                    onChange={(e) => handleOperatorChange('transaction', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '110px' }}
-                    title="Filter operator"
-                  >
-                    <option value="contains">Contains</option>
-                    <option value="not_contains">Not contains</option>
-                    <option value="begins_with">Begins with</option>
-                    <option value="ends_with">Ends with</option>
-                    <option value="equals">Equals</option>
-                    <option value="not_equals">Not equals</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={filters.transaction.value}
-                    onChange={(e) => handleFilterChange('transaction', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Filter..."
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+                <select
+                  value={filters.transaction.operator}
+                  onChange={(e) => handleOperatorChange('transaction', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  title="Filter operator"
+                >
+                  <option value="contains">Contains</option>
+                  <option value="not_contains">Not contains</option>
+                  <option value="begins_with">Begins with</option>
+                  <option value="ends_with">Ends with</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not equals</option>
+                </select>
+                <input
+                  type="text"
+                  value={filters.transaction.value}
+                  onChange={(e) => handleFilterChange('transaction', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'transaction')}
@@ -368,31 +356,28 @@ const Tickets: React.FC = () => {
                 style={{ width: `${columnWidths.poNumber}px` }}
               >
                 <div className="mb-1">PO Number</div>
-                <div className="flex gap-1">
-                  <select
-                    value={filters.poNumber.operator}
-                    onChange={(e) => handleOperatorChange('poNumber', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '110px' }}
-                    title="Filter operator"
-                  >
-                    <option value="contains">Contains</option>
-                    <option value="not_contains">Not contains</option>
-                    <option value="begins_with">Begins with</option>
-                    <option value="ends_with">Ends with</option>
-                    <option value="equals">Equals</option>
-                    <option value="not_equals">Not equals</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={filters.poNumber.value}
-                    onChange={(e) => handleFilterChange('poNumber', e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Filter..."
-                    className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
+                <select
+                  value={filters.poNumber.operator}
+                  onChange={(e) => handleOperatorChange('poNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  title="Filter operator"
+                >
+                  <option value="contains">Contains</option>
+                  <option value="not_contains">Not contains</option>
+                  <option value="begins_with">Begins with</option>
+                  <option value="ends_with">Ends with</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not equals</option>
+                </select>
+                <input
+                  type="text"
+                  value={filters.poNumber.value}
+                  onChange={(e) => handleFilterChange('poNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
