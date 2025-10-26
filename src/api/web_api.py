@@ -650,7 +650,7 @@ async def link_email_to_order(
         email_data['manual_order_number'] = order_number
 
         # Reprocess the email
-        success = orchestrator.process_email(email_data)
+        success = orchestrator._process_single_email(email_data)
 
         if success:
             logger.info(
