@@ -234,15 +234,15 @@ const Tickets: React.FC = () => {
                     onChange={(e) => handleOperatorChange('ticketNumber', e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                     className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '45px', maxWidth: '45px' }}
+                    style={{ minWidth: '110px' }}
                     title="Filter operator"
                   >
-                    <option value="contains">⊃</option>
-                    <option value="not_contains">⊅</option>
-                    <option value="begins_with">^</option>
-                    <option value="ends_with">$</option>
-                    <option value="equals">=</option>
-                    <option value="not_equals">≠</option>
+                    <option value="contains">Contains</option>
+                    <option value="not_contains">Not contains</option>
+                    <option value="begins_with">Begins with</option>
+                    <option value="ends_with">Ends with</option>
+                    <option value="equals">Equals</option>
+                    <option value="not_equals">Not equals</option>
                   </select>
                   <input
                     type="text"
@@ -269,15 +269,15 @@ const Tickets: React.FC = () => {
                     onChange={(e) => handleOperatorChange('status', e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                     className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '45px', maxWidth: '45px' }}
+                    style={{ minWidth: '110px' }}
                     title="Filter operator"
                   >
-                    <option value="contains">⊃</option>
-                    <option value="not_contains">⊅</option>
-                    <option value="begins_with">^</option>
-                    <option value="ends_with">$</option>
-                    <option value="equals">=</option>
-                    <option value="not_equals">≠</option>
+                    <option value="contains">Contains</option>
+                    <option value="not_contains">Not contains</option>
+                    <option value="begins_with">Begins with</option>
+                    <option value="ends_with">Ends with</option>
+                    <option value="equals">Equals</option>
+                    <option value="not_equals">Not equals</option>
                   </select>
                   <input
                     type="text"
@@ -304,15 +304,15 @@ const Tickets: React.FC = () => {
                     onChange={(e) => handleOperatorChange('amazonOrder', e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                     className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '45px', maxWidth: '45px' }}
+                    style={{ minWidth: '110px' }}
                     title="Filter operator"
                   >
-                    <option value="contains">⊃</option>
-                    <option value="not_contains">⊅</option>
-                    <option value="begins_with">^</option>
-                    <option value="ends_with">$</option>
-                    <option value="equals">=</option>
-                    <option value="not_equals">≠</option>
+                    <option value="contains">Contains</option>
+                    <option value="not_contains">Not contains</option>
+                    <option value="begins_with">Begins with</option>
+                    <option value="ends_with">Ends with</option>
+                    <option value="equals">Equals</option>
+                    <option value="not_equals">Not equals</option>
                   </select>
                   <input
                     type="text"
@@ -339,15 +339,15 @@ const Tickets: React.FC = () => {
                     onChange={(e) => handleOperatorChange('transaction', e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                     className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '45px', maxWidth: '45px' }}
+                    style={{ minWidth: '110px' }}
                     title="Filter operator"
                   >
-                    <option value="contains">⊃</option>
-                    <option value="not_contains">⊅</option>
-                    <option value="begins_with">^</option>
-                    <option value="ends_with">$</option>
-                    <option value="equals">=</option>
-                    <option value="not_equals">≠</option>
+                    <option value="contains">Contains</option>
+                    <option value="not_contains">Not contains</option>
+                    <option value="begins_with">Begins with</option>
+                    <option value="ends_with">Ends with</option>
+                    <option value="equals">Equals</option>
+                    <option value="not_equals">Not equals</option>
                   </select>
                   <input
                     type="text"
@@ -374,15 +374,15 @@ const Tickets: React.FC = () => {
                     onChange={(e) => handleOperatorChange('poNumber', e.target.value)}
                     onClick={(e) => e.stopPropagation()}
                     className="px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                    style={{ minWidth: '45px', maxWidth: '45px' }}
+                    style={{ minWidth: '110px' }}
                     title="Filter operator"
                   >
-                    <option value="contains">⊃</option>
-                    <option value="not_contains">⊅</option>
-                    <option value="begins_with">^</option>
-                    <option value="ends_with">$</option>
-                    <option value="equals">=</option>
-                    <option value="not_equals">≠</option>
+                    <option value="contains">Contains</option>
+                    <option value="not_contains">Not contains</option>
+                    <option value="begins_with">Begins with</option>
+                    <option value="ends_with">Ends with</option>
+                    <option value="equals">Equals</option>
+                    <option value="not_equals">Not equals</option>
                   </select>
                   <input
                     type="text"
