@@ -3,7 +3,7 @@ import axios from 'axios';
 const client = axios.create({
   baseURL: window.location.hostname === 'localhost'
     ? 'http://localhost:8002'
-    : window.location.protocol + '//' + window.location.hostname + ':8002',
+    : '',  // Use relative URLs in production - nginx proxies /api/ to backend
   headers: {
     'Content-Type': 'application/json',
   },
