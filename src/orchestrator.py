@@ -231,6 +231,12 @@ class SupportAgentOrchestrator:
             body_text = email_data.get('body', '')
             identifiers = self.gmail_monitor.extract_identifiers(subject_text, body_text)
 
+            # Check for manually provided order number (takes priority)
+            manual_order = email_data.get('manual_order_number')
+            if manual_order:
+                logger.info("Using manually provided order number", order_number=manual_order)
+                identifiers['order_number'] = manual_order
+
             logger.info(
                 "Extracted identifiers from email",
                 gmail_id=gmail_message_id,
