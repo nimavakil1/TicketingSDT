@@ -864,15 +864,6 @@ const TicketDetail: React.FC = () => {
             <RefreshCw className={`h-4 w-4 ${reprocessing ? 'animate-spin' : ''}`} />
             {reprocessing ? 'Reprocessing...' : 'Reprocess'}
           </button>
-          <span
-            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-              ticket.escalated
-                ? 'bg-red-100 text-red-800'
-                : 'bg-green-100 text-green-800'
-            }`}
-          >
-            {ticket.status}
-          </span>
         </div>
       </div>
 

@@ -93,7 +93,7 @@ const Tickets: React.FC = () => {
 
     if (filters.status) {
       filtered = filtered.filter(ticket =>
-        ticket.status.toLowerCase().includes(filters.status.toLowerCase())
+        ticket.custom_status?.name.toLowerCase().includes(filters.status.toLowerCase())
       );
     }
 
@@ -320,15 +320,21 @@ const Tickets: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.status}px` }}>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      ticket.escalated
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-green-100 text-green-800'
-                    }`}
-                  >
-                    {ticket.status}
-                  </span>
+                  {ticket.custom_status ? (
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: ticket.custom_status.color + '20',
+                        color: ticket.custom_status.color
+                      }}
+                    >
+                      {ticket.custom_status.name}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      No status
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.amazonOrder}px` }}>
                   {ticket.order_number || '-'}
