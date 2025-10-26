@@ -505,11 +505,11 @@ Now provide your response in the following JSON format:
   "confidence": float between 0.0 and 1.0,
   "requires_escalation": boolean (true if complex, legal issue, very angry customer, or uncertain),
   "escalation_reason": "string explaining why escalation is needed, or null",
-  "customer_response": "the email response to send to the customer in their language, or null if escalation required",
+  "customer_response": "the email response to send to the customer in their language (almost always generate this - see rules below), or null only if truly not appropriate",
   "supplier_action": {
     "action": "request_tracking / request_return / notify_issue / null",
-    "message": "email to send to supplier in English"
-  } or null,
+    "message": "email to send to supplier in their language"
+  } or null (only generate when supplier contact is actually needed - see rules below),
   "summary": "brief summary of the issue and action taken",
   "conversation_updates": {
     "customer_summary": "updated summary of customer conversation state",
@@ -518,6 +518,45 @@ Now provide your response in the following JSON format:
     "supplier_requests": "what we're waiting for from supplier (if any)"
   }
 }
+
+CRITICAL: WHEN TO GENERATE EACH MESSAGE TYPE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CUSTOMER RESPONSE ("customer_response"):
+Generate in these cases:
+✅ Customer asks a question → Answer it
+✅ Customer reports an issue → Acknowledge and explain next steps
+✅ Customer says "thank you" or similar → Respond politely:
+   German: "Gerne! Wir stehen Ihnen jederzeit zur Verfügung."
+   French: "Avec plaisir ! Nous restons à votre disposition."
+   English: "You're welcome! We're always at your service."
+✅ Customer provides information we requested → Acknowledge receipt
+✅ We have new information to share (e.g., supplier responded) → Update customer
+✅ First contact from customer → Acknowledge and explain what we're doing
+
+IMPORTANT: Amazon requires responses within 24 hours, so respond to almost every customer message.
+
+Set to null ONLY in these rare cases:
+❌ We're escalating to human AND no immediate acknowledgment is appropriate
+❌ Message is spam or completely unrelated to the ticket
+
+SUPPLIER ACTION ("supplier_action"):
+Generate ONLY when we need something from the supplier:
+✅ Need tracking information → Request tracking
+✅ Need return authorization → Request RMA
+✅ Need to report customer complaint/damage → Notify supplier
+✅ Need order status update → Request status
+✅ Need to cancel/modify order → Request change
+
+Set to null in these cases:
+❌ Just acknowledging customer's thank you → No supplier action needed
+❌ Already waiting for supplier response → Don't send duplicate requests
+❌ Supplier already provided the information → No new request needed
+❌ Customer inquiry can be answered without supplier → No supplier contact needed
+❌ Just forwarding supplier's response to customer → No new supplier action
+
+INTERNAL NOTE:
+Always generated automatically for logging purposes.
 
 CRITICAL LANGUAGE RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
