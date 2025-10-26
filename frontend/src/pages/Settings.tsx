@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter } from 'lucide-react';
+import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter, Settings as SettingsIcon } from 'lucide-react';
 import client from '../api/client';
 import ReactDiffViewer from 'react-diff-viewer-continued';
+import { getSystemSetting, updateSystemSetting } from '../api/settings';
 
 interface SettingsData {
   deployment_phase: number;
@@ -45,10 +46,21 @@ interface IgnoreEmailPattern {
   created_at: string;
 }
 
+interface Supplier {
+  id: number;
+  supplier_number: number;
+  name: string;
+  default_email: string;
+  language_code: string;
+  contact_fields: Record<string, string>;
+  created_at: string;
+}
+
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'ai' | 'prompt' | 'filters'>('filters');
+  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'ai' | 'prompt' | 'filters' | 'suppliers'>('general');
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -84,6 +96,17 @@ const Settings: React.FC = () => {
     full_name: ''
   });
 
+  // Supplier form state
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [supplierForm, setSupplierForm] = useState({
+    supplier_number: '',
+    name: '',
+    default_email: '',
+    language_code: 'de-DE',
+    email_list: '' // Comma-separated list
+  });
+
   // Prompt improvement state
   const [feedbackCount, setFeedbackCount] = useState<number>(0);
   const [analyzing, setAnalyzing] = useState(false);
@@ -95,12 +118,18 @@ const Settings: React.FC = () => {
   const [changeSummary, setChangeSummary] = useState<string>('');
   const [showDiff, setShowDiff] = useState(false);
 
+  // General settings state
+  const [gmailMonitoringPaused, setGmailMonitoringPaused] = useState(false);
+  const [loadingPauseSetting, setLoadingPauseSetting] = useState(false);
+
   useEffect(() => {
     loadSettings();
     loadUsers();
+    loadSuppliers();
     loadFeedbackCount();
     loadSkipBlocks();
     loadIgnorePatterns();
+    loadGmailMonitoringSetting();
   }, []);
 
   const loadSettings = async () => {
@@ -139,9 +168,46 @@ const Settings: React.FC = () => {
     }
   };
 
+  const loadSuppliers = async () => {
+    try {
+      const response = await client.get('/api/suppliers');
+      setSuppliers(response.data);
+    } catch (error) {
+      console.error('Failed to load suppliers:', error);
+    }
+  };
+
   const showMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
+  };
+
+  const loadGmailMonitoringSetting = async () => {
+    try {
+      const setting = await getSystemSetting('gmail_monitoring_paused');
+      setGmailMonitoringPaused(setting.value === 'true');
+    } catch (error: any) {
+      // If setting doesn't exist yet, default to false
+      if (error.response?.status === 404) {
+        setGmailMonitoringPaused(false);
+      } else {
+        console.error('Failed to load Gmail monitoring setting:', error);
+      }
+    }
+  };
+
+  const handleToggleGmailMonitoring = async () => {
+    setLoadingPauseSetting(true);
+    try {
+      const newValue = !gmailMonitoringPaused;
+      await updateSystemSetting('gmail_monitoring_paused', newValue ? 'true' : 'false');
+      setGmailMonitoringPaused(newValue);
+      showMessage('success', `Gmail monitoring ${newValue ? 'paused' : 'resumed'} successfully`);
+    } catch (error: any) {
+      showMessage('error', `Failed to update Gmail monitoring: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setLoadingPauseSetting(false);
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -229,6 +295,91 @@ const Settings: React.FC = () => {
       password: '',
       role: user.role,
       full_name: ''
+    });
+  };
+
+  // Supplier management functions
+  const handleCreateSupplier = async () => {
+    if (!supplierForm.supplier_number || !supplierForm.name || !supplierForm.default_email) {
+      showMessage('error', 'Please fill in all required fields');
+      return;
+    }
+
+    try {
+      // Convert email list to contact_fields JSON
+      const emailList = supplierForm.email_list.split(',').map(e => e.trim()).filter(e => e);
+      const contactFields: Record<string, string> = {};
+      emailList.forEach((email, idx) => {
+        contactFields[`email_${idx + 1}`] = email;
+      });
+
+      const formData = new URLSearchParams();
+      formData.append('supplier_number', supplierForm.supplier_number);
+      formData.append('name', supplierForm.name);
+      formData.append('default_email', supplierForm.default_email);
+      formData.append('language_code', supplierForm.language_code);
+      formData.append('contact_fields', JSON.stringify(contactFields));
+
+      await client.post('/api/suppliers', formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      showMessage('success', `Supplier ${supplierForm.name} created successfully`);
+      setShowSupplierForm(false);
+      setSupplierForm({ supplier_number: '', name: '', default_email: '', language_code: 'de-DE', email_list: '' });
+      loadSuppliers();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to create supplier');
+    }
+  };
+
+  const handleUpdateSupplier = async (supplierId: number) => {
+    try {
+      // Convert email list to contact_fields JSON
+      const emailList = supplierForm.email_list.split(',').map(e => e.trim()).filter(e => e);
+      const contactFields: Record<string, string> = {};
+      emailList.forEach((email, idx) => {
+        contactFields[`email_${idx + 1}`] = email;
+      });
+
+      const formData = new URLSearchParams();
+      formData.append('default_email', supplierForm.default_email);
+      formData.append('language_code', supplierForm.language_code);
+      formData.append('contact_fields', JSON.stringify(contactFields));
+
+      await client.patch(`/api/suppliers/${supplierId}`, formData, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
+      showMessage('success', 'Supplier updated successfully');
+      setEditingSupplier(null);
+      setSupplierForm({ supplier_number: '', name: '', default_email: '', language_code: 'de-DE', email_list: '' });
+      loadSuppliers();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to update supplier');
+    }
+  };
+
+  const handleDeleteSupplier = async (supplierId: number, supplierName: string) => {
+    if (!confirm(`Are you sure you want to delete supplier "${supplierName}"?`)) return;
+
+    try {
+      await client.delete(`/api/suppliers/${supplierId}`);
+      showMessage('success', `Supplier ${supplierName} deleted successfully`);
+      loadSuppliers();
+    } catch (error: any) {
+      showMessage('error', error.response?.data?.detail || 'Failed to delete supplier');
+    }
+  };
+
+  const startEditSupplier = (supplier: Supplier) => {
+    setEditingSupplier(supplier);
+    // Convert contact_fields back to comma-separated list
+    const emailList = Object.values(supplier.contact_fields || {}).join(', ');
+    setSupplierForm({
+      supplier_number: supplier.supplier_number.toString(),
+      name: supplier.name,
+      default_email: supplier.default_email,
+      language_code: supplier.language_code,
+      email_list: emailList
     });
   };
 
@@ -553,6 +704,17 @@ const Settings: React.FC = () => {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('general')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'general'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <SettingsIcon className="inline-block h-5 w-5 mr-2" />
+            General Settings
+          </button>
+          <button
             onClick={() => setActiveTab('filters')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'filters'
@@ -596,8 +758,67 @@ const Settings: React.FC = () => {
             <Sparkles className="inline-block h-5 w-5 mr-2" />
             Prompt Improvement
           </button>
+          <button
+            onClick={() => setActiveTab('suppliers')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'suppliers'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Users className="inline-block h-5 w-5 mr-2" />
+            Suppliers
+          </button>
         </nav>
       </div>
+
+      {/* General Settings Tab */}
+      {activeTab === 'general' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">General System Settings</h2>
+
+          <div className="space-y-6">
+            {/* Gmail Monitoring Pause Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex-1">
+                <h3 className="text-base font-medium text-gray-900">Pause Gmail Monitoring</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Temporarily stop the system from checking and importing new emails from Gmail.
+                  This will pause all automatic ticket creation.
+                </p>
+                {gmailMonitoringPaused && (
+                  <div className="mt-2 flex items-center text-sm text-orange-600">
+                    <XCircle className="h-4 w-4 mr-1" />
+                    <span className="font-medium">Email monitoring is currently paused</span>
+                  </div>
+                )}
+              </div>
+              <div className="ml-6">
+                <button
+                  onClick={handleToggleGmailMonitoring}
+                  disabled={loadingPauseSetting}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    gmailMonitoringPaused ? 'bg-orange-600' : 'bg-green-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                      gmailMonitoringPaused ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> When Gmail monitoring is paused, the system will not check for new emails
+                or create tickets automatically. Existing tickets and manual operations will continue to work normally.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI Settings Tab */}
       {activeTab === 'ai' && settings && (
@@ -1530,6 +1751,206 @@ const Settings: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suppliers Tab */}
+      {activeTab === 'suppliers' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Suppliers</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Manage supplier language codes and email addresses for communication
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSupplierForm(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Supplier
+            </button>
+          </div>
+
+          {/* Create Supplier Form */}
+          {showSupplierForm && (
+            <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-medium text-gray-900">Create New Supplier</h3>
+                <button onClick={() => setShowSupplierForm(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  placeholder="Supplier Number *"
+                  value={supplierForm.supplier_number}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, supplier_number: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+                <input
+                  type="text"
+                  placeholder="Supplier Name *"
+                  value={supplierForm.name}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+                <input
+                  type="email"
+                  placeholder="Default Email *"
+                  value={supplierForm.default_email}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, default_email: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+                <select
+                  value={supplierForm.language_code}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, language_code: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                >
+                  <option value="de-DE">🇩🇪 German (DE)</option>
+                  <option value="fr-FR">🇫🇷 French (FR)</option>
+                  <option value="en-US">🇬🇧 English (EN)</option>
+                  <option value="nl-NL">🇳🇱 Dutch (NL)</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Additional Emails (comma-separated)"
+                  value={supplierForm.email_list}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, email_list: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                />
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={handleCreateSupplier}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Create Supplier
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Suppliers Table */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Number
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Supplier Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Default Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Language
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Additional Emails
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                      No suppliers configured. Add suppliers to manage their language preferences and email addresses.
+                    </td>
+                  </tr>
+                ) : (
+                  suppliers.map((supplier) => (
+                    <tr key={supplier.id}>
+                      {editingSupplier?.id === supplier.id ? (
+                        <>
+                          <td className="px-6 py-4 text-sm text-gray-500">{supplier.supplier_number}</td>
+                          <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="email"
+                              value={supplierForm.default_email}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, default_email: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900 w-full"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={supplierForm.language_code}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, language_code: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900"
+                            >
+                              <option value="de-DE">🇩🇪 DE</option>
+                              <option value="fr-FR">🇫🇷 FR</option>
+                              <option value="en-US">🇬🇧 EN</option>
+                              <option value="nl-NL">🇳🇱 NL</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4">
+                            <input
+                              type="text"
+                              value={supplierForm.email_list}
+                              onChange={(e) => setSupplierForm({ ...supplierForm, email_list: e.target.value })}
+                              className="px-2 py-1 border border-gray-300 rounded bg-white text-gray-900 w-full"
+                              placeholder="email1@example.com, email2@example.com"
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button
+                              onClick={() => handleUpdateSupplier(supplier.id)}
+                              className="text-green-600 hover:text-green-900"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingSupplier(null)}
+                              className="text-gray-600 hover:text-gray-900"
+                            >
+                              Cancel
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 text-sm font-medium text-gray-600">{supplier.supplier_number}</td>
+                          <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500">{supplier.default_email}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {supplier.language_code}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {Object.values(supplier.contact_fields || {}).join(', ') || '-'}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            <button
+                              onClick={() => startEditSupplier(supplier)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              <Edit2 className="h-4 w-4 inline" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSupplier(supplier.id, supplier.name)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="h-4 w-4 inline" />
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
