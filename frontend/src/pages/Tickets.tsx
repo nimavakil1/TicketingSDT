@@ -1,188 +1,363 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ticketsApi, Ticket } from '../api/tickets';
+import { AlertTriangle } from 'lucide-react';
+import { formatInCET } from '../utils/dateFormat';
+import Pagination from '../components/Pagination';
+
+const ITEMS_PER_PAGE = 50;
+
+interface ColumnWidths {
+  ticketNumber: number;
+  status: number;
+  amazonOrder: number;
+  transaction: number;
+  poNumber: number;
+  aiDecisions: number;
+  lastUpdated: number;
+}
+
+const DEFAULT_WIDTHS: ColumnWidths = {
+  ticketNumber: 150,
+  status: 120,
+  amazonOrder: 180,
+  transaction: 150,
+  poNumber: 150,
+  aiDecisions: 120,
+  lastUpdated: 180,
+};
 
 const Tickets: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [escalatedOnly, setEscalatedOnly] = useState(false);
+  const [showEscalated, setShowEscalated] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(DEFAULT_WIDTHS);
+  const [resizing, setResizing] = useState<string | null>(null);
+  const [filters, setFilters] = useState({
+    ticketNumber: '',
+    status: '',
+    amazonOrder: '',
+    transaction: '',
+    poNumber: '',
+  });
+  const startXRef = useRef<number>(0);
+  const startWidthRef = useRef<number>(0);
+  const navigate = useNavigate();
+
+  // Load column widths from localStorage
+  useEffect(() => {
+    const savedWidths = localStorage.getItem('ticketColumnWidths');
+    if (savedWidths) {
+      try {
+        setColumnWidths(JSON.parse(savedWidths));
+      } catch (e) {
+        console.error('Failed to parse saved column widths:', e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     loadTickets();
-  }, [escalatedOnly]);
+  }, [showEscalated, currentPage]);
 
   const loadTickets = async () => {
-    setLoading(true);
-    setError(null);
     try {
       const data = await ticketsApi.getTickets({
-        limit: 100,
-        escalated_only: escalatedOnly
+        limit: ITEMS_PER_PAGE,
+        offset: (currentPage - 1) * ITEMS_PER_PAGE,
+        escalated_only: showEscalated,
       });
       setTickets(data);
-    } catch (err: any) {
-      console.error('Failed to load tickets:', err);
-      setError(err.response?.data?.detail || 'Failed to load tickets');
+      setFilteredTickets(data);
+      // Estimate total based on whether we got a full page
+      setTotalItems(data.length === ITEMS_PER_PAGE ? currentPage * ITEMS_PER_PAGE + 1 : (currentPage - 1) * ITEMS_PER_PAGE + data.length);
+    } catch (error) {
+      console.error('Failed to load tickets:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
+  // Apply filters
+  useEffect(() => {
+    let filtered = tickets;
+
+    if (filters.ticketNumber) {
+      filtered = filtered.filter(ticket =>
+        ticket.ticket_number.toLowerCase().includes(filters.ticketNumber.toLowerCase())
+      );
+    }
+
+    if (filters.status) {
+      filtered = filtered.filter(ticket =>
+        ticket.status.toLowerCase().includes(filters.status.toLowerCase())
+      );
+    }
+
+    if (filters.amazonOrder) {
+      filtered = filtered.filter(ticket =>
+        ticket.order_number?.toLowerCase().includes(filters.amazonOrder.toLowerCase())
+      );
+    }
+
+    if (filters.transaction) {
+      filtered = filtered.filter(ticket =>
+        ticket.ticket_number.toLowerCase().includes(filters.transaction.toLowerCase())
+      );
+    }
+
+    if (filters.poNumber) {
+      filtered = filtered.filter(ticket =>
+        ticket.purchase_order_number?.toLowerCase().includes(filters.poNumber.toLowerCase())
+      );
+    }
+
+    setFilteredTickets(filtered);
+  }, [tickets, filters]);
+
+  const handleFilterChange = (column: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [column]: value,
+    }));
   };
 
-  const getStatusBadgeColor = (status: string) => {
-    const lowerStatus = status.toLowerCase();
-    if (lowerStatus.includes('closed') || lowerStatus.includes('resolved')) {
-      return 'bg-green-100 text-green-800';
-    }
-    if (lowerStatus.includes('pending') || lowerStatus.includes('waiting')) {
-      return 'bg-yellow-100 text-yellow-800';
-    }
-    if (lowerStatus.includes('open') || lowerStatus.includes('new')) {
-      return 'bg-blue-100 text-blue-800';
-    }
-    return 'bg-gray-100 text-gray-800';
+  const handleMouseDown = (e: React.MouseEvent, column: keyof ColumnWidths) => {
+    e.preventDefault();
+    setResizing(column);
+    startXRef.current = e.clientX;
+    startWidthRef.current = columnWidths[column];
   };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!resizing) return;
+    const diff = e.clientX - startXRef.current;
+    const newWidth = Math.max(80, startWidthRef.current + diff);
+    setColumnWidths((prev) => ({
+      ...prev,
+      [resizing]: newWidth,
+    }));
+  };
+
+  const handleMouseUp = () => {
+    if (resizing) {
+      localStorage.setItem('ticketColumnWidths', JSON.stringify(columnWidths));
+      setResizing(null);
+    }
+  };
+
+  useEffect(() => {
+    if (resizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [resizing, columnWidths]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Tickets</h1>
-          <p className="mt-2 text-gray-600">
-            View and manage support tickets
-          </p>
+          <p className="text-gray-600 mt-1">View and manage support tickets</p>
         </div>
-        <div className="flex items-center space-x-4">
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={escalatedOnly}
-              onChange={(e) => setEscalatedOnly(e.target.checked)}
-              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-            />
-            <span className="text-sm text-gray-700">Escalated only</span>
-          </label>
-          <button
-            onClick={loadTickets}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          >
-            Refresh
-          </button>
-        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showEscalated}
+            onChange={(e) => setShowEscalated(e.target.checked)}
+            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-sm font-medium text-gray-700">Show escalated only</span>
+        </label>
       </div>
 
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        </div>
-      ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ticket #
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Customer
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order #
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  PO #
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Updated
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  AI Decisions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tickets.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    No tickets found
-                  </td>
-                </tr>
-              ) : (
-                tickets.map((ticket) => (
-                  <tr
-                    key={ticket.ticket_number}
-                    className={ticket.escalated ? 'bg-red-50' : 'hover:bg-gray-50'}
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
+          <thead className="bg-gray-50">
+            <tr>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.ticketNumber}px` }}
+              >
+                <div className="mb-1">Ticket #</div>
+                <input
+                  type="text"
+                  value={filters.ticketNumber}
+                  onChange={(e) => handleFilterChange('ticketNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'ticketNumber')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.status}px` }}
+              >
+                <div className="mb-1">Status</div>
+                <input
+                  type="text"
+                  value={filters.status}
+                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'status')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.amazonOrder}px` }}
+              >
+                <div className="mb-1">Amazon Order Nr</div>
+                <input
+                  type="text"
+                  value={filters.amazonOrder}
+                  onChange={(e) => handleFilterChange('amazonOrder', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'amazonOrder')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.transaction}px` }}
+              >
+                <div className="mb-1">Transaction Nr</div>
+                <input
+                  type="text"
+                  value={filters.transaction}
+                  onChange={(e) => handleFilterChange('transaction', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'transaction')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.poNumber}px` }}
+              >
+                <div className="mb-1">PO Number</div>
+                <input
+                  type="text"
+                  value={filters.poNumber}
+                  onChange={(e) => handleFilterChange('poNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.aiDecisions}px` }}
+              >
+                <div className="mb-1">AI Decisions</div>
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'aiDecisions')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.lastUpdated}px` }}
+              >
+                <div className="mb-1">Last Updated</div>
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'lastUpdated')}
+                />
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredTickets.map((ticket) => (
+              <tr
+                key={ticket.ticket_number}
+                onClick={() => navigate(`/tickets/${ticket.ticket_number}`)}
+                className="hover:bg-gray-50 cursor-pointer"
+              >
+                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.ticketNumber}px` }}>
+                  <div className="flex items-center gap-2">
+                    {ticket.escalated && (
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                    )}
+                    <span className="text-sm font-medium text-gray-900">
+                      {ticket.ticket_number}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.status}px` }}>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      ticket.escalated
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-indigo-600">
-                          {ticket.ticket_number}
-                        </span>
-                        {ticket.escalated && (
-                          <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                            Escalated
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {ticket.custom_status ? (
-                        <span
-                          className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                          style={{
-                            backgroundColor: ticket.custom_status.color + '20',
-                            color: ticket.custom_status.color
-                          }}
-                        >
-                          {ticket.custom_status.name}
-                        </span>
-                      ) : (
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(ticket.status)}`}>
-                          {ticket.status}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {ticket.customer_name || 'N/A'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {ticket.customer_email}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {ticket.order_number || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {ticket.purchase_order_number || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
-                      {formatDate(ticket.last_updated)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-800 font-semibold">
-                        {ticket.ai_decision_count}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    {ticket.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.amazonOrder}px` }}>
+                  {ticket.order_number || '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.transaction}px` }}>
+                  {ticket.ticket_number}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.poNumber}px` }}>
+                  {ticket.purchase_order_number || '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.aiDecisions}px` }}>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    {ticket.ai_decision_count}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.lastUpdated}px` }}>
+                  {formatInCET(ticket.last_updated)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
+      </div>
     </div>
   );
 };
