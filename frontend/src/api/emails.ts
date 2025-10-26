@@ -5,7 +5,7 @@ export interface ProcessedEmail {
   gmail_message_id: string;
   subject: string;
   from_address: string;
-  order_number: string;
+  order_number: string | null;
   processed_at: string;
   success: boolean;
   error_message: string | null;
@@ -14,15 +14,15 @@ export interface ProcessedEmail {
 export interface RetryQueueItem {
   id: number;
   gmail_message_id: string;
-  subject: string | null;
-  from_address: string | null;
+  subject: string;
+  from_address: string;
   attempts: number;
-  next_attempt_at: string | null;
-  last_error: string | null;
+  next_attempt_at: string;
+  last_error: string;
 }
 
 export const emailsApi = {
-  getProcessed: async (params?: {
+  getProcessedEmails: async (params?: {
     limit?: number;
     offset?: number;
   }): Promise<ProcessedEmail[]> => {
@@ -30,8 +30,23 @@ export const emailsApi = {
     return response.data;
   },
 
-  getRetryQueue: async (): Promise<RetryQueueItem[]> => {
-    const response = await client.get('/api/emails/retry-queue');
+  getRetryQueue: async (params?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<RetryQueueItem[]> => {
+    const response = await client.get('/api/emails/retry-queue', { params });
+    return response.data;
+  },
+
+  linkEmailToOrder: async (emailId: number, orderNumber: string): Promise<any> => {
+    const formData = new FormData();
+    formData.append('order_number', orderNumber);
+
+    const response = await client.post(`/api/emails/${emailId}/link-order`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };

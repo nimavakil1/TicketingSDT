@@ -593,6 +593,99 @@ async def get_retry_queue(
     ]
 
 
+@app.post("/api/emails/{email_id}/link-order")
+async def link_email_to_order(
+    email_id: int,
+    order_number: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Manually link an email to an Amazon order number and reprocess it.
+    This allows creating a ticket when automatic extraction failed.
+    """
+    # Find the processed email
+    processed_email = db.query(ProcessedEmail).filter_by(id=email_id).first()
+    if not processed_email:
+        raise HTTPException(status_code=404, detail="Email not found")
+
+    logger.info(
+        "Manually linking email to order",
+        email_id=email_id,
+        gmail_id=processed_email.gmail_message_id,
+        order_number=order_number,
+        user_id=current_user.id
+    )
+
+    # Update the order_number in the processed email
+    processed_email.order_number = order_number
+    processed_email.success = False  # Mark as not successful to allow reprocessing
+    processed_email.error_message = f"Manually linked to order {order_number} by {current_user.username}"
+    db.commit()
+
+    # Remove from retry queue if present
+    retry_entry = db.query(RetryQueue).filter_by(
+        gmail_message_id=processed_email.gmail_message_id
+    ).first()
+    if retry_entry:
+        db.delete(retry_entry)
+        db.commit()
+        logger.info("Removed from retry queue", gmail_id=processed_email.gmail_message_id)
+
+    # Import orchestrator and reprocess
+    try:
+        from src.orchestrator import SupportAgentOrchestrator
+        from src.email.gmail_monitor import GmailMonitor
+
+        # Initialize components
+        gmail_monitor = GmailMonitor()
+        orchestrator = SupportAgentOrchestrator()
+
+        # Fetch fresh email data from Gmail
+        email_data = gmail_monitor._get_message_details(processed_email.gmail_message_id)
+        if not email_data:
+            raise HTTPException(status_code=404, detail="Could not fetch email from Gmail")
+
+        # Override the order number with the manually provided one
+        email_data['manual_order_number'] = order_number
+
+        # Reprocess the email
+        success = orchestrator.process_email(email_data)
+
+        if success:
+            logger.info(
+                "Email reprocessed successfully",
+                email_id=email_id,
+                order_number=order_number
+            )
+            return {
+                "success": True,
+                "message": f"Email linked to order {order_number} and reprocessed successfully"
+            }
+        else:
+            logger.error(
+                "Email reprocessing failed",
+                email_id=email_id,
+                order_number=order_number
+            )
+            return {
+                "success": False,
+                "message": "Email linked but reprocessing failed. Check logs for details."
+            }
+
+    except Exception as e:
+        logger.error(
+            "Failed to reprocess email",
+            email_id=email_id,
+            error=str(e),
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reprocess email: {str(e)}"
+        )
+
+
 # Ticket endpoints
 @app.get("/api/tickets", response_model=List[TicketInfo])
 async def get_tickets(

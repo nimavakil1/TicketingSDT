@@ -396,6 +396,12 @@ class SupportAgentOrchestrator:
 
     def _extract_order_number(self, email_data: Dict[str, Any]) -> Optional[str]:
         """Extract order number from email"""
+        # Check for manually provided order number first (takes priority)
+        manual_order = email_data.get('manual_order_number')
+        if manual_order:
+            logger.info("Using manually provided order number", order_number=manual_order)
+            return manual_order
+
         subject = email_data.get('subject') or ''
         body = email_data.get('body', '')
 
