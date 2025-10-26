@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter, Settings as SettingsIcon } from 'lucide-react';
+import { Users, Bot, Save, Plus, Trash2, Edit2, X, Brain, Sparkles, CheckCircle, XCircle, Loader, Filter, Settings as SettingsIcon, Tag } from 'lucide-react';
 import client from '../api/client';
 import ReactDiffViewer from 'react-diff-viewer-continued';
 import { getSystemSetting, updateSystemSetting } from '../api/settings';
+import StatusManagement from '../components/StatusManagement';
 
 interface SettingsData {
   deployment_phase: number;
@@ -57,7 +58,7 @@ interface Supplier {
 }
 
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'ai' | 'prompt' | 'filters' | 'suppliers'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'users' | 'ai' | 'prompt' | 'filters' | 'suppliers' | 'statuses'>('general');
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -768,6 +769,17 @@ const Settings: React.FC = () => {
           >
             <Users className="inline-block h-5 w-5 mr-2" />
             Suppliers
+          </button>
+          <button
+            onClick={() => setActiveTab('statuses')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'statuses'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <Tag className="inline-block h-5 w-5 mr-2" />
+            Statuses
           </button>
         </nav>
       </div>
@@ -1952,6 +1964,13 @@ const Settings: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Statuses Tab */}
+      {activeTab === 'statuses' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <StatusManagement />
         </div>
       )}
     </div>
