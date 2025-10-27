@@ -22,6 +22,7 @@ from src.database.models import (
     PendingEmailRetry,
     AIDecisionLog,
     Attachment,
+    CustomStatus,
     init_database
 )
 from src.utils.message_service import MessageService
@@ -299,6 +300,9 @@ class SupportAgentOrchestrator:
 
             ticket_id = ticket_data.get('ticketNumber')
             logger.info("Processing ticket", ticket_number=ticket_id)
+
+            # Update ticket status based on email sender (reopen closed tickets, mark supplier responses)
+            self._update_ticket_status_based_on_sender(session, ticket_state, email_data)
 
             # Build ticket history for AI context
             ticket_history = self._build_ticket_history(ticket_data)
@@ -1527,6 +1531,81 @@ class SupportAgentOrchestrator:
                     ticket_state.supplier_email = supplier_email
 
         session.flush()
+
+    def _update_ticket_status_based_on_sender(
+        self,
+        session,
+        ticket_state: TicketState,
+        email_data: Dict[str, Any]
+    ) -> None:
+        """
+        Update ticket status based on who sent the email:
+        - If ticket is closed → Reopen to 'Reopened' status
+        - If email from supplier → Set to 'Supplier responded' status
+
+        Args:
+            session: Database session
+            ticket_state: Current ticket state
+            email_data: Email information including 'from' address
+        """
+        from_address = email_data.get('from', '').lower()
+
+        # Determine if email is from supplier
+        is_from_supplier = False
+        if ticket_state.supplier_email:
+            is_from_supplier = from_address == ticket_state.supplier_email.lower()
+
+        # Check if ticket is currently closed
+        is_closed = False
+        if ticket_state.custom_status_id and ticket_state.custom_status:
+            is_closed = ticket_state.custom_status.is_closed
+
+        # Determine which status to set
+        target_status_name = None
+
+        if is_closed:
+            # Ticket is closed, reopen it
+            target_status_name = 'Reopened'
+            logger.info(
+                "Ticket is closed, will reopen due to new message",
+                ticket_number=ticket_state.ticket_number,
+                current_status=ticket_state.custom_status.name if ticket_state.custom_status else None,
+                from_address=from_address
+            )
+        elif is_from_supplier:
+            # Email is from supplier
+            target_status_name = 'Supplier responded'
+            logger.info(
+                "Email from supplier detected",
+                ticket_number=ticket_state.ticket_number,
+                supplier_email=ticket_state.supplier_email,
+                from_address=from_address
+            )
+
+        # Apply status change if needed
+        if target_status_name:
+            # Find the target status
+            target_status = session.query(CustomStatus).filter(
+                CustomStatus.name == target_status_name
+            ).first()
+
+            if target_status:
+                old_status_name = ticket_state.custom_status.name if ticket_state.custom_status else 'None'
+                ticket_state.custom_status_id = target_status.id
+                session.flush()
+                logger.info(
+                    "Updated ticket status",
+                    ticket_number=ticket_state.ticket_number,
+                    old_status=old_status_name,
+                    new_status=target_status_name,
+                    reason='closed_ticket_reopened' if is_closed else 'supplier_responded'
+                )
+            else:
+                logger.warning(
+                    f"Target status '{target_status_name}' not found in database",
+                    ticket_number=ticket_state.ticket_number,
+                    action='Please create this status in Settings > Statuses'
+                )
 
     def _log_ai_decision(
         self,
