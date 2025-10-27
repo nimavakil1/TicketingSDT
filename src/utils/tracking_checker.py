@@ -9,6 +9,13 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import structlog
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 logger = structlog.get_logger(__name__)
 
@@ -312,55 +319,100 @@ class TrackingChecker:
         house_number: str,
         tracking_url: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Check Trans-o-flex tracking (requires ZIP + house number)"""
-        base_url = "https://www.trans-o-flex.com/en/send-and-track/track-shipment/"
+        """Check Trans-o-flex tracking using Selenium (requires ZIP + house number)"""
+        tracking_url = tracking_url or f"https://www.trans-o-flex.com/sendungsverfolgung/?trackingnr={tracking_number}&plz={postal_code}&hnr={house_number}"
 
+        driver = None
         try:
-            # Try to submit the form with verification data
-            # Note: This endpoint/structure may need adjustment based on actual Trans-o-flex site
-            data = {
-                'txnr': tracking_number,
-                'plz': postal_code,
-                'hausnr': house_number
+            # Setup headless Chrome
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+            # Initialize driver
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+
+            logger.info("Loading Trans-o-flex page with Selenium", url=tracking_url)
+            driver.get(tracking_url)
+
+            # Wait for the page to load and render (wait for any element that indicates loaded content)
+            # Look for common tracking page elements
+            wait = WebDriverWait(driver, 15)
+
+            # Wait for the Angular app to load
+            wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+
+            # Give Angular time to render (additional wait)
+            import time
+            time.sleep(3)
+
+            # Get the page source after JavaScript rendering
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+
+            # Log some of the page content for debugging
+            logger.info("Trans-o-flex page loaded",
+                       title=driver.title,
+                       url=driver.current_url)
+
+            # Try multiple selectors to find status information
+            # Look for common patterns in tracking pages
+            status_text = None
+            location = None
+
+            # Common text patterns that indicate status
+            page_text = soup.get_text().lower()
+
+            # Check for delivery confirmation
+            if 'zugestellt' in page_text or 'delivered' in page_text or 'livré' in page_text:
+                status = TrackingStatus.DELIVERED
+                status_text = 'Delivered'
+            elif 'unterwegs' in page_text or 'in transit' in page_text or 'en route' in page_text:
+                status = TrackingStatus.IN_TRANSIT
+                status_text = 'In Transit'
+            elif 'abholbereit' in page_text or 'ready for pickup' in page_text:
+                status = TrackingStatus.OUT_FOR_DELIVERY
+                status_text = 'Ready for pickup'
+            else:
+                status = TrackingStatus.UNKNOWN
+                status_text = 'Tracking information available online'
+
+            # Try to extract more detailed status from specific elements
+            # Look for elements that might contain status info
+            for elem in soup.find_all(['div', 'span', 'p', 'h1', 'h2', 'h3']):
+                text = elem.get_text(strip=True)
+                if text and len(text) < 100:  # Reasonable status text length
+                    text_lower = text.lower()
+                    if any(keyword in text_lower for keyword in ['zugestellt', 'delivered', 'unterwegs', 'transit', 'abholbereit']):
+                        status_text = text
+                        break
+
+            return {
+                'status': status,
+                'status_text': status_text,
+                'last_update': datetime.now().isoformat(),
+                'location': location,
+                'estimated_delivery': None,
+                'tracking_url': tracking_url,
+                'carrier': 'Trans-o-flex',
+                'error': None
             }
 
-            response = self.session.post(base_url, data=data, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Parse Trans-o-flex tracking result
-            status_elem = soup.find('div', class_='tracking-status') or \
-                         soup.find('span', class_='status')
-
-            if status_elem:
-                status_text = status_elem.get_text(strip=True)
-                status = self._map_status_text_to_enum(status_text)
-
-                return {
-                    'status': status,
-                    'status_text': status_text,
-                    'last_update': datetime.now().isoformat(),
-                    'location': None,
-                    'estimated_delivery': None,
-                    'tracking_url': tracking_url or base_url,
-                    'carrier': 'Trans-o-flex',
-                    'error': None
-                }
-
-            return self._generic_success_result(
-                tracking_url or base_url,
-                'Trans-o-flex',
-                tracking_number
-            )
-
         except Exception as e:
-            logger.warning("Trans-o-flex tracking failed", error=str(e), tracking_number=tracking_number)
+            logger.error("Trans-o-flex Selenium tracking failed", error=str(e), tracking_number=tracking_number)
             return self._error_result(
-                str(e),
-                tracking_url=tracking_url or base_url,
+                f"Could not load tracking page: {str(e)}",
+                tracking_url=tracking_url,
                 carrier='Trans-o-flex'
             )
+        finally:
+            if driver:
+                driver.quit()
 
     def _build_transooflex_url(self, tracking_number: str) -> str:
         """Build Trans-o-flex tracking URL"""
