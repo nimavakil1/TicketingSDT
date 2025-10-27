@@ -12,9 +12,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# Cache for tracking results (tracking_number -> {status, checked_at, data})
-_tracking_cache: Dict[str, Dict[str, Any]] = {}
-CACHE_DURATION_HOURS = 2
+# Cache disabled for testing
 
 
 class TrackingStatus:
@@ -98,14 +96,6 @@ class TrackingChecker:
         if not tracking_number:
             return self._error_result("No tracking number provided")
 
-        # Check cache first
-        cache_key = f"{tracking_number}:{carrier_name}"
-        cached = self._get_from_cache(cache_key)
-        if cached:
-            logger.info("Using cached tracking result", tracking_number=tracking_number)
-            cached['cached'] = True
-            return cached
-
         # Normalize carrier name
         carrier_normalized = self._normalize_carrier_name(carrier_name) if carrier_name else None
 
@@ -137,10 +127,6 @@ class TrackingChecker:
                     'error': None,
                     'cached': False
                 }
-
-            # Cache successful result
-            if not result.get('error'):
-                self._save_to_cache(cache_key, result)
 
             result['cached'] = False
             return result
@@ -436,41 +422,3 @@ class TrackingChecker:
             'error': error_msg
         }
 
-    def _get_from_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        """Get tracking result from cache if still valid"""
-        if cache_key in _tracking_cache:
-            cached = _tracking_cache[cache_key]
-            checked_at = cached.get('checked_at')
-
-            if checked_at:
-                age = datetime.now() - checked_at
-                if age < timedelta(hours=CACHE_DURATION_HOURS):
-                    return cached.get('data')
-
-        return None
-
-    def _save_to_cache(self, cache_key: str, result: Dict[str, Any]):
-        """Save tracking result to cache"""
-        _tracking_cache[cache_key] = {
-            'checked_at': datetime.now(),
-            'data': result
-        }
-
-        # Simple cache cleanup - remove old entries if cache grows too large
-        if len(_tracking_cache) > 1000:
-            self._cleanup_cache()
-
-    def _cleanup_cache(self):
-        """Remove expired entries from cache"""
-        now = datetime.now()
-        expired_keys = []
-
-        for key, value in _tracking_cache.items():
-            checked_at = value.get('checked_at')
-            if checked_at and (now - checked_at) > timedelta(hours=CACHE_DURATION_HOURS):
-                expired_keys.append(key)
-
-        for key in expired_keys:
-            del _tracking_cache[key]
-
-        logger.info("Cleaned up tracking cache", removed=len(expired_keys), remaining=len(_tracking_cache))
