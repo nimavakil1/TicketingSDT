@@ -1058,6 +1058,83 @@ async def get_ticket_detail(
     }
 
 
+@app.get("/api/tickets/{ticket_number}/check-tracking")
+async def check_ticket_tracking(
+    ticket_number: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Check live tracking status for a ticket"""
+    # Get ticket from database
+    ticket = db.query(TicketState).filter(
+        TicketState.ticket_number == ticket_number
+    ).first()
+
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Check if we have tracking info
+    if not ticket.tracking_number:
+        return {
+            'success': False,
+            'error': 'No tracking number available for this ticket',
+            'tracking_number': None,
+            'carrier': None,
+            'tracking_url': ticket.tracking_url,
+            'status': None
+        }
+
+    # Use tracking checker
+    try:
+        from src.utils.tracking_checker import TrackingChecker, extract_house_number
+
+        # Extract house number from address
+        house_number = extract_house_number(ticket.customer_address) if ticket.customer_address else None
+
+        checker = TrackingChecker()
+        result = checker.check_tracking(
+            tracking_number=ticket.tracking_number,
+            carrier_name=ticket.carrier_name,
+            tracking_url=ticket.tracking_url,
+            postal_code=ticket.customer_postal_code,
+            house_number=house_number
+        )
+
+        logger.info(
+            "Manual tracking check from UI",
+            ticket_number=ticket_number,
+            tracking_number=ticket.tracking_number,
+            carrier=ticket.carrier_name,
+            status=result.get('status'),
+            user=current_user.username
+        )
+
+        return {
+            'success': True,
+            'error': result.get('error'),
+            'tracking_number': ticket.tracking_number,
+            'carrier': result.get('carrier', ticket.carrier_name),
+            'tracking_url': result.get('tracking_url', ticket.tracking_url),
+            'status': result.get('status'),
+            'status_text': result.get('status_text'),
+            'last_update': result.get('last_update'),
+            'location': result.get('location'),
+            'estimated_delivery': result.get('estimated_delivery'),
+            'cached': result.get('cached', False)
+        }
+
+    except Exception as e:
+        logger.error("Failed to check tracking from UI", error=str(e), ticket_number=ticket_number)
+        return {
+            'success': False,
+            'error': f'Failed to check tracking: {str(e)}',
+            'tracking_number': ticket.tracking_number,
+            'carrier': ticket.carrier_name,
+            'tracking_url': ticket.tracking_url,
+            'status': None
+        }
+
+
 class ReprocessRequest(BaseModel):
     force_merge: bool = False  # If True, merge with found ticket even if it's different
 

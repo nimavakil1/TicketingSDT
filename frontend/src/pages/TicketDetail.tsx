@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ticketsApi, TicketDetail as TicketDetailType, Ticket, CustomStatus, Attachment } from '../api/tickets';
-import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send, Paperclip, Download, Trash2, Upload, Eye, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle, Clock, MessageSquare, User, Lock, ThumbsUp, ThumbsDown, ChevronLeft, ChevronRight, RefreshCw, Send, Paperclip, Download, Trash2, Upload, Eye, X, ChevronDown, ChevronUp, Truck } from 'lucide-react';
 import client from '../api/client';
 import { formatInCET } from '../utils/dateFormat';
 import { messagesApi, PendingMessage } from '../api/messages';
@@ -53,6 +53,8 @@ const TicketDetail: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [attachmentsExpanded, setAttachmentsExpanded] = useState(false);
   const [aiDecisionsExpanded, setAiDecisionsExpanded] = useState(false);
+  const [checkingTracking, setCheckingTracking] = useState(false);
+  const [trackingResult, setTrackingResult] = useState<any>(null);
 
   const stripHtml = (html: string): string => {
     // Remove HTML tags and decode entities
@@ -754,6 +756,25 @@ const TicketDetail: React.FC = () => {
     }
   };
 
+  const handleCheckTracking = async () => {
+    if (!ticketNumber) return;
+
+    setCheckingTracking(true);
+    setTrackingResult(null);
+    try {
+      const response = await client.get(`/api/tickets/${ticketNumber}/check-tracking`);
+      setTrackingResult(response.data);
+    } catch (err: any) {
+      console.error('Failed to check tracking:', err);
+      setTrackingResult({
+        success: false,
+        error: err.response?.data?.detail || 'Failed to check tracking'
+      });
+    } finally {
+      setCheckingTracking(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -864,6 +885,15 @@ const TicketDetail: React.FC = () => {
             <RefreshCw className={`h-4 w-4 ${reprocessing ? 'animate-spin' : ''}`} />
             {reprocessing ? 'Reprocessing...' : 'Reprocess'}
           </button>
+          <button
+            onClick={handleCheckTracking}
+            disabled={checkingTracking}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Check live tracking status"
+          >
+            <Truck className={`h-4 w-4 ${checkingTracking ? 'animate-pulse' : ''}`} />
+            {checkingTracking ? 'Checking...' : 'Check Tracking'}
+          </button>
         </div>
       </div>
 
@@ -871,6 +901,99 @@ const TicketDetail: React.FC = () => {
       {reprocessMessage && (
         <div className={`p-4 rounded-lg ${reprocessMessage.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
           {reprocessMessage.text}
+        </div>
+      )}
+
+      {/* Tracking Result */}
+      {trackingResult && (
+        <div className={`p-6 rounded-lg ${trackingResult.success ? 'bg-blue-50 border-2 border-blue-200' : 'bg-red-50 border-2 border-red-200'}`}>
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Truck className={`h-6 w-6 ${trackingResult.success ? 'text-blue-600' : 'text-red-600'}`} />
+              <h3 className="text-lg font-semibold text-gray-900">Live Tracking Status</h3>
+            </div>
+            <button
+              onClick={() => setTrackingResult(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {trackingResult.success ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Carrier</p>
+                  <p className="text-base font-medium text-gray-900">{trackingResult.carrier || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Tracking Number</p>
+                  <p className="text-base font-medium text-gray-900">{trackingResult.tracking_number || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Current Status</p>
+                  <p className="text-base font-semibold text-blue-700">{trackingResult.status_text || 'Unknown'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Status Code</p>
+                  <p className="text-base font-mono text-gray-700">{trackingResult.status || 'unknown'}</p>
+                </div>
+                {trackingResult.location && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Current Location</p>
+                    <p className="text-base font-medium text-gray-900">{trackingResult.location}</p>
+                  </div>
+                )}
+                {trackingResult.estimated_delivery && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Estimated Delivery</p>
+                    <p className="text-base font-medium text-gray-900">{trackingResult.estimated_delivery}</p>
+                  </div>
+                )}
+                {trackingResult.last_update && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Last Update</p>
+                    <p className="text-base text-gray-700">{new Date(trackingResult.last_update).toLocaleString()}</p>
+                  </div>
+                )}
+              </div>
+              {trackingResult.tracking_url && (
+                <div className="mt-4 pt-4 border-t border-blue-200">
+                  <a
+                    href={trackingResult.tracking_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline text-sm"
+                  >
+                    View on carrier website →
+                  </a>
+                </div>
+              )}
+              {trackingResult.cached && (
+                <div className="mt-2 text-xs text-gray-500 italic">
+                  ℹ️ Result cached (checked within last 2 hours)
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-red-800">
+              <p className="font-medium mb-2">Unable to check tracking</p>
+              <p className="text-sm">{trackingResult.error || 'Unknown error'}</p>
+              {trackingResult.tracking_url && (
+                <div className="mt-4">
+                  <a
+                    href={trackingResult.tracking_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-red-600 hover:text-red-800 underline text-sm"
+                  >
+                    Try checking on carrier website →
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
