@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, RetryQueue, User, PendingMessage, MessageTemplate, Attachment, TicketAuditLog, CustomStatus, init_database
+from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, PendingEmailRetry, User, PendingMessage, MessageTemplate, Attachment, TicketAuditLog, CustomStatus, init_database
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
@@ -575,8 +575,8 @@ async def get_retry_queue(
     offset: int = 0
 ):
     """Get emails in retry queue (most recent first)"""
-    retries = db.query(RetryQueue).order_by(
-        RetryQueue.created_at.desc()
+    retries = db.query(PendingEmailRetry).order_by(
+        PendingEmailRetry.created_at.desc()
     ).offset(offset).limit(limit).all()
 
     return [
@@ -667,7 +667,7 @@ async def get_retry_queue_details(
     db: Session = Depends(get_db)
 ):
     """Get detailed information about a retry queue item including body"""
-    retry_item = db.query(RetryQueue).filter_by(id=retry_id).first()
+    retry_item = db.query(PendingEmailRetry).filter_by(id=retry_id).first()
     if not retry_item:
         raise HTTPException(status_code=404, detail="Retry queue item not found")
 
