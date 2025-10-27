@@ -9,6 +9,17 @@ export interface ProcessedEmail {
   processed_at: string;
   success: boolean;
   error_message: string | null;
+  message_body?: string;
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAttachment {
+  id: number;
+  filename: string;
+  original_filename: string;
+  mime_type: string | null;
+  file_size: number | null;
+  created_at: string;
 }
 
 export interface RetryQueueItem {
@@ -46,6 +57,18 @@ export const emailsApi = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+    });
+    return response.data;
+  },
+
+  getEmailDetails: async (emailId: number): Promise<ProcessedEmail> => {
+    const response = await client.get(`/api/emails/${emailId}/details`);
+    return response.data;
+  },
+
+  downloadAttachment: async (attachmentId: number): Promise<Blob> => {
+    const response = await client.get(`/api/emails/attachments/${attachmentId}/download`, {
+      responseType: 'blob',
     });
     return response.data;
   },

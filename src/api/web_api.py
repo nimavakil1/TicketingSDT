@@ -593,6 +593,73 @@ async def get_retry_queue(
     ]
 
 
+@app.get("/api/emails/{email_id}/details")
+async def get_email_details(
+    email_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information about a processed email including body and attachments"""
+    processed_email = db.query(ProcessedEmail).filter_by(id=email_id).first()
+    if not processed_email:
+        raise HTTPException(status_code=404, detail="Email not found")
+
+    # Fetch attachments for this email
+    attachments = db.query(Attachment).filter_by(processed_email_id=email_id).all()
+
+    return {
+        "id": processed_email.id,
+        "gmail_message_id": processed_email.gmail_message_id,
+        "subject": processed_email.subject or "N/A",
+        "from_address": processed_email.from_address or "N/A",
+        "order_number": processed_email.order_number or "N/A",
+        "processed_at": ensure_utc(processed_email.processed_at),
+        "success": getattr(processed_email, 'success', True),
+        "error_message": getattr(processed_email, 'error_message', None),
+        "message_body": processed_email.message_body,
+        "attachments": [
+            {
+                "id": att.id,
+                "filename": att.filename,
+                "original_filename": att.original_filename,
+                "mime_type": att.mime_type,
+                "file_size": att.file_size,
+                "created_at": ensure_utc(att.created_at)
+            }
+            for att in attachments
+        ]
+    }
+
+
+@app.get("/api/emails/attachments/{attachment_id}/download")
+async def download_attachment(
+    attachment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Download an attachment file"""
+    from fastapi.responses import FileResponse
+    import os
+
+    attachment = db.query(Attachment).filter_by(id=attachment_id).first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    # Construct full file path
+    attachments_dir = settings.attachments_directory
+    full_path = os.path.join(attachments_dir, attachment.file_path)
+
+    if not os.path.exists(full_path):
+        logger.error("Attachment file not found on disk", path=full_path, attachment_id=attachment_id)
+        raise HTTPException(status_code=404, detail="Attachment file not found")
+
+    return FileResponse(
+        path=full_path,
+        filename=attachment.original_filename,
+        media_type=attachment.mime_type or 'application/octet-stream'
+    )
+
+
 @app.post("/api/emails/{email_id}/link-order")
 async def link_email_to_order(
     email_id: int,

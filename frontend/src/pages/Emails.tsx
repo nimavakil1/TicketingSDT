@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { emailsApi, ProcessedEmail } from '../api/emails';
+import { emailsApi, ProcessedEmail, EmailAttachment } from '../api/emails';
+import { ChevronDown, ChevronRight, Download, FileText, Image as ImageIcon } from 'lucide-react';
 
 const Emails: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'processed' | 'retry'>('processed');
@@ -10,6 +11,9 @@ const Emails: React.FC = () => {
   const [selectedEmail, setSelectedEmail] = useState<ProcessedEmail | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [linking, setLinking] = useState(false);
+  const [expandedEmailId, setExpandedEmailId] = useState<number | null>(null);
+  const [emailDetails, setEmailDetails] = useState<Map<number, ProcessedEmail>>(new Map());
+  const [loadingDetails, setLoadingDetails] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -70,6 +74,56 @@ const Emails: React.FC = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
+  };
+
+  const toggleEmailExpansion = async (emailId: number) => {
+    if (expandedEmailId === emailId) {
+      // Collapse
+      setExpandedEmailId(null);
+    } else {
+      // Expand and fetch details if not already loaded
+      setExpandedEmailId(emailId);
+      if (!emailDetails.has(emailId)) {
+        setLoadingDetails(emailId);
+        try {
+          const details = await emailsApi.getEmailDetails(emailId);
+          setEmailDetails(new Map(emailDetails.set(emailId, details)));
+        } catch (error) {
+          console.error('Failed to load email details:', error);
+          alert('Failed to load email details');
+        } finally {
+          setLoadingDetails(null);
+        }
+      }
+    }
+  };
+
+  const handleDownloadAttachment = async (attachmentId: number, filename: string) => {
+    try {
+      const blob = await emailsApi.downloadAttachment(attachmentId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download attachment:', error);
+      alert('Failed to download attachment');
+    }
+  };
+
+  const formatFileSize = (bytes: number | null): string => {
+    if (!bytes) return 'Unknown';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const isImageAttachment = (mimeType: string | null): boolean => {
+    return mimeType?.startsWith('image/') || false;
   };
 
   return (
@@ -140,43 +194,131 @@ const Emails: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {emails.map((email) => (
-                    <tr key={email.id} className={!email.success ? 'bg-red-50' : ''}>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {email.subject}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {email.from_address}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {email.order_number || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {formatDate(email.processed_at)}
-                      </td>
-                      <td className="px-6 py-4">
-                        {email.success ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            Success
-                          </span>
-                        ) : (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                            Failed
-                          </span>
+                  {emails.map((email) => {
+                    const isExpanded = expandedEmailId === email.id;
+                    const details = emailDetails.get(email.id);
+                    const isLoadingThis = loadingDetails === email.id;
+
+                    return (
+                      <React.Fragment key={email.id}>
+                        <tr className={!email.success ? 'bg-red-50' : 'hover:bg-gray-50'}>
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => toggleEmailExpansion(email.id)}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </button>
+                              <span>{email.subject}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {email.from_address}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {email.order_number || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {formatDate(email.processed_at)}
+                          </td>
+                          <td className="px-6 py-4">
+                            {email.success ? (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                Success
+                              </span>
+                            ) : (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                Failed
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            {!email.success && (
+                              <button
+                                onClick={() => handleLinkOrder(email)}
+                                className="text-indigo-600 hover:text-indigo-900 font-medium"
+                              >
+                                Link Order
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className={!email.success ? 'bg-red-50' : 'bg-gray-50'}>
+                            <td colSpan={6} className="px-6 py-4">
+                              {isLoadingThis ? (
+                                <div className="flex justify-center py-4">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                </div>
+                              ) : details ? (
+                                <div className="space-y-4">
+                                  {/* Email Body */}
+                                  <div>
+                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Email Body:</h4>
+                                    <div className="bg-white p-4 rounded border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                                      {details.message_body || 'No message body available'}
+                                    </div>
+                                  </div>
+
+                                  {/* Attachments */}
+                                  {details.attachments && details.attachments.length > 0 && (
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                                        Attachments ({details.attachments.length}):
+                                      </h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {details.attachments.map((attachment) => (
+                                          <div
+                                            key={attachment.id}
+                                            className="bg-white p-3 rounded border border-gray-200 flex items-center justify-between"
+                                          >
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                              {isImageAttachment(attachment.mime_type) ? (
+                                                <ImageIcon className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                                              ) : (
+                                                <FileText className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                                              )}
+                                              <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium text-gray-900 truncate">
+                                                  {attachment.original_filename}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                  {formatFileSize(attachment.file_size)}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <button
+                                              onClick={() =>
+                                                handleDownloadAttachment(
+                                                  attachment.id,
+                                                  attachment.original_filename
+                                                )
+                                              }
+                                              className="ml-3 p-2 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded flex-shrink-0"
+                                              title="Download"
+                                            >
+                                              <Download className="h-4 w-4" />
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No details available</p>
+                              )}
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        {!email.success && (
-                          <button
-                            onClick={() => handleLinkOrder(email)}
-                            className="text-indigo-600 hover:text-indigo-900 font-medium"
-                          >
-                            Link Order
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
