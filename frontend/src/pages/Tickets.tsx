@@ -259,7 +259,13 @@ const Tickets: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
+        <table
+          className="divide-y divide-gray-200"
+          style={{
+            tableLayout: 'fixed',
+            width: `${Object.values(columnWidths).reduce((sum, width) => sum + width, 0)}px`
+          }}
+        >
           <thead className="bg-gray-50">
             <tr>
               <th
