@@ -20,7 +20,7 @@ const DEFAULT_WIDTHS: ColumnWidths = {
   ticketNumber: 150,
   status: 120,
   amazonOrder: 180,
-  customerName: 200,
+  customerName: 130,
   poNumber: 150,
   lastUpdated: 180,
 };
@@ -60,6 +60,15 @@ const Tickets: React.FC = () => {
 
   useEffect(() => {
     loadTickets();
+  }, [showEscalated, currentPage]);
+
+  // Auto-refresh tickets every 30 seconds to pick up updates like PO numbers
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      loadTickets();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(intervalId);
   }, [showEscalated, currentPage]);
 
   const loadTickets = async () => {
