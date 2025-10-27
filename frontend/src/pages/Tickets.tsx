@@ -16,6 +16,8 @@ interface ColumnWidths {
   lastUpdated: number;
 }
 
+const WIDTHS_VERSION = 2; // Increment this when changing DEFAULT_WIDTHS
+
 const DEFAULT_WIDTHS: ColumnWidths = {
   ticketNumber: 150,
   status: 120,
@@ -46,14 +48,22 @@ const Tickets: React.FC = () => {
   const startWidthRef = useRef<number>(0);
   const navigate = useNavigate();
 
-  // Load column widths from localStorage
+  // Load column widths from localStorage with version check
   useEffect(() => {
+    const savedVersion = localStorage.getItem('ticketColumnWidthsVersion');
     const savedWidths = localStorage.getItem('ticketColumnWidths');
-    if (savedWidths) {
+
+    // If version doesn't match or doesn't exist, use new defaults
+    if (savedVersion !== String(WIDTHS_VERSION) || !savedWidths) {
+      setColumnWidths(DEFAULT_WIDTHS);
+      localStorage.setItem('ticketColumnWidths', JSON.stringify(DEFAULT_WIDTHS));
+      localStorage.setItem('ticketColumnWidthsVersion', String(WIDTHS_VERSION));
+    } else {
       try {
         setColumnWidths(JSON.parse(savedWidths));
       } catch (e) {
         console.error('Failed to parse saved column widths:', e);
+        setColumnWidths(DEFAULT_WIDTHS);
       }
     }
   }, []);
@@ -196,6 +206,7 @@ const Tickets: React.FC = () => {
     const handleMouseUp = () => {
       setColumnWidths((prev) => {
         localStorage.setItem('ticketColumnWidths', JSON.stringify(prev));
+        localStorage.setItem('ticketColumnWidthsVersion', String(WIDTHS_VERSION));
         return prev;
       });
       setResizing(null);
