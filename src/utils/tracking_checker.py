@@ -157,7 +157,7 @@ class TrackingChecker:
             return 'gls'
         elif 'ups' in carrier_lower:
             return 'ups'
-        elif 'trans' in carrier_lower or 'flex' in carrier_lower:
+        elif 'trans' in carrier_lower or 'flex' in carrier_lower or carrier_lower == 'tof':
             return 'transooflex'
 
         return carrier_lower
