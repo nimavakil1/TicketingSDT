@@ -11,9 +11,8 @@ interface ColumnWidths {
   ticketNumber: number;
   status: number;
   amazonOrder: number;
-  transaction: number;
+  customerName: number;
   poNumber: number;
-  aiDecisions: number;
   lastUpdated: number;
 }
 
@@ -21,9 +20,8 @@ const DEFAULT_WIDTHS: ColumnWidths = {
   ticketNumber: 150,
   status: 120,
   amazonOrder: 180,
-  transaction: 150,
+  customerName: 200,
   poNumber: 150,
-  aiDecisions: 120,
   lastUpdated: 180,
 };
 
@@ -40,7 +38,7 @@ const Tickets: React.FC = () => {
     ticketNumber: { value: '', operator: 'contains' },
     status: { value: '', operator: 'contains' },
     amazonOrder: { value: '', operator: 'contains' },
-    transaction: { value: '', operator: 'contains' },
+    customerName: { value: '', operator: 'contains' },
     poNumber: { value: '', operator: 'contains' },
   });
   const startXRef = useRef<number>(0);
@@ -129,9 +127,9 @@ const Tickets: React.FC = () => {
       );
     }
 
-    if (filters.transaction.value) {
+    if (filters.customerName.value) {
       filtered = filtered.filter(ticket =>
-        applyFilter(ticket.ticket_number, filters.transaction.value, filters.transaction.operator)
+        applyFilter(ticket.customer_name, filters.customerName.value, filters.customerName.operator)
       );
     }
 
@@ -321,12 +319,12 @@ const Tickets: React.FC = () => {
               </th>
               <th
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
-                style={{ width: `${columnWidths.transaction}px` }}
+                style={{ width: `${columnWidths.customerName}px` }}
               >
-                <div className="mb-1">Transaction Nr</div>
+                <div className="mb-1">Customer Name</div>
                 <select
-                  value={filters.transaction.operator}
-                  onChange={(e) => handleOperatorChange('transaction', e.target.value)}
+                  value={filters.customerName.operator}
+                  onChange={(e) => handleOperatorChange('customerName', e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                   title="Filter operator"
@@ -340,15 +338,15 @@ const Tickets: React.FC = () => {
                 </select>
                 <input
                   type="text"
-                  value={filters.transaction.value}
-                  onChange={(e) => handleFilterChange('transaction', e.target.value)}
+                  value={filters.customerName.value}
+                  onChange={(e) => handleFilterChange('customerName', e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   placeholder="Filter..."
                   className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
-                  onMouseDown={(e) => handleMouseDown(e, 'transaction')}
+                  onMouseDown={(e) => handleMouseDown(e, 'customerName')}
                 />
               </th>
               <th
@@ -381,16 +379,6 @@ const Tickets: React.FC = () => {
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
-                />
-              </th>
-              <th
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
-                style={{ width: `${columnWidths.aiDecisions}px` }}
-              >
-                <div className="mb-1">AI Decisions</div>
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
-                  onMouseDown={(e) => handleMouseDown(e, 'aiDecisions')}
                 />
               </th>
               <th
@@ -442,16 +430,11 @@ const Tickets: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.amazonOrder}px` }}>
                   {ticket.order_number || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.transaction}px` }}>
-                  {ticket.ticket_number}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.customerName}px` }}>
+                  {ticket.customer_name || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.poNumber}px` }}>
                   {ticket.purchase_order_number || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" style={{ width: `${columnWidths.aiDecisions}px` }}>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                    {ticket.ai_decision_count}
-                  </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.lastUpdated}px` }}>
                   {formatInCET(ticket.last_updated)}
