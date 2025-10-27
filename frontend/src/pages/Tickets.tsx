@@ -175,38 +175,40 @@ const Tickets: React.FC = () => {
 
   const handleMouseDown = (e: React.MouseEvent, column: keyof ColumnWidths) => {
     e.preventDefault();
+    e.stopPropagation();
     setResizing(column);
     startXRef.current = e.clientX;
     startWidthRef.current = columnWidths[column];
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!resizing) return;
-    const diff = e.clientX - startXRef.current;
-    const newWidth = Math.max(80, startWidthRef.current + diff);
-    setColumnWidths((prev) => ({
-      ...prev,
-      [resizing]: newWidth,
-    }));
-  };
-
-  const handleMouseUp = () => {
-    if (resizing) {
-      localStorage.setItem('ticketColumnWidths', JSON.stringify(columnWidths));
-      setResizing(null);
-    }
-  };
-
   useEffect(() => {
-    if (resizing) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [resizing, columnWidths]);
+    if (!resizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const diff = e.clientX - startXRef.current;
+      const newWidth = Math.max(80, startWidthRef.current + diff);
+      setColumnWidths((prev) => ({
+        ...prev,
+        [resizing]: newWidth,
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setColumnWidths((prev) => {
+        localStorage.setItem('ticketColumnWidths', JSON.stringify(prev));
+        return prev;
+      });
+      setResizing(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizing]);
 
   if (loading) {
     return (
