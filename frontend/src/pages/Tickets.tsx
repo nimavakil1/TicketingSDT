@@ -30,6 +30,7 @@ const Tickets: React.FC = () => {
   const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEscalated, setShowEscalated] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [columnWidths, setColumnWidths] = useState<ColumnWidths>(DEFAULT_WIDTHS);
@@ -109,6 +110,13 @@ const Tickets: React.FC = () => {
   useEffect(() => {
     let filtered = tickets;
 
+    // Filter out closed tickets by default
+    if (!showClosed) {
+      filtered = filtered.filter(ticket =>
+        !ticket.custom_status?.is_closed
+      );
+    }
+
     if (filters.ticketNumber.value) {
       filtered = filtered.filter(ticket =>
         applyFilter(ticket.ticket_number, filters.ticketNumber.value, filters.ticketNumber.operator)
@@ -140,7 +148,7 @@ const Tickets: React.FC = () => {
     }
 
     setFilteredTickets(filtered);
-  }, [tickets, filters]);
+  }, [tickets, filters, showClosed]);
 
   const handleFilterChange = (column: string, value: string) => {
     setFilters(prev => ({
@@ -206,15 +214,26 @@ const Tickets: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Tickets</h1>
           <p className="text-gray-600 mt-1">View and manage support tickets</p>
         </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showEscalated}
-            onChange={(e) => setShowEscalated(e.target.checked)}
-            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-          />
-          <span className="text-sm font-medium text-gray-700">Show escalated only</span>
-        </label>
+        <div className="flex items-center gap-6">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showEscalated}
+              onChange={(e) => setShowEscalated(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Show escalated only</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showClosed}
+              onChange={(e) => setShowClosed(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Show closed tickets</span>
+          </label>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto">
@@ -319,6 +338,38 @@ const Tickets: React.FC = () => {
               </th>
               <th
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
+                style={{ width: `${columnWidths.poNumber}px` }}
+              >
+                <div className="mb-1">PO #</div>
+                <select
+                  value={filters.poNumber.operator}
+                  onChange={(e) => handleOperatorChange('poNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  title="Filter operator"
+                >
+                  <option value="contains">Contains</option>
+                  <option value="not_contains">Not contains</option>
+                  <option value="begins_with">Begins with</option>
+                  <option value="ends_with">Ends with</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equals">Not equals</option>
+                </select>
+                <input
+                  type="text"
+                  value={filters.poNumber.value}
+                  onChange={(e) => handleFilterChange('poNumber', e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder="Filter..."
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
+                  onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
+                />
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                 style={{ width: `${columnWidths.customerName}px` }}
               >
                 <div className="mb-1">Customer Name</div>
@@ -347,38 +398,6 @@ const Tickets: React.FC = () => {
                 <div
                   className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
                   onMouseDown={(e) => handleMouseDown(e, 'customerName')}
-                />
-              </th>
-              <th
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
-                style={{ width: `${columnWidths.poNumber}px` }}
-              >
-                <div className="mb-1">PO Number</div>
-                <select
-                  value={filters.poNumber.operator}
-                  onChange={(e) => handleOperatorChange('poNumber', e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full mb-1 px-1 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                  title="Filter operator"
-                >
-                  <option value="contains">Contains</option>
-                  <option value="not_contains">Not contains</option>
-                  <option value="begins_with">Begins with</option>
-                  <option value="ends_with">Ends with</option>
-                  <option value="equals">Equals</option>
-                  <option value="not_equals">Not equals</option>
-                </select>
-                <input
-                  type="text"
-                  value={filters.poNumber.value}
-                  onChange={(e) => handleFilterChange('poNumber', e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="Filter..."
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500"
-                  onMouseDown={(e) => handleMouseDown(e, 'poNumber')}
                 />
               </th>
               <th
@@ -430,11 +449,11 @@ const Tickets: React.FC = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.amazonOrder}px` }}>
                   {ticket.order_number || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.customerName}px` }}>
-                  {ticket.customer_name || '-'}
-                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.poNumber}px` }}>
                   {ticket.purchase_order_number || '-'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.customerName}px` }}>
+                  {ticket.customer_name || '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 overflow-hidden text-ellipsis" style={{ width: `${columnWidths.lastUpdated}px` }}>
                   {formatInCET(ticket.last_updated)}
