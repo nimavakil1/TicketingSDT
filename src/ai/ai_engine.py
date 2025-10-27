@@ -358,6 +358,11 @@ class AIEngine:
         language = self.language_detector.detect_language(combined_text)
         language_name = self.language_detector.get_language_name(language)
 
+        # Check live tracking status if tracking info is available
+        live_tracking_status = None
+        if ticket_data:
+            live_tracking_status = self._check_live_tracking(ticket_data, body)
+
         # Build analysis prompt
         prompt = self._build_analysis_prompt(
             subject=subject,
@@ -366,7 +371,8 @@ class AIEngine:
             language=language_name,
             ticket_data=ticket_data,
             ticket_history=ticket_history,
-                supplier_language=supplier_language
+            supplier_language=supplier_language,
+            live_tracking_status=live_tracking_status
             )
 
         # Add note about images if present
@@ -412,6 +418,85 @@ class AIEngine:
                 'summary': 'Analysis failed'
             }
 
+    def _check_live_tracking(self, ticket_data: Dict[str, Any], email_body: str) -> Optional[Dict[str, Any]]:
+        """
+        Check live tracking status if customer is asking about delivery
+
+        Args:
+            ticket_data: Ticket data from API
+            email_body: Customer's email text
+
+        Returns:
+            Live tracking status dict or None
+        """
+        # Only check if email body suggests tracking inquiry
+        body_lower = email_body.lower()
+        tracking_keywords = ['wo ist', 'where is', 'où est', 'tracking', 'sendung', 'paket', 'parcel', 'colis', 'delivery', 'lieferung']
+
+        if not any(keyword in body_lower for keyword in tracking_keywords):
+            return None
+
+        # Extract tracking info from ticket
+        sales_order = ticket_data.get('salesOrder', {})
+        purchase_orders = sales_order.get('purchaseOrders', [])
+
+        if not purchase_orders:
+            return None
+
+        po = purchase_orders[0]
+        deliveries = po.get('deliveries', [])
+
+        if not deliveries:
+            return None
+
+        # Get first delivery with tracking
+        for delivery in deliveries:
+            parcels = delivery.get('deliveryParcels', [])
+            for parcel in parcels:
+                tracking_url = parcel.get('traceUrl', '').strip()
+                tracking_number = parcel.get('trackNumber', '').strip()
+
+                if not tracking_number:
+                    continue
+
+                # Extract carrier from shipment method
+                shipment_method = parcel.get('shipmentMethod', {})
+                carrier_name = shipment_method.get('name1', '')
+
+                # Get customer address for gatekeepers (Trans-o-flex)
+                postal_code = sales_order.get('customerPostalCode')
+                address = sales_order.get('customerAddress')
+
+                try:
+                    from src.utils.tracking_checker import TrackingChecker, extract_house_number
+
+                    house_number = extract_house_number(address) if address else None
+
+                    checker = TrackingChecker()
+                    result = checker.check_tracking(
+                        tracking_number=tracking_number,
+                        carrier_name=carrier_name,
+                        tracking_url=tracking_url,
+                        postal_code=postal_code,
+                        house_number=house_number
+                    )
+
+                    logger.info(
+                        "Live tracking checked",
+                        tracking_number=tracking_number,
+                        carrier=carrier_name,
+                        status=result.get('status'),
+                        cached=result.get('cached', False)
+                    )
+
+                    return result
+
+                except Exception as e:
+                    logger.error("Failed to check live tracking", error=str(e), tracking_number=tracking_number)
+                    return None
+
+        return None
+
     def _build_analysis_prompt(
         self,
         subject: str,
@@ -420,7 +505,8 @@ class AIEngine:
         language: str,
         ticket_data: Optional[Dict[str, Any]],
         ticket_history: Optional[Dict[str, Any]],
-        supplier_language: Optional[str]
+        supplier_language: Optional[str],
+        live_tracking_status: Optional[Dict[str, Any]] = None
     ) -> str:
         """Build the analysis prompt for the AI"""
         import json
@@ -452,6 +538,36 @@ Existing Ticket Information:
 - Customer: {ticket_data.get('contactName', 'N/A')}
 - Supplier: {purchase_orders[0].get('supplierName', 'N/A') if purchase_orders else 'N/A'}
 - Product: {ticket_data.get('salesOrder', {}).get('salesOrderItems', [{}])[0].get('productTitle', 'N/A') if ticket_data.get('salesOrder', {}).get('salesOrderItems') else 'N/A'}
+"""
+
+        # Add live tracking status if available
+        if live_tracking_status:
+            status = live_tracking_status.get('status', 'unknown')
+            status_text = live_tracking_status.get('status_text', 'N/A')
+            carrier = live_tracking_status.get('carrier', 'N/A')
+            location = live_tracking_status.get('location')
+            estimated_delivery = live_tracking_status.get('estimated_delivery')
+            tracking_url = live_tracking_status.get('tracking_url', 'N/A')
+            last_update = live_tracking_status.get('last_update')
+            cached = live_tracking_status.get('cached', False)
+
+            prompt += f"""
+**LIVE TRACKING STATUS** (checked just now{'  from cache' if cached else ''}):
+- Carrier: {carrier}
+- Current Status: {status_text}
+- Status Code: {status}
+- Tracking URL: {tracking_url}
+"""
+            if location:
+                prompt += f"- Current Location: {location}\n"
+            if estimated_delivery:
+                prompt += f"- Estimated Delivery: {estimated_delivery}\n"
+            if last_update:
+                prompt += f"- Last Updated: {last_update}\n"
+
+            prompt += """
+**IMPORTANT**: You have access to the LIVE tracking status above! Use this information to give the customer a specific, up-to-date answer about their parcel's current location and status. Do NOT just provide the tracking link - tell them what the current status actually is!
+
 """
 
         if ticket_history and (ticket_history.get('customer_thread') or ticket_history.get('supplier_thread') or ticket_history.get('internal_notes')):
