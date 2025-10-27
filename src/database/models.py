@@ -266,6 +266,7 @@ class PendingEmailRetry(Base):
     gmail_thread_id = Column(String(255), index=True)
     subject = Column(String(500))
     from_address = Column(String(255))
+    message_body = Column(Text)
 
     attempts = Column(Integer, default=0, nullable=False)
     next_attempt_at = Column(DateTime, index=True)

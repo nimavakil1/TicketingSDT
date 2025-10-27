@@ -660,6 +660,32 @@ async def download_attachment(
     )
 
 
+@app.get("/api/emails/retry/{retry_id}/details")
+async def get_retry_queue_details(
+    retry_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information about a retry queue item including body"""
+    retry_item = db.query(RetryQueue).filter_by(id=retry_id).first()
+    if not retry_item:
+        raise HTTPException(status_code=404, detail="Retry queue item not found")
+
+    # Note: Retry queue items don't have attachments stored separately
+    # Attachments are only linked after email is successfully processed
+    return {
+        "id": retry_item.id,
+        "gmail_message_id": retry_item.gmail_message_id,
+        "subject": retry_item.subject or "N/A",
+        "from_address": retry_item.from_address or "N/A",
+        "attempts": retry_item.attempts,
+        "next_attempt_at": ensure_utc(retry_item.next_attempt_at),
+        "last_error": retry_item.last_error,
+        "message_body": getattr(retry_item, 'message_body', None),
+        "created_at": ensure_utc(retry_item.created_at)
+    }
+
+
 @app.post("/api/emails/{email_id}/link-order")
 async def link_email_to_order(
     email_id: int,

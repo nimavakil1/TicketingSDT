@@ -14,6 +14,9 @@ const Emails: React.FC = () => {
   const [expandedEmailId, setExpandedEmailId] = useState<number | null>(null);
   const [emailDetails, setEmailDetails] = useState<Map<number, ProcessedEmail>>(new Map());
   const [loadingDetails, setLoadingDetails] = useState<number | null>(null);
+  const [expandedRetryId, setExpandedRetryId] = useState<number | null>(null);
+  const [retryDetails, setRetryDetails] = useState<Map<number, any>>(new Map());
+  const [loadingRetryDetails, setLoadingRetryDetails] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -124,6 +127,28 @@ const Emails: React.FC = () => {
 
   const isImageAttachment = (mimeType: string | null): boolean => {
     return mimeType?.startsWith('image/') || false;
+  };
+
+  const toggleRetryExpansion = async (retryId: number) => {
+    if (expandedRetryId === retryId) {
+      // Collapse
+      setExpandedRetryId(null);
+    } else {
+      // Expand and fetch details if not already loaded
+      setExpandedRetryId(retryId);
+      if (!retryDetails.has(retryId)) {
+        setLoadingRetryDetails(retryId);
+        try {
+          const details = await emailsApi.getRetryQueueDetails(retryId);
+          setRetryDetails(new Map(retryDetails.set(retryId, details)));
+        } catch (error) {
+          console.error('Failed to load retry queue details:', error);
+          alert('Failed to load retry queue details');
+        } finally {
+          setLoadingRetryDetails(null);
+        }
+      }
+    }
   };
 
   return (
@@ -348,25 +373,95 @@ const Emails: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {retryQueue.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {item.subject}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {item.from_address}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {item.attempts}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {formatDate(item.next_attempt_at)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {item.last_error}
-                      </td>
-                    </tr>
-                  ))}
+                  {retryQueue.map((item) => {
+                    const isExpanded = expandedRetryId === item.id;
+                    const details = retryDetails.get(item.id);
+                    const isLoadingThis = loadingRetryDetails === item.id;
+
+                    return (
+                      <React.Fragment key={item.id}>
+                        <tr className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => toggleRetryExpansion(item.id)}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </button>
+                              <span>{item.subject}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {item.from_address}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {item.attempts}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {formatDate(item.next_attempt_at)}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {item.last_error}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="bg-gray-50">
+                            <td colSpan={5} className="px-6 py-4">
+                              {isLoadingThis ? (
+                                <div className="flex justify-center py-4">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                </div>
+                              ) : details ? (
+                                <div className="space-y-4">
+                                  {/* Email Body */}
+                                  <div>
+                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Email Body:</h4>
+                                    <div className="bg-white p-4 rounded border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
+                                      {details.message_body || 'No message body available'}
+                                    </div>
+                                  </div>
+
+                                  {/* Error Information */}
+                                  <div>
+                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">Retry Information:</h4>
+                                    <div className="bg-white p-4 rounded border border-gray-200 text-sm">
+                                      <p className="mb-2">
+                                        <span className="font-medium">Attempts:</span> {details.attempts}
+                                      </p>
+                                      <p className="mb-2">
+                                        <span className="font-medium">Next Attempt:</span> {formatDate(details.next_attempt_at)}
+                                      </p>
+                                      <p className="mb-2">
+                                        <span className="font-medium">Created:</span> {details.created_at ? formatDate(details.created_at) : 'N/A'}
+                                      </p>
+                                      <p>
+                                        <span className="font-medium">Last Error:</span>
+                                        <span className="text-red-600 ml-2">{details.last_error}</span>
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Note about attachments */}
+                                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                                    <p className="text-xs text-yellow-800">
+                                      <strong>Note:</strong> Attachments are only available after email is successfully processed and linked to a ticket.
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No details available</p>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

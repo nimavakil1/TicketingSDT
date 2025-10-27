@@ -30,6 +30,8 @@ export interface RetryQueueItem {
   attempts: number;
   next_attempt_at: string;
   last_error: string;
+  message_body?: string;
+  created_at?: string;
 }
 
 export const emailsApi = {
@@ -70,6 +72,11 @@ export const emailsApi = {
     const response = await client.get(`/api/emails/attachments/${attachmentId}/download`, {
       responseType: 'blob',
     });
+    return response.data;
+  },
+
+  getRetryQueueDetails: async (retryId: number): Promise<RetryQueueItem> => {
+    const response = await client.get(`/api/emails/retry/${retryId}/details`);
     return response.data;
   },
 };

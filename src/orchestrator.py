@@ -434,12 +434,16 @@ class SupportAgentOrchestrator:
         if existing:
             existing.next_attempt_at = next_at
             existing.last_error = reason
+            # Update message body if not present
+            if not existing.message_body:
+                existing.message_body = email_data.get('body', '')
         else:
             retry = PendingEmailRetry(
                 gmail_message_id=gmail_id,
                 gmail_thread_id=email_data.get('thread_id'),
                 subject=email_data.get('subject') or '',
                 from_address=email_data.get('from', ''),
+                message_body=email_data.get('body', ''),
                 attempts=0,
                 next_attempt_at=next_at,
                 last_error=reason
