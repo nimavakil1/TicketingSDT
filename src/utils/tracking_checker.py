@@ -41,6 +41,7 @@ def extract_house_number(address: str) -> Optional[str]:
         "Hauptstraße 123" -> "123"
         "Berliner Str. 45a" -> "45a"
         "Musterweg 12-14" -> "12-14"
+        "Mainzer Straße M100" -> "M100"
     """
     if not address:
         return None
@@ -48,6 +49,7 @@ def extract_house_number(address: str) -> Optional[str]:
     # Match common house number patterns
     patterns = [
         r'\b(\d+[a-zA-Z]?(?:-\d+[a-zA-Z]?)?)\b',  # 123, 45a, 12-14
+        r'\b([A-Z]\d+[a-zA-Z]?)\b',                # M100, A1, B23a
         r'Nr\.?\s*(\d+[a-zA-Z]?)',                 # Nr. 123, Nr 45a
     ]
 
