@@ -320,7 +320,9 @@ class TrackingChecker:
         tracking_url: Optional[str] = None
     ) -> Dict[str, Any]:
         """Check Trans-o-flex tracking using Selenium (requires ZIP + house number)"""
-        tracking_url = tracking_url or f"https://www.trans-o-flex.com/sendungsverfolgung/?trackingnr={tracking_number}&plz={postal_code}&hnr={house_number}"
+        # Always build the URL with postal code and house number for Trans-o-flex
+        # Even if a tracking_url is provided, we need these parameters for the page to work
+        tracking_url = f"https://www.trans-o-flex.com/sendungsverfolgung/?trackingnr={tracking_number}&plz={postal_code}&hnr={house_number}"
 
         driver = None
         try:
