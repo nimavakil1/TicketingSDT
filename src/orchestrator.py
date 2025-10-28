@@ -999,12 +999,18 @@ class SupportAgentOrchestrator:
             supplier_email = po_data.get('supplierEmail', '')
             supplier_phone = po_data.get('supplierPhone', '')
 
-        # Extract customer address
-        customer_address = sales_order.get('customerAddress', '')
-        customer_city = sales_order.get('customerCity', '')
-        customer_postal_code = sales_order.get('customerPostalCode', '')
-        customer_country = sales_order.get('customerCountry', '')
-        customer_phone = sales_order.get('customerPhone', '')
+        # Extract delivery customer address (use same field names as refresh_ticket)
+        address_parts = []
+        if sales_order.get('deliveryCustomerStreet'):
+            address_parts.append(sales_order.get('deliveryCustomerStreet'))
+        if sales_order.get('deliveryCustomerStreet2'):
+            address_parts.append(sales_order.get('deliveryCustomerStreet2'))
+        customer_address = ', '.join(address_parts) if address_parts else ''
+
+        customer_city = sales_order.get('deliveryCustomerCity', '')
+        customer_postal_code = sales_order.get('deliveryCustomerZipCode', '')
+        customer_country = sales_order.get('deliveryCustomerCountryName', '')
+        customer_phone = sales_order.get('deliveryCustomerPhoneNumber', '')
 
         # Extract tracking information from purchaseOrders -> deliveries -> deliveryParcels
         purchase_orders = sales_order.get('purchaseOrders', [])
