@@ -526,7 +526,7 @@ async def get_dashboard_stats(
     avg_confidence = float(avg_confidence_result) if avg_confidence_result else 0.0
 
     # Count retry queue items
-    retry_count = db.query(RetryQueue).count()
+    retry_count = db.query(PendingEmailRetry).count()
 
     return DashboardStats(
         emails_processed_today=emails_today,
