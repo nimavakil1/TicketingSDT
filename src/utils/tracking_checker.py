@@ -325,6 +325,8 @@ class TrackingChecker:
 
         driver = None
         try:
+            import time
+
             # Setup headless Chrome with server-friendly options
             chrome_options = Options()
             chrome_options.add_argument('--headless=new')
@@ -345,57 +347,142 @@ class TrackingChecker:
             # Initialize driver
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
+            wait = WebDriverWait(driver, 20)
 
             logger.info("Loading Trans-o-flex page with Selenium", url=tracking_url)
             driver.get(tracking_url)
 
-            # Wait for the page to load and render (wait for any element that indicates loaded content)
-            # Look for common tracking page elements
-            wait = WebDriverWait(driver, 15)
-
-            # Wait for the Angular app to load
+            # Wait for page to load
             wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            time.sleep(2)
 
-            # Give Angular time to render (additional wait)
-            import time
-            time.sleep(3)
+            logger.info("Trans-o-flex initial page loaded", title=driver.title, url=driver.current_url)
 
-            # Get the page source after JavaScript rendering
+            # Check if we're on the login page (form with Referenznummer, Postleitzahl, Hausnummer)
+            try:
+                # Try to find the form fields - use various selectors
+                ref_field = None
+                plz_field = None
+                hnr_field = None
+
+                # Try finding by name, id, or placeholder text
+                for attempt in range(2):
+                    try:
+                        ref_field = driver.find_element(By.NAME, "referenznummer") if not ref_field else ref_field
+                    except:
+                        try:
+                            ref_field = driver.find_element(By.XPATH, "//input[contains(@placeholder, 'Referenznummer') or contains(@id, 'ref')]")
+                        except:
+                            pass
+
+                    try:
+                        plz_field = driver.find_element(By.NAME, "postleitzahl") if not plz_field else plz_field
+                    except:
+                        try:
+                            plz_field = driver.find_element(By.XPATH, "//input[contains(@placeholder, 'Postleitzahl') or contains(@id, 'plz')]")
+                        except:
+                            pass
+
+                    try:
+                        hnr_field = driver.find_element(By.NAME, "hausnummer") if not hnr_field else hnr_field
+                    except:
+                        try:
+                            hnr_field = driver.find_element(By.XPATH, "//input[contains(@placeholder, 'Hausnummer') or contains(@id, 'hnr')]")
+                        except:
+                            pass
+
+                    if ref_field and plz_field and hnr_field:
+                        break
+                    time.sleep(1)
+
+                if ref_field and plz_field and hnr_field:
+                    logger.info("Found login form, filling in tracking details")
+
+                    # Fill in the form
+                    ref_field.clear()
+                    ref_field.send_keys(tracking_number)
+
+                    plz_field.clear()
+                    plz_field.send_keys(postal_code)
+
+                    hnr_field.clear()
+                    hnr_field.send_keys(house_number)
+
+                    time.sleep(1)
+
+                    # Find and click submit button
+                    try:
+                        submit_button = driver.find_element(By.XPATH, "//button[@type='submit'] | //input[@type='submit'] | //button[contains(text(), 'Suchen')] | //button[contains(text(), 'Tracking')]")
+                        submit_button.click()
+                        logger.info("Submitted tracking form")
+                        time.sleep(3)
+                    except Exception as e:
+                        logger.warning("Could not find submit button, trying form submit", error=str(e))
+                        ref_field.submit()
+                        time.sleep(3)
+
+                    # Handle legal popup if it appears
+                    try:
+                        # Look for "I'm not a robot" checkbox
+                        robot_checkbox = wait.until(EC.presence_of_element_located((
+                            By.XPATH,
+                            "//input[@type='checkbox' and (contains(@id, 'robot') or contains(@name, 'robot'))] | //label[contains(text(), 'not a robot')]//input[@type='checkbox']"
+                        )))
+
+                        # Scroll to checkbox
+                        driver.execute_script("arguments[0].scrollIntoView(true);", robot_checkbox)
+                        time.sleep(1)
+
+                        # Click checkbox
+                        robot_checkbox.click()
+                        logger.info("Clicked 'I'm not a robot' checkbox")
+                        time.sleep(1)
+
+                        # Find and click "annehmen" button
+                        accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'annehmen') or contains(text(), 'Annehmen') or contains(text(), 'Accept')]")
+                        accept_button.click()
+                        logger.info("Clicked accept button")
+                        time.sleep(3)
+
+                    except Exception as e:
+                        logger.info("No legal popup found or already accepted", error=str(e))
+
+            except Exception as e:
+                logger.info("No login form found, assuming direct tracking page", error=str(e))
+
+            # Wait for final page load
+            wait.until(lambda d: d.execute_script('return document.readyState') == 'complete')
+            time.sleep(2)
+
+            # Get the page source after all interactions
             page_source = driver.page_source
             soup = BeautifulSoup(page_source, 'html.parser')
 
-            # Log some of the page content for debugging
-            logger.info("Trans-o-flex page loaded",
-                       title=driver.title,
-                       url=driver.current_url)
+            logger.info("Trans-o-flex final page loaded", title=driver.title, url=driver.current_url)
 
-            # Try multiple selectors to find status information
-            # Look for common patterns in tracking pages
+            # Parse status from page
             status_text = None
             location = None
-
-            # Common text patterns that indicate status
             page_text = soup.get_text().lower()
 
             # Check for delivery confirmation
             if 'zugestellt' in page_text or 'delivered' in page_text or 'livré' in page_text:
                 status = TrackingStatus.DELIVERED
-                status_text = 'Delivered'
+                status_text = 'Zugestellt (Delivered)'
             elif 'unterwegs' in page_text or 'in transit' in page_text or 'en route' in page_text:
                 status = TrackingStatus.IN_TRANSIT
-                status_text = 'In Transit'
+                status_text = 'Unterwegs (In Transit)'
             elif 'abholbereit' in page_text or 'ready for pickup' in page_text:
                 status = TrackingStatus.OUT_FOR_DELIVERY
-                status_text = 'Ready for pickup'
+                status_text = 'Abholbereit (Ready for pickup)'
             else:
                 status = TrackingStatus.UNKNOWN
                 status_text = 'Tracking information available online'
 
             # Try to extract more detailed status from specific elements
-            # Look for elements that might contain status info
-            for elem in soup.find_all(['div', 'span', 'p', 'h1', 'h2', 'h3']):
+            for elem in soup.find_all(['div', 'span', 'p', 'h1', 'h2', 'h3', 'td']):
                 text = elem.get_text(strip=True)
-                if text and len(text) < 100:  # Reasonable status text length
+                if text and 10 < len(text) < 100:  # Reasonable status text length
                     text_lower = text.lower()
                     if any(keyword in text_lower for keyword in ['zugestellt', 'delivered', 'unterwegs', 'transit', 'abholbereit']):
                         status_text = text
@@ -413,7 +500,7 @@ class TrackingChecker:
             }
 
         except Exception as e:
-            logger.error("Trans-o-flex Selenium tracking failed", error=str(e), tracking_number=tracking_number)
+            logger.error("Trans-o-flex Selenium tracking failed", error=str(e), tracking_number=tracking_number, exc_info=True)
             return self._error_result(
                 f"Could not load tracking page: {str(e)}",
                 tracking_url=tracking_url,
