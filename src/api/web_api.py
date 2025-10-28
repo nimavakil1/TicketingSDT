@@ -717,7 +717,7 @@ async def link_email_to_order(
     db.commit()
 
     # Remove from retry queue if present
-    retry_entry = db.query(RetryQueue).filter_by(
+    retry_entry = db.query(PendingEmailRetry).filter_by(
         gmail_message_id=processed_email.gmail_message_id
     ).first()
     if retry_entry:
