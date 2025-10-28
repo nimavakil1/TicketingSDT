@@ -55,11 +55,8 @@ export const emailsApi = {
     const formData = new FormData();
     formData.append('order_number', orderNumber);
 
-    const response = await client.post(`/api/emails/${emailId}/link-order`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Don't set Content-Type - let axios automatically set it with boundary parameter
+    const response = await client.post(`/api/emails/${emailId}/link-order`, formData);
     return response.data;
   },
 
