@@ -18,6 +18,21 @@ const Emails: React.FC = () => {
   const [retryDetails, setRetryDetails] = useState<Map<number, any>>(new Map());
   const [loadingRetryDetails, setLoadingRetryDetails] = useState<number | null>(null);
 
+  // Helper function to strip HTML tags and decode entities
+  const stripHtml = (html: string): string => {
+    if (!html) return '';
+
+    // Create a temporary div to parse HTML
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    // Get text content (automatically strips tags and decodes entities)
+    const text = tmp.textContent || tmp.innerText || '';
+
+    // Clean up extra whitespace
+    return text.replace(/\s+/g, ' ').trim();
+  };
+
   useEffect(() => {
     loadData();
   }, [activeTab]);
@@ -286,7 +301,7 @@ const Emails: React.FC = () => {
                                   <div>
                                     <h4 className="text-sm font-semibold text-gray-900 mb-2">Email Body:</h4>
                                     <div className="bg-white p-4 rounded border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                                      {details.message_body || 'No message body available'}
+                                      {stripHtml(details.message_body) || 'No message body available'}
                                     </div>
                                   </div>
 
@@ -422,7 +437,7 @@ const Emails: React.FC = () => {
                                   <div>
                                     <h4 className="text-sm font-semibold text-gray-900 mb-2">Email Body:</h4>
                                     <div className="bg-white p-4 rounded border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap max-h-96 overflow-y-auto">
-                                      {details.message_body || 'No message body available'}
+                                      {stripHtml(details.message_body) || 'No message body available'}
                                     </div>
                                   </div>
 
