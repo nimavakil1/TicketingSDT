@@ -1077,7 +1077,9 @@ class SupportAgentOrchestrator:
             order_number=order_number,
             purchase_order_number=po_number,
             customer_name=ticket_data.get('contactName'),
-            customer_email=sales_order.get('customerEmail', ''),
+            # Use contactEmail (Amazon relay email) instead of salesOrder.customerEmail (billing email)
+            # contactEmail works for replies, customerEmail is often no-reply for business accounts
+            customer_email=ticket_data.get('contactEmail') or sales_order.get('customerEmail', ''),
             customer_language=ticket_data.get('customerLanguageCultureName', 'en-US'),
             customer_address=customer_address,
             customer_city=customer_city,

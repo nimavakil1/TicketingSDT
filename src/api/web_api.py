@@ -1746,7 +1746,14 @@ async def refresh_ticket(
             # Always overwrite if reference exists
             if sales_order.get("reference"):
                 ticket.order_number = sales_order.get("reference")
-            ticket.customer_email = sales_order.get("customerEmail") or ticket.customer_email
+
+            # Prioritize contactEmail (Amazon relay) over customerEmail (billing/no-reply)
+            # contactEmail is the Amazon relay that actually reaches the customer
+            contact_email = ticket_api_data.get("contactEmail")
+            if contact_email:
+                ticket.customer_email = contact_email
+            elif sales_order.get("customerEmail"):
+                ticket.customer_email = sales_order.get("customerEmail")
 
             # Extract delivery customer information
             delivery_name_parts = []
