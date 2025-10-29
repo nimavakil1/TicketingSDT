@@ -1692,7 +1692,7 @@ const TicketDetail: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="text-sm text-gray-700 pl-6">
+                  <div className="text-sm text-gray-700 pl-6 whitespace-pre-wrap">
                     {stripHtml(message.messageText)}
                   </div>
 
