@@ -29,8 +29,13 @@ const Emails: React.FC = () => {
     // Get text content (automatically strips tags and decodes entities)
     const text = tmp.textContent || tmp.innerText || '';
 
-    // Clean up extra whitespace
-    return text.replace(/\s+/g, ' ').trim();
+    // Clean up extra whitespace but preserve newlines
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   };
 
   useEffect(() => {

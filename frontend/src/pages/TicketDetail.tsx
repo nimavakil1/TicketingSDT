@@ -61,8 +61,13 @@ const TicketDetail: React.FC = () => {
     const tmp = document.createElement('DIV');
     tmp.innerHTML = html;
     const text = tmp.textContent || tmp.innerText || '';
-    // Clean up excessive whitespace
-    return text.replace(/\s+/g, ' ').trim();
+    // Clean up excessive whitespace but preserve newlines
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   };
 
   const loadPendingMessages = async () => {
