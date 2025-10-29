@@ -65,6 +65,7 @@ export const messagesApi = {
   getPendingMessages: async (params?: {
     status?: string;
     message_type?: string;
+    ticket_number?: string;
     limit?: number;
     offset?: number;
   }): Promise<PendingMessage[]> => {

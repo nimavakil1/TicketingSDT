@@ -85,9 +85,9 @@ const TicketDetail: React.FC = () => {
     try {
       const messages = await messagesApi.getPendingMessages({
         status: 'pending',
+        ticket_number: ticket.ticket_number,
       });
-      // Filter messages for this ticket
-      setPendingMessages(messages.filter(msg => msg.ticket_number === ticket.ticket_number));
+      setPendingMessages(messages);
     } catch (err) {
       console.error('Failed to load pending messages:', err);
     }

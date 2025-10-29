@@ -3842,6 +3842,7 @@ async def get_pending_messages(
     db: Session = Depends(get_db),
     status: Optional[str] = None,
     message_type: Optional[str] = None,
+    ticket_number: Optional[str] = None,
     limit: int = 50,
     offset: int = 0
 ):
@@ -3858,6 +3859,10 @@ async def get_pending_messages(
     # Filter by message type if provided
     if message_type:
         query = query.filter(PendingMessage.message_type == message_type)
+
+    # Filter by ticket number if provided
+    if ticket_number:
+        query = query.filter(TicketState.ticket_number == ticket_number)
 
     # Order by confidence (low confidence first for review) then creation time
     messages = query.order_by(
