@@ -22,12 +22,17 @@ const Emails: React.FC = () => {
   const stripHtml = (html: string): string => {
     if (!html) return '';
 
-    // Create a temporary div to parse HTML
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
+    // Check if the text actually contains HTML tags (not just angle brackets in email addresses)
+    const hasHtmlTags = /<(p|div|span|br|strong|em|ul|ol|li|table|tr|td|th|a|img|h[1-6])[>\s]/i.test(html);
 
-    // Get text content (automatically strips tags and decodes entities)
-    const text = tmp.textContent || tmp.innerText || '';
+    let text = html;
+
+    // Only parse as HTML if it actually contains HTML tags
+    if (hasHtmlTags) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      text = tmp.textContent || tmp.innerText || '';
+    }
 
     // Clean up extra whitespace but preserve newlines
     return text

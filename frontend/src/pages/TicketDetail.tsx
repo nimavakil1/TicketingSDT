@@ -57,10 +57,20 @@ const TicketDetail: React.FC = () => {
   const [trackingResult, setTrackingResult] = useState<any>(null);
 
   const stripHtml = (html: string): string => {
-    // Remove HTML tags and decode entities
-    const tmp = document.createElement('DIV');
-    tmp.innerHTML = html;
-    const text = tmp.textContent || tmp.innerText || '';
+    if (!html) return '';
+
+    // Check if the text actually contains HTML tags (not just angle brackets in email addresses)
+    const hasHtmlTags = /<(p|div|span|br|strong|em|ul|ol|li|table|tr|td|th|a|img|h[1-6])[>\s]/i.test(html);
+
+    let text = html;
+
+    // Only parse as HTML if it actually contains HTML tags
+    if (hasHtmlTags) {
+      const tmp = document.createElement('DIV');
+      tmp.innerHTML = html;
+      text = tmp.textContent || tmp.innerText || '';
+    }
+
     // Clean up excessive whitespace but preserve newlines
     return text
       .split('\n')
