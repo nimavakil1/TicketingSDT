@@ -329,7 +329,7 @@ class TrackingChecker:
         try:
             import time
 
-            # Setup headless Chrome with server-friendly options
+            # Setup headless Chrome with anti-detection options
             chrome_options = Options()
             chrome_options.add_argument('--headless=new')
             chrome_options.add_argument('--no-sandbox')
@@ -338,17 +338,38 @@ class TrackingChecker:
             chrome_options.add_argument('--disable-software-rasterizer')
             chrome_options.add_argument('--disable-extensions')
             chrome_options.add_argument('--disable-setuid-sandbox')
-            chrome_options.add_argument('--remote-debugging-port=9222')
             chrome_options.add_argument('--window-size=1920,1080')
+            chrome_options.add_argument('--start-maximized')
+
+            # Anti-detection: Disable automation flags
             chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+
+            # Realistic user agent
             chrome_options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
-            # Suppress logging
-            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            # Additional stealth options
+            chrome_options.add_argument('--disable-infobars')
+            chrome_options.add_argument('--disable-web-security')
+            chrome_options.add_argument('--allow-running-insecure-content')
 
             # Initialize driver
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=chrome_options)
+
+            # Execute JavaScript to hide webdriver property
+            driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    });
+                    window.navigator.chrome = {
+                        runtime: {}
+                    };
+                '''
+            })
+
             wait = WebDriverWait(driver, 20)
 
             logger.info("Loading Trans-o-flex page with Selenium", url=tracking_url)
@@ -456,6 +477,15 @@ class TrackingChecker:
                         )))
                         logger.info("reCAPTCHA modal appeared")
                         time.sleep(2)
+
+                        # Save screenshot for debugging
+                        try:
+                            import os
+                            screenshot_path = f"/tmp/transooflex_{tracking_number}.png"
+                            driver.save_screenshot(screenshot_path)
+                            logger.info("Saved screenshot for debugging", path=screenshot_path)
+                        except Exception as e:
+                            logger.warning("Could not save screenshot", error=str(e))
 
                         # Find and click the reCAPTCHA checkbox
                         try:
