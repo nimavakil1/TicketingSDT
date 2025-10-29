@@ -412,42 +412,102 @@ class TrackingChecker:
 
                     time.sleep(1)
 
-                    # Find and click submit button
+                    # Find and click submit button (ion-button for Angular/Ionic)
                     try:
-                        submit_button = driver.find_element(By.XPATH, "//button[@type='submit'] | //input[@type='submit'] | //button[contains(text(), 'Suchen')] | //button[contains(text(), 'Tracking')]")
-                        submit_button.click()
-                        logger.info("Submitted tracking form")
-                        time.sleep(3)
-                    except Exception as e:
-                        logger.warning("Could not find submit button, trying form submit", error=str(e))
-                        ref_field.submit()
+                        # Try multiple button selectors for Angular/Ionic app
+                        submit_button = None
+                        button_selectors = [
+                            "//ion-button[@type='submit']",
+                            "//ion-button[contains(text(), 'Suchen')]",
+                            "//ion-button[contains(text(), 'Tracking')]",
+                            "//button[@type='submit']",
+                            "//ion-button",  # Last resort: any ion-button near the form
+                        ]
+
+                        for selector in button_selectors:
+                            try:
+                                submit_button = driver.find_element(By.XPATH, selector)
+                                break
+                            except:
+                                continue
+
+                        if submit_button:
+                            submit_button.click()
+                            logger.info("Clicked submit button")
+                        else:
+                            # Try form submit as fallback
+                            ref_field.submit()
+                            logger.info("Used form.submit() as fallback")
+
                         time.sleep(3)
 
-                    # Handle legal popup if it appears
+                    except Exception as e:
+                        logger.warning("Could not submit form", error=str(e))
+                        raise
+
+                    # Handle reCAPTCHA modal that appears after form submission
                     try:
-                        # Look for "I'm not a robot" checkbox
-                        robot_checkbox = wait.until(EC.presence_of_element_located((
+                        logger.info("Waiting for reCAPTCHA modal to appear")
+
+                        # Wait for the modal overlay to appear (dynamic ID starting with ion-overlay-)
+                        modal = wait.until(EC.presence_of_element_located((
                             By.XPATH,
-                            "//input[@type='checkbox' and (contains(@id, 'robot') or contains(@name, 'robot'))] | //label[contains(text(), 'not a robot')]//input[@type='checkbox']"
+                            "//ion-modal[starts-with(@id, 'ion-overlay-')]"
                         )))
+                        logger.info("reCAPTCHA modal appeared")
+                        time.sleep(2)
 
-                        # Scroll to checkbox
-                        driver.execute_script("arguments[0].scrollIntoView(true);", robot_checkbox)
-                        time.sleep(1)
+                        # Find and click the reCAPTCHA checkbox
+                        try:
+                            # The checkbox is the span with class "recaptcha-checkbox-checkmark"
+                            # But we need to click the parent div with role="checkbox"
+                            recaptcha_checkbox = wait.until(EC.element_to_be_clickable((
+                                By.XPATH,
+                                "//div[@role='checkbox' and contains(@class, 'recaptcha-checkbox')]"
+                            )))
 
-                        # Click checkbox
-                        robot_checkbox.click()
-                        logger.info("Clicked 'I'm not a robot' checkbox")
-                        time.sleep(1)
+                            # Scroll to checkbox
+                            driver.execute_script("arguments[0].scrollIntoView(true);", recaptcha_checkbox)
+                            time.sleep(1)
 
-                        # Find and click "annehmen" button
-                        accept_button = driver.find_element(By.XPATH, "//button[contains(text(), 'annehmen') or contains(text(), 'Annehmen') or contains(text(), 'Accept')]")
-                        accept_button.click()
-                        logger.info("Clicked accept button")
-                        time.sleep(3)
+                            # Click checkbox
+                            recaptcha_checkbox.click()
+                            logger.info("Clicked reCAPTCHA checkbox")
+
+                            # Wait for reCAPTCHA to process (3-5 seconds as recommended)
+                            time.sleep(4)
+
+                        except Exception as e:
+                            logger.warning("Could not click reCAPTCHA checkbox", error=str(e))
+                            # Continue anyway, maybe it's not required
+
+                        # Find and click "ANNEHMEN" button in the modal
+                        try:
+                            # The button is an ion-button containing "Annehmen"
+                            annehmen_button = wait.until(EC.element_to_be_clickable((
+                                By.XPATH,
+                                "//ion-modal//ion-button[contains(text(), 'Annehmen') or contains(text(), 'ANNEHMEN')]"
+                            )))
+
+                            annehmen_button.click()
+                            logger.info("Clicked ANNEHMEN button")
+                            time.sleep(3)
+
+                        except Exception as e:
+                            logger.warning("Could not click ANNEHMEN button", error=str(e))
+                            # Try alternative selector
+                            try:
+                                annehmen_button = driver.find_element(By.XPATH, "//ion-button[contains(., 'nehmen')]")
+                                annehmen_button.click()
+                                logger.info("Clicked ANNEHMEN button (alternative selector)")
+                                time.sleep(3)
+                            except:
+                                logger.error("Failed to click ANNEHMEN button with all selectors")
+                                raise
 
                     except Exception as e:
-                        logger.info("No legal popup found or already accepted", error=str(e))
+                        logger.warning("Could not handle reCAPTCHA modal", error=str(e))
+                        # Continue to try reading the page anyway
 
             except Exception as e:
                 logger.info("No login form found, assuming direct tracking page", error=str(e))
