@@ -994,10 +994,11 @@ class SupportAgentOrchestrator:
 
         if purchase_orders and len(purchase_orders) > 0:
             po_data = purchase_orders[0]
-            po_number = po_data.get('purchaseOrderNumber')
+            po_number = po_data.get('purchaseOrderNumber') or po_data.get('orderNumber')
             supplier_name = po_data.get('supplierName', '')
             supplier_email = po_data.get('supplierEmail', '')
             supplier_phone = po_data.get('supplierPhone', '')
+            supplier_contact_person = po_data.get('supplierContactPerson', '')
 
         # Extract delivery customer address (use same field names as refresh_ticket)
         address_parts = []
@@ -1086,6 +1087,7 @@ class SupportAgentOrchestrator:
             supplier_name=supplier_name,
             supplier_email=supplier_email,
             supplier_phone=supplier_phone,
+            supplier_contact_person=supplier_contact_person,
             tracking_number=tracking_number,
             tracking_url=tracking_url,
             carrier_name=carrier_name,
