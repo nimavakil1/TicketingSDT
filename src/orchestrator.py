@@ -129,6 +129,68 @@ class SupportAgentOrchestrator:
             logger.error("Error during email processing", error=str(e))
             return 0
 
+    def _is_amazon_return_authorization(self, email_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """
+        Detect if this is an Amazon return authorization email
+
+        Args:
+            email_data: Email message data from Gmail
+
+        Returns:
+            Tuple of (is_return_auth, customer_return_reason)
+        """
+        from_address = email_data.get('from', '').lower()
+        subject = email_data.get('subject', '')
+        body = email_data.get('body', '')
+
+        # Check if from Amazon's donotreply
+        if 'donotreply@amazon' not in from_address:
+            return False, None
+
+        # Check subject for return authorization keywords
+        return_keywords = [
+            'rücksendegenehmigung',  # German: return authorization
+            'return authorization',
+            'rückgabeanfrage',  # German: return request
+            'return request approved'
+        ]
+
+        subject_lower = subject.lower()
+        is_return_auth = any(keyword in subject_lower for keyword in return_keywords)
+
+        if not is_return_auth:
+            return False, None
+
+        # Extract customer's return reason/comment from email body
+        customer_comment = None
+        try:
+            # Look for customer comment section in German emails
+            if 'kundenkommentar' in body.lower():
+                # Find the line after "Kundenkommentar"
+                lines = body.split('\n')
+                for i, line in enumerate(lines):
+                    if 'kundenkommentar' in line.lower():
+                        # Get next non-empty line
+                        for j in range(i+1, min(i+5, len(lines))):
+                            comment_line = lines[j].strip()
+                            if comment_line and len(comment_line) > 10:
+                                # Remove HTML tags if present
+                                import re
+                                comment_line = re.sub(r'<[^>]+>', '', comment_line)
+                                customer_comment = comment_line
+                                break
+                        break
+        except Exception as e:
+            logger.warning("Failed to extract customer comment from return auth email", error=str(e))
+
+        logger.info(
+            "Detected Amazon return authorization email",
+            subject=subject[:100],
+            customer_comment=customer_comment
+        )
+
+        return True, customer_comment
+
     def _process_single_email(self, email_data: Dict[str, Any]) -> bool:
         """
         Process a single email through the full workflow
@@ -215,6 +277,9 @@ class SupportAgentOrchestrator:
             )
             # Update email_data with filtered body for AI analysis
             email_data = {**email_data, 'body': filtered_body}
+
+        # Check if this is an Amazon return authorization email
+        is_return_auth, customer_return_reason = self._is_amazon_return_authorization(email_data)
 
         try:
             # Check if already successfully processed (idempotency)
@@ -326,6 +391,15 @@ class SupportAgentOrchestrator:
 
             # Update ticket state
             self._update_ticket_state(session, ticket_state, analysis)
+
+            # Handle Amazon return authorization emails
+            if is_return_auth:
+                self._handle_return_authorization(
+                    session=session,
+                    ticket_state=ticket_state,
+                    customer_return_reason=customer_return_reason,
+                    email_data=email_data
+                )
 
             # Extract and update PO number and supplier references
             self._update_ticket_identifiers(session, ticket_state, ticket_data, analysis)
@@ -1242,6 +1316,119 @@ class SupportAgentOrchestrator:
             ticket_state.pending_supplier_requests = conversation_updates.get('supplier_requests')
 
         session.commit()
+
+    def _handle_return_authorization(
+        self,
+        session: Any,
+        ticket_state: TicketState,
+        customer_return_reason: Optional[str],
+        email_data: Dict[str, Any]
+    ) -> None:
+        """
+        Handle Amazon return authorization emails with special workflow
+
+        Args:
+            session: Database session
+            ticket_state: The ticket state object
+            customer_return_reason: Customer's return reason extracted from email
+            email_data: The email data
+        """
+        logger.info(
+            "Handling Amazon return authorization",
+            ticket_number=ticket_state.ticket_number,
+            customer_return_reason=customer_return_reason
+        )
+
+        # Set a special custom status for return authorizations
+        return_auth_status = session.query(CustomStatus).filter_by(
+            name='Return Authorization - Action Required'
+        ).first()
+
+        if not return_auth_status:
+            # Create the status if it doesn't exist
+            return_auth_status = CustomStatus(
+                name='Return Authorization - Action Required',
+                color='#ff9800',  # Orange color
+                description='Amazon approved customer return - needs manual customer contact'
+            )
+            session.add(return_auth_status)
+            session.flush()  # Get the ID
+            logger.info("Created new return authorization status")
+
+        # Update ticket status
+        ticket_state.custom_status_id = return_auth_status.id
+
+        # Add internal note explaining the return authorization
+        try:
+            internal_note = self._build_return_authorization_note(
+                customer_return_reason=customer_return_reason,
+                order_number=ticket_state.order_number
+            )
+
+            # Use MessageService to create an internal message
+            message_service = MessageService(session, self.ticketing_client)
+            message_service.create_pending_message(
+                ticket_id=ticket_state.id,
+                message_type='internal',
+                subject='Amazon Return Authorization',
+                body=internal_note,
+                recipient_email=None,
+                requires_approval=False  # Auto-approved internal note
+            )
+
+            logger.info(
+                "Added return authorization internal note",
+                ticket_number=ticket_state.ticket_number
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to add return authorization internal note",
+                ticket_number=ticket_state.ticket_number,
+                error=str(e)
+            )
+
+        session.commit()
+
+    def _build_return_authorization_note(
+        self,
+        customer_return_reason: Optional[str],
+        order_number: Optional[str]
+    ) -> str:
+        """Build the internal note for return authorization"""
+        note_lines = [
+            "🔄 **AMAZON RETURN AUTHORIZATION**",
+            "",
+            "Amazon has approved the customer's return request for this order.",
+            "",
+            "**Action Required:**",
+            "Contact the customer via Amazon Seller Central to provide return instructions.",
+            ""
+        ]
+
+        if customer_return_reason:
+            note_lines.extend([
+                "**Customer's Return Reason:**",
+                customer_return_reason,
+                ""
+            ])
+
+        if order_number:
+            note_lines.extend([
+                "**Order Number:**",
+                order_number,
+                ""
+            ])
+
+        note_lines.extend([
+            "**Next Steps:**",
+            "1. Go to Amazon Seller Central → Orders → Manage Returns",
+            f"2. Find order {order_number or '[order number]'}",
+            "3. Contact the customer through Amazon's messaging system",
+            "4. Provide return shipping instructions or label",
+            "5. Update this ticket status once customer has been contacted"
+        ])
+
+        return "\n".join(note_lines)
 
     def _handle_supplier_communication(
         self,
