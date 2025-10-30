@@ -1,11 +1,10 @@
-  #!/bin/bash
-  cd ~/TicketingSDT
+#!/bin/bash
+cd /home/ai/TicketingSDT
 
-  # Load environment variables properly (handles special characters)
-  set -a
-  source .env
-  set +a
+# Load environment variables and export them
+set -a
+source /home/ai/TicketingSDT/.env
+set +a
 
-  python3 main.py
-  EOF
-
+# Execute python with the environment
+exec python3 main.py

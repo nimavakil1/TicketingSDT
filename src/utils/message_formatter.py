@@ -318,37 +318,14 @@ class MessageFormatter:
         ticket_number: str,
         language: str
     ) -> str:
-        """Build formatted body for customer email"""
-        # Greeting based on language
-        if language.startswith('de'):
-            greeting = f"Sehr geehrte/r {customer_name}," if customer_name != "Customer" else "Sehr geehrte Damen und Herren,"
-            ref_line = f"Betreff Ihrer Bestellung #{order_number}"
-            ticket_ref = f"Ticket-Referenz: {ticket_number}"
-            signature = "Mit freundlichen Grüßen,\nKundensupport Team"
-        else:
-            greeting = f"Dear {customer_name}," if customer_name != "Customer" else "Dear Customer,"
-            ref_line = f"Regarding your order #{order_number}"
-            ticket_ref = f"Ticket Reference: {ticket_number}"
-            signature = "Best regards,\nCustomer Support Team"
+        """Build formatted body for customer email
+        
+        Note: The AI already generates the complete message with greeting and signature
+        in the correct language. We only return the AI's message as-is.
+        """
+        # The AI already handled everything - just return the message
+        return message_body
 
-        # Check if message already has a signature
-        signature_patterns = [
-            r'Mit freundlichen Gr[üu]ßen',
-            r'Best regards',
-            r'Kind regards',
-            r'Sincerely',
-            r'Ihr.*Team',
-            r'Your.*Team'
-        ]
-        has_signature = any(re.search(pattern, message_body, re.IGNORECASE) for pattern in signature_patterns)
-
-        # Build full body (only add signature if message doesn't already have one)
-        if has_signature:
-            full_body = f"{greeting}\n\n{ref_line}\n{ticket_ref}\n\n{message_body}"
-        else:
-            full_body = f"{greeting}\n\n{ref_line}\n{ticket_ref}\n\n{message_body}\n\n{signature}"
-
-        return full_body
 
     def _remove_customer_pii(self, text: str) -> str:
         """

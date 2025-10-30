@@ -20,6 +20,7 @@ from src.database.models import (
     TicketState,
     Supplier,
     PendingEmailRetry,
+    PendingMessage,
     AIDecisionLog,
     Attachment,
     CustomStatus,
@@ -1564,10 +1565,41 @@ class SupportAgentOrchestrator:
         """
         from_address = email_data.get('from', '').lower()
 
-        # Determine if email is from supplier
+        # Determine if email is from supplier by checking:
+        # 1. Exact match with ticket's supplier_email
+        # 2. Domain match with any supplier emails we've sent to for this ticket
         is_from_supplier = False
+
+        # Extract domain from incoming email
+        from_domain = from_address.split('@')[-1] if '@' in from_address else ''
+
+        # Check exact match with ticket's supplier_email
         if ticket_state.supplier_email:
             is_from_supplier = from_address == ticket_state.supplier_email.lower()
+        
+        # If not exact match, check domain match with sent supplier messages
+        if not is_from_supplier and from_domain:
+            # Query all supplier messages sent for this ticket
+            supplier_recipients = session.query(PendingMessage.recipient_email).filter(
+                PendingMessage.ticket_id == ticket_state.id,
+                PendingMessage.message_type == 'supplier',
+                PendingMessage.recipient_email.isnot(None)
+            ).distinct().all()
+            
+            # Check if any recipient domain matches the sender domain
+            for (recipient_email,) in supplier_recipients:
+                if recipient_email:
+                    recipient_domain = recipient_email.lower().split('@')[-1] if '@' in recipient_email else ''
+                    if recipient_domain and recipient_domain == from_domain:
+                        is_from_supplier = True
+                        logger.info(
+                            "Supplier email detected by domain match",
+                            ticket_number=ticket_state.ticket_number,
+                            from_address=from_address,
+                            from_domain=from_domain,
+                            matched_recipient=recipient_email
+                        )
+                        break
 
         # Check if ticket is currently closed
         is_closed = False

@@ -462,8 +462,14 @@ const Tickets: React.FC = () => {
                     <span
                       className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                       style={{
-                        backgroundColor: ticket.custom_status.color + '20',
-                        color: ticket.custom_status.color
+                        backgroundColor: 
+                          ticket.custom_status.name === 'Supplier responded' ? '#ff8c0020' :
+                          ticket.custom_status.name === 'Reopened' ? '#3b82f620' :
+                          ticket.custom_status.color + '20',
+                        color: 
+                          ticket.custom_status.name === 'Supplier responded' ? '#ff8c00' :
+                          ticket.custom_status.name === 'Reopened' ? '#3b82f6' :
+                          ticket.custom_status.color
                       }}
                     >
                       {ticket.custom_status.name}
