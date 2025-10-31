@@ -3572,7 +3572,7 @@ async def restart_services(
 
     import subprocess
 
-    services = ['ai-agent', 'ai-agent-api']
+    services = ['support_agent_orchestrator.service']
     results = {}
 
     for service in services:
