@@ -191,6 +191,116 @@ class SupportAgentOrchestrator:
 
         return True, customer_comment
 
+    def _detect_human_escalation_request(self, email_data: Dict[str, Any], analysis: Dict[str, Any]) -> bool:
+        """
+        Detect if customer is requesting to speak with a human
+
+        Args:
+            email_data: Email message data
+            analysis: AI analysis results (may contain escalation_requested flag)
+
+        Returns:
+            True if customer requested human contact
+        """
+        # Check if AI detected escalation request in analysis
+        if analysis.get('ticket_state', {}).get('escalation_requested'):
+            logger.info("AI detected human escalation request in analysis")
+            return True
+
+        # Fallback: check email body for escalation keywords
+        body = email_data.get('body', '').lower()
+
+        escalation_keywords = [
+            # German
+            'mit einem menschen sprechen',
+            'mit jemandem sprechen',
+            'menschlichen mitarbeiter',
+            'persönlich sprechen',
+            'mensch sprechen',
+            'echten person',
+            # English
+            'speak to a human',
+            'talk to a person',
+            'human representative',
+            'speak with someone',
+            'talk to someone real',
+            'speak with a real person'
+        ]
+
+        for keyword in escalation_keywords:
+            if keyword in body:
+                logger.info(
+                    "Detected human escalation request via keyword",
+                    keyword=keyword
+                )
+                return True
+
+        return False
+
+    def _handle_human_escalation(
+        self,
+        session: Any,
+        ticket_state: TicketState,
+        email_data: Dict[str, Any]
+    ) -> None:
+        """
+        Handle customer request to speak with human
+
+        Args:
+            session: Database session
+            ticket_state: Current ticket state
+            email_data: Email data
+        """
+        logger.info(
+            "Handling human escalation request",
+            ticket_number=ticket_state.ticket_number
+        )
+
+        # Set ticket to ESCALATED status
+        ticket_state.escalated = True
+        ticket_state.escalation_reason = "Customer requested human contact"
+        ticket_state.escalation_date = datetime.utcnow()
+
+        # Add internal note
+        try:
+            internal_note = (
+                "🙋 **HUMAN ESCALATION REQUESTED**\n\n"
+                "The customer has explicitly requested to speak with a human representative.\n\n"
+                "**Action Required:**\n"
+                "1. Contact the customer directly\n"
+                "2. Address their concerns personally\n"
+                "3. Update ticket status after resolution\n\n"
+                "**Customer Email:** {}\n"
+                "**Request Time:** {}".format(
+                    email_data.get('from', 'Unknown'),
+                    datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                )
+            )
+
+            # Use MessageService to create an internal message
+            message_service = MessageService(session, self.ticketing_client)
+            message_service.create_pending_message(
+                ticket_id=ticket_state.id,
+                message_type='internal',
+                subject='Human Escalation Requested',
+                body=internal_note,
+                recipient_email=None,
+                requires_approval=False  # Auto-approved internal note
+            )
+
+            logger.info(
+                "Added human escalation internal note",
+                ticket_number=ticket_state.ticket_number
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to add human escalation internal note",
+                ticket_number=ticket_state.ticket_number,
+                error=str(e)
+            )
+
+        session.commit()
+
     def _process_single_email(self, email_data: Dict[str, Any]) -> bool:
         """
         Process a single email through the full workflow
@@ -400,6 +510,23 @@ class SupportAgentOrchestrator:
                     customer_return_reason=customer_return_reason,
                     email_data=email_data
                 )
+
+            # Detect and handle human escalation requests
+            if self._detect_human_escalation_request(email_data, analysis):
+                self._handle_human_escalation(
+                    session=session,
+                    ticket_state=ticket_state,
+                    email_data=email_data
+                )
+                # Skip creating pending messages - human will handle directly
+                logger.info(
+                    "Skipping pending message creation due to human escalation",
+                    ticket_number=ticket_state.ticket_number
+                )
+                # Mark email as processed and commit
+                self._mark_email_processed(session, gmail_message_id, ticket_state.id)
+                session.commit()
+                return True
 
             # Extract and update PO number and supplier references
             self._update_ticket_identifiers(session, ticket_state, ticket_data, analysis)
