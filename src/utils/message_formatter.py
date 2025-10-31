@@ -277,26 +277,13 @@ class MessageFormatter:
         ticket_number: str,
         supplier_refs: List[str]
     ) -> str:
-        """Build formatted body for supplier email"""
-        # Header with references
-        header_parts = [
-            "Dear Team," if "Team" in supplier_name or "GmbH" in supplier_name else f"Dear {supplier_name},",
-            ""
-        ]
+        """Build formatted body for supplier email
 
-        if po_number:
-            header_parts.append(f"Regarding Purchase Order: {po_number}")
-
-        header_parts.append(f"Our Ticket Reference: {ticket_number}")
-
-        if supplier_refs:
-            refs_str = ", ".join(supplier_refs)
-            header_parts.append(f"Your Ticket Reference(s): {refs_str}")
-
-        header_parts.append("")
-
-        # Combine header with message body
-        full_body = "\n".join(header_parts) + message_body
+        Note: The AI already generates the complete message with greeting, references,
+        and signature in the correct language. We only return the AI's message as-is.
+        """
+        # The AI already handles everything - just return the message
+        full_body = message_body
 
         # Check if message already has a signature
         signature_patterns = [
