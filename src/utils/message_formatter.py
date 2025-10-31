@@ -200,7 +200,12 @@ class MessageFormatter:
 
     def _extract_po_number(self, ticket_data: Dict[str, Any]) -> Optional[str]:
         """Extract PO number from ticket data"""
-        # First check structured data
+        # First check enriched data from ticket_state (most reliable)
+        po_number = ticket_data.get('purchase_order_number')
+        if po_number:
+            return po_number
+
+        # Then check structured data from API
         sales_order = ticket_data.get('salesOrder', {})
         purchase_orders = sales_order.get('purchaseOrders', [])
 
