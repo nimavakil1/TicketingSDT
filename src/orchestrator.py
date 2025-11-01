@@ -459,7 +459,7 @@ class SupportAgentOrchestrator:
                         logger.error("Failed to fetch escalated ticket", ticket_id=ticket_number, error=str(e))
 
             # If still no ticket after all attempts, schedule retry
-            if not ticket_data or not ticket_state:
+            if not ticket_state:
                 logger.warning(
                     "Could not resolve or create ticket; scheduling retry",
                     gmail_id=gmail_message_id,
@@ -473,6 +473,27 @@ class SupportAgentOrchestrator:
                 )
                 # Don't mark in Gmail - allow retry
                 return False
+
+            # If we have ticket_state but no ticket_data (e.g., API failure), still save email to history
+            if not ticket_data:
+                logger.warning(
+                    "Have ticket_state but no ticket_data (API may be down), saving email to history without AI analysis",
+                    ticket_number=ticket_state.ticket_number,
+                    gmail_id=gmail_message_id
+                )
+                # Mark email as successfully processed (saves to history)
+                self._mark_email_processed(
+                    session=session,
+                    email_data=email_data,
+                    ticket_state=ticket_state,
+                    order_number=identifiers.get('order_number'),
+                    success=True
+                )
+                session.commit()
+                logger.info("Email saved to ticket history (no AI analysis)", gmail_id=gmail_message_id)
+                # Mark in Gmail as processed
+                self.gmail_monitor.mark_as_processed(gmail_message_id)
+                return True
 
             ticket_id = ticket_data.get('ticketNumber')
             logger.info("Processing ticket", ticket_number=ticket_id)
