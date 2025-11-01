@@ -8,6 +8,7 @@ export interface PendingMessage {
   message_type: 'supplier' | 'customer' | 'internal';
   recipient_email: string | null;
   cc_emails: string[];
+  bcc_emails: string[];
   subject: string;
   body: string;
   attachments: string[];
@@ -21,9 +22,11 @@ export interface PendingMessage {
 }
 
 export interface PendingMessageUpdate {
+  recipient_email?: string;
   subject?: string;
   body?: string;
   cc_emails?: string[];
+  bcc_emails?: string[];
   attachments?: string[];
 }
 

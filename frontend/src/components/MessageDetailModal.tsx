@@ -9,10 +9,13 @@ interface MessageDetailModalProps {
 }
 
 const MessageDetailModal: React.FC<MessageDetailModalProps> = ({ message, onClose, onSuccess }) => {
+  const [recipientEmail, setRecipientEmail] = useState(message.recipient_email || '');
   const [subject, setSubject] = useState(message.subject);
   const [body, setBody] = useState(message.body);
   const [ccEmails, setCcEmails] = useState<string[]>(message.cc_emails || []);
+  const [bccEmails, setBccEmails] = useState<string[]>(message.bcc_emails || []);
   const [newCc, setNewCc] = useState('');
+  const [newBcc, setNewBcc] = useState('');
   const [loading, setLoading] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -23,9 +26,11 @@ const MessageDetailModal: React.FC<MessageDetailModalProps> = ({ message, onClos
       const approval: MessageApproval = {
         action: 'approve',
         updated_data: {
+          recipient_email: recipientEmail !== message.recipient_email ? recipientEmail : undefined,
           subject: subject !== message.subject ? subject : undefined,
           body: body !== message.body ? body : undefined,
           cc_emails: JSON.stringify(ccEmails) !== JSON.stringify(message.cc_emails) ? ccEmails : undefined,
+          bcc_emails: JSON.stringify(bccEmails) !== JSON.stringify(message.bcc_emails) ? bccEmails : undefined,
         },
       };
 
@@ -75,6 +80,21 @@ const MessageDetailModal: React.FC<MessageDetailModalProps> = ({ message, onClos
 
   const removeCcEmail = (email: string) => {
     setCcEmails(ccEmails.filter((e) => e !== email));
+  };
+
+  const addBccEmail = () => {
+    if (newBcc && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newBcc)) {
+      if (!bccEmails.includes(newBcc)) {
+        setBccEmails([...bccEmails, newBcc]);
+        setNewBcc('');
+      }
+    } else {
+      alert('Please enter a valid email address');
+    }
+  };
+
+  const removeBccEmail = (email: string) => {
+    setBccEmails(bccEmails.filter((e) => e !== email));
   };
 
   const getMessageTypeColor = (type: string) => {
@@ -141,20 +161,19 @@ const MessageDetailModal: React.FC<MessageDetailModalProps> = ({ message, onClos
             )}
 
             {/* Recipient */}
-            {message.recipient_email && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <User className="inline h-4 w-4 mr-1" />
-                  To
-                </label>
-                <input
-                  type="text"
-                  value={message.recipient_email}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <User className="inline h-4 w-4 mr-1" />
+                To
+              </label>
+              <input
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="Enter recipient email address"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
 
             {/* CC Emails */}
             <div>
@@ -186,6 +205,43 @@ const MessageDetailModal: React.FC<MessageDetailModalProps> = ({ message, onClos
                 />
                 <button
                   onClick={addCcEmail}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* BCC Emails */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">BCC (Optional)</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {bccEmails.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800"
+                  >
+                    {email}
+                    <button
+                      onClick={() => removeBccEmail(email)}
+                      className="ml-2 text-gray-600 hover:text-gray-800"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex space-x-2">
+                <input
+                  type="email"
+                  value={newBcc}
+                  onChange={(e) => setNewBcc(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addBccEmail()}
+                  placeholder="Add BCC email address"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <button
+                  onClick={addBccEmail}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                 >
                   Add

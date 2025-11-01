@@ -382,6 +382,7 @@ class PendingMessage(Base):
     message_type = Column(String(20), nullable=False)  # 'supplier', 'customer', 'internal'
     recipient_email = Column(String(255))
     cc_emails = Column(JSON, default=[])  # List of CC email addresses
+    bcc_emails = Column(JSON, default=[])  # List of BCC email addresses
     subject = Column(Text, nullable=False)
     body = Column(Text, nullable=False)
     attachments = Column(JSON, default=[])  # List of attachment file paths

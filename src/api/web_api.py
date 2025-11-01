@@ -172,6 +172,7 @@ class PendingMessageInfo(BaseModel):
     message_type: str  # 'supplier', 'customer', 'internal'
     recipient_email: Optional[str]
     cc_emails: List[str]
+    bcc_emails: List[str]
     subject: str
     body: str
     attachments: List[str]
@@ -185,9 +186,11 @@ class PendingMessageInfo(BaseModel):
 
 
 class PendingMessageUpdate(BaseModel):
+    recipient_email: Optional[str] = None
     subject: Optional[str] = None
     body: Optional[str] = None
     cc_emails: Optional[List[str]] = None
+    bcc_emails: Optional[List[str]] = None
     attachments: Optional[List[str]] = None
 
 
@@ -3877,6 +3880,7 @@ async def get_pending_messages(
             message_type=msg.message_type,
             recipient_email=msg.recipient_email,
             cc_emails=msg.cc_emails or [],
+            bcc_emails=msg.bcc_emails or [],
             subject=msg.subject,
             body=msg.body,
             attachments=msg.attachments or [],
@@ -3927,6 +3931,7 @@ async def create_pending_message(
         message_type=pending_message.message_type,
         recipient_email=pending_message.recipient_email,
         cc_emails=pending_message.cc_emails or [],
+        bcc_emails=pending_message.bcc_emails or [],
         subject=pending_message.subject,
         body=pending_message.body,
         attachments=pending_message.attachments or [],
@@ -4008,18 +4013,22 @@ async def approve_pending_message(
 
     if approval.action == "approve":
         # Extract updated data if provided
+        updated_recipient = approval.updated_data.recipient_email if approval.updated_data and approval.updated_data.recipient_email else None
         updated_body = approval.updated_data.body if approval.updated_data and approval.updated_data.body else None
         updated_subject = approval.updated_data.subject if approval.updated_data and approval.updated_data.subject else None
         updated_cc = approval.updated_data.cc_emails if approval.updated_data and approval.updated_data.cc_emails is not None else None
+        updated_bcc = approval.updated_data.bcc_emails if approval.updated_data and approval.updated_data.bcc_emails is not None else None
         updated_attachments = approval.updated_data.attachments if approval.updated_data and approval.updated_data.attachments is not None else None
 
         # Send message
         success = message_service.send_pending_message(
             pending_message_id=message_id,
             reviewed_by_user_id=current_user.id,
+            updated_recipient=updated_recipient,
             updated_body=updated_body,
             updated_subject=updated_subject,
             updated_cc=updated_cc,
+            updated_bcc=updated_bcc,
             updated_attachments=updated_attachments
         )
 

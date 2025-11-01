@@ -151,7 +151,9 @@ class MessageService:
         reviewed_by_user_id: int,
         updated_body: Optional[str] = None,
         updated_subject: Optional[str] = None,
+        updated_recipient: Optional[str] = None,
         updated_cc: Optional[List[str]] = None,
+        updated_bcc: Optional[List[str]] = None,
         updated_attachments: Optional[List[str]] = None
     ) -> bool:
         """
@@ -162,7 +164,9 @@ class MessageService:
             reviewed_by_user_id: User ID who approved
             updated_body: Optional updated body text
             updated_subject: Optional updated subject
+            updated_recipient: Optional updated recipient email
             updated_cc: Optional updated CC list
+            updated_bcc: Optional updated BCC list
             updated_attachments: Optional updated attachments
 
         Returns:
@@ -182,12 +186,16 @@ class MessageService:
             return False
 
         # Update with human edits if provided
+        if updated_recipient:
+            pending_message.recipient_email = updated_recipient
         if updated_body:
             pending_message.body = updated_body
         if updated_subject:
             pending_message.subject = updated_subject
         if updated_cc is not None:
             pending_message.cc_emails = updated_cc
+        if updated_bcc is not None:
+            pending_message.bcc_emails = updated_bcc
         if updated_attachments is not None:
             pending_message.attachments = updated_attachments
 
