@@ -316,6 +316,23 @@ class SupportAgentOrchestrator:
         body = email_data.get('body', '')
         from_address = email_data.get('from', '')
 
+        # Check if email was already processed (idempotency check)
+        session = self.SessionMaker()
+        try:
+            existing = session.query(ProcessedEmail).filter_by(
+                gmail_message_id=gmail_message_id
+            ).first()
+            if existing:
+                logger.info(
+                    "Email already processed, skipping",
+                    gmail_id=gmail_message_id,
+                    processed_at=existing.processed_at,
+                    success=existing.success
+                )
+                return True  # Already processed, return success
+        finally:
+            session.close()
+
         # Skip emails with no subject (bounce messages, system notifications)
         if not subject:
             logger.info(
