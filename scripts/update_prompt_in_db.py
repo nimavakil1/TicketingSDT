@@ -10,8 +10,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.database.db import SessionLocal
-from src.database.models import SystemSetting
+from src.database import init_database, SystemSetting
 
 def update_prompt_in_database():
     """Load prompt from file and update database"""
@@ -40,7 +39,8 @@ def update_prompt_in_database():
     print()
 
     # Update database
-    session = SessionLocal()
+    Session = init_database()
+    session = Session()
     try:
         setting = session.query(SystemSetting).filter_by(key='ai_system_prompt').first()
 
