@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const client = axios.create({
   baseURL: window.location.hostname === 'localhost'
-    ? 'http://localhost:8002'
+    ? 'http://localhost:8003'
     : '',  // Use relative URLs in production - nginx proxies /api/ to backend
   // Don't set default Content-Type - let axios auto-detect based on request data
   // (JSON objects get application/json, FormData gets multipart/form-data)
