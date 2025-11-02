@@ -98,7 +98,7 @@ class MessageService:
             )
             recipient_email = ticket_state.customer_email
 
-            # WATERPROOF LAYER: Validate language of customer message
+            # WATERPROOF LAYER 1: Validate language of customer message
             from src.ai.language_detector import LanguageDetector
             is_valid, detected_lang = LanguageDetector.validate_language(message_body, customer_language)
             if not is_valid:
@@ -111,6 +111,33 @@ class MessageService:
                 )
                 # Add warning to message body so humans can see it
                 body = f"⚠️ WARNING: AI used {detected_lang} instead of {customer_language}\n\n{body}"
+
+            # WATERPROOF LAYER 2: Check for unverified refund claims
+            refund_forbidden_phrases = [
+                'refund has been processed',
+                'refund has been issued',
+                'refund has been approved',
+                'you will receive a refund',
+                'we have refunded',
+                'your refund is on the way',
+                'refund wurde bearbeitet',
+                'rückerstattung wurde bearbeitet',
+                'rückerstattung erfolgt',
+                'sie erhalten eine rückerstattung'
+            ]
+
+            message_lower = message_body.lower()
+            for phrase in refund_forbidden_phrases:
+                if phrase in message_lower:
+                    logger.error(
+                        "🚨 UNVERIFIED REFUND CLAIM DETECTED!",
+                        ticket_number=ticket_state.ticket_number,
+                        forbidden_phrase=phrase,
+                        message_preview=message_body[:300]
+                    )
+                    # Add critical warning to message body
+                    body = f"🚨 CRITICAL WARNING: Message contains unverified refund claim: '{phrase}'\n\n{body}"
+                    break
 
         elif message_type == "internal":
             subject = f"AI Agent Note - Ticket {ticket_state.ticket_number}"
