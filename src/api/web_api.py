@@ -836,6 +836,21 @@ async def get_ticket_detail(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
+    # Look up supplier information from suppliers table
+    supplier_email_from_table = None
+    supplier_language = None
+    if ticket.supplier_name:
+        supplier = db.query(Supplier).filter(
+            Supplier.name == ticket.supplier_name
+        ).first()
+        if supplier:
+            supplier_email_from_table = supplier.default_email
+            supplier_language = supplier.language_code
+            logger.info("Found supplier in table",
+                       supplier_name=ticket.supplier_name,
+                       email=supplier_email_from_table,
+                       language=supplier_language)
+
     # Get AI decisions for this ticket
     decisions = db.query(AIDecisionLog).filter(
         AIDecisionLog.ticket_id == ticket.id
@@ -1023,7 +1038,8 @@ async def get_ticket_detail(
         "expected_delivery_date": ticket.expected_delivery_date,
         "product_details": ticket.product_details,
         "supplier_name": ticket.supplier_name,
-        "supplier_email": ticket.supplier_email,
+        "supplier_email": supplier_email_from_table or ticket.supplier_email,  # Prefer supplier table
+        "supplier_language": supplier_language,  # From suppliers table
         "supplier_phone": ticket.supplier_phone,
         "supplier_contact_person": ticket.supplier_contact_person,
         "ticket_status_id": ticket.ticket_status_id,

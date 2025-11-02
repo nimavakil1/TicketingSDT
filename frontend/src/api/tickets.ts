@@ -59,6 +59,7 @@ export interface TicketDetail {
   product_details?: string; // JSON string
   supplier_name?: string;
   supplier_email?: string;
+  supplier_language?: string;
   supplier_phone?: string;
   supplier_contact_person?: string;
   ticket_status_id: number;

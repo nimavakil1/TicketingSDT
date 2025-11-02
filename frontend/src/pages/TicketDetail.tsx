@@ -1216,6 +1216,16 @@ const TicketDetail: React.FC = () => {
                 <p className="text-sm font-medium text-gray-900">{ticket.supplier_email}</p>
               </div>
             )}
+            {ticket.supplier_language && (
+              <div>
+                <p className="text-xs text-gray-500">Language</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {ticket.supplier_language === 'de-DE' ? '🇩🇪 German' :
+                   ticket.supplier_language === 'en-US' ? '🇬🇧 English' :
+                   ticket.supplier_language}
+                </p>
+              </div>
+            )}
             {ticket.supplier_phone && (
               <div>
                 <p className="text-xs text-gray-500">Phone</p>
