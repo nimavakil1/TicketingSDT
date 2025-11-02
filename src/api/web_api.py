@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from config.settings import settings
-from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, PendingEmailRetry, User, PendingMessage, MessageTemplate, Attachment, TicketAuditLog, CustomStatus, init_database
+from src.database.models import TicketState, AIDecisionLog, ProcessedEmail, PendingEmailRetry, User, PendingMessage, MessageTemplate, Attachment, TicketAuditLog, CustomStatus, Supplier, init_database
 from src.ai.ai_engine import AIEngine
 from src.api.ticketing_client import TicketingAPIClient
 from src.utils.message_service import MessageService
