@@ -910,14 +910,14 @@ class SupportAgentOrchestrator:
     ) -> Optional[str]:
         """
         Create a new ticket in the old ticketing system.
-        The API returns the ticket number in the 'serviceResult' field.
+        The API returns the ticket ID (not ticket number) in the 'serviceResult' field.
 
         Args:
             email_data: Email data
             order_number: Amazon order number if available
 
         Returns:
-            Ticket number if created successfully, None otherwise
+            Ticket ID if created successfully, None otherwise
         """
         subject = email_data.get('subject', '')
         body = email_data.get('body', '')
@@ -938,15 +938,15 @@ class SupportAgentOrchestrator:
                 order_number=order_number
             )
 
-            # Extract ticket number from serviceResult
-            ticket_number = result.get('serviceResult')
+            # Extract ticket ID from serviceResult
+            ticket_id = result.get('serviceResult')
 
             logger.info(
                 "Ticket created in old system",
-                ticket_number=ticket_number,
+                ticket_id=ticket_id,
                 result=result
             )
-            return ticket_number
+            return ticket_id
 
         except TicketingAPIError as e:
             logger.error(
@@ -1079,22 +1079,54 @@ class SupportAgentOrchestrator:
 
         logger.info("Step 3: Creating new ticket in old system")
         order_num = identifiers.get('order_number')
-        ticket_number = self._create_ticket_in_old_system(email_data, order_num)
+        ticket_id = self._create_ticket_in_old_system(email_data, order_num)
 
-        if not ticket_number:
+        if not ticket_id:
             logger.error("Failed to create ticket in old system")
             return (None, None)
 
-        # Step 4: Fetch newly created ticket by ticket ID
-        logger.info("Step 4: Fetching newly created ticket", ticket_id=ticket_number)
+        # Step 4: Search for newly created ticket by order number
+        # Note: UpsertTicket returns ticket ID, but newly created tickets aren't
+        # immediately available via get_ticket_by_id. We search by order number instead.
+        logger.info(
+            "Step 4: Searching for newly created ticket",
+            ticket_id=ticket_id,
+            order_number=order_num
+        )
 
         try:
-            ticket_data = self.ticketing_client.get_ticket_by_id(ticket_number)
-            if not ticket_data:
-                logger.error("Ticket not found by ID", ticket_id=ticket_number)
-                return (None, None)
+            # Search by order number if available
+            if order_num:
+                tickets = self.ticketing_client.get_ticket_by_amazon_order_number(order_num)
+                if tickets:
+                    ticket_data = self._select_latest_ticket(tickets)
+                    logger.info(
+                        "Found newly created ticket by order number",
+                        ticket_number=ticket_data.get('ticketNumber')
+                    )
+                else:
+                    logger.error(
+                        "Newly created ticket not found by order number",
+                        ticket_id=ticket_id,
+                        order_number=order_num
+                    )
+                    return (None, None)
+            else:
+                # No order number - try to fetch by ID as fallback
+                ticket_data = self.ticketing_client.get_ticket_by_id(ticket_id)
+                if not ticket_data:
+                    logger.error(
+                        "Newly created ticket not found by ID",
+                        ticket_id=ticket_id
+                    )
+                    return (None, None)
         except Exception as e:
-            logger.error("Failed to fetch ticket", ticket_id=ticket_number, error=str(e))
+            logger.error(
+                "Failed to fetch newly created ticket",
+                ticket_id=ticket_id,
+                order_number=order_num,
+                error=str(e)
+            )
             return (None, None)
 
         # Step 5: Import ticket to our DB
