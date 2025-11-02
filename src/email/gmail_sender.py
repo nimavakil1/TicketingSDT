@@ -165,6 +165,18 @@ class GmailSender:
                 body=send_request
             ).execute()
 
+            # Explicitly add SENT label to ensure message appears in Sent folder
+            # This is necessary because messages().send() doesn't always reliably add the SENT label
+            try:
+                self.service.users().messages().modify(
+                    userId='me',
+                    id=result['id'],
+                    body={'addLabelIds': ['SENT']}
+                ).execute()
+                logger.info("Added SENT label to message", message_id=result['id'])
+            except Exception as e:
+                logger.warning("Failed to add SENT label (message was still sent)", error=str(e), message_id=result['id'])
+
             logger.info(
                 "Email sent successfully",
                 message_id=result['id'],
