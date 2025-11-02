@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import structlog
+from bs4 import BeautifulSoup
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -329,6 +330,51 @@ class GmailMonitor:
                 return header['value']
         return None
 
+    def _clean_html(self, html_content: str) -> str:
+        """
+        Clean HTML content by removing CSS, style tags, comments, and extracting text
+
+        Args:
+            html_content: Raw HTML string
+
+        Returns:
+            Clean plain text without HTML tags, CSS, or comments
+        """
+        try:
+            # Parse HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+
+            # Remove style tags and their contents
+            for style in soup.find_all('style'):
+                style.decompose()
+
+            # Remove script tags and their contents
+            for script in soup.find_all('script'):
+                script.decompose()
+
+            # Remove HTML comments
+            for comment in soup.find_all(string=lambda text: isinstance(text, str) and text.strip().startswith('<!--')):
+                comment.extract()
+
+            # Get text content
+            text = soup.get_text(separator='\n', strip=True)
+
+            # Clean up excessive whitespace while preserving paragraph breaks
+            lines = [line.strip() for line in text.split('\n')]
+            lines = [line for line in lines if line]  # Remove empty lines
+            clean_text = '\n'.join(lines)
+
+            logger.debug("HTML cleaned",
+                        original_length=len(html_content),
+                        cleaned_length=len(clean_text))
+
+            return clean_text
+
+        except Exception as e:
+            logger.error("Failed to clean HTML, falling back to regex", error=str(e))
+            # Fallback to simple regex if BeautifulSoup fails
+            return re.sub('<[^<]+?>', '', html_content)
+
     def _extract_body(self, payload: Dict) -> str:
         """
         Extract email body from message payload
@@ -351,8 +397,8 @@ class GmailMonitor:
                     if 'data' in part['body']:
                         # Use HTML if plain text not available
                         html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
-                        # Simple HTML stripping (for production, use html2text or beautifulsoup)
-                        body = re.sub('<[^<]+?>', '', html_body)
+                        # Clean HTML properly - remove CSS, style tags, comments, etc.
+                        body = self._clean_html(html_body)
                 elif 'parts' in part:
                     # Nested parts
                     body = self._extract_body(part)
