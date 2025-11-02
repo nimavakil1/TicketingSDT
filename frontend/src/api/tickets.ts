@@ -33,6 +33,7 @@ export interface TicketMessage {
   isInternal: boolean;
   authorName: string | null;
   authorEmail: string | null;
+  recipientEmail?: string | null;
 }
 
 export interface TicketDetail {

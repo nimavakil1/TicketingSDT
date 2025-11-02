@@ -1773,6 +1773,11 @@ const TicketDetail: React.FC = () => {
                         <span className="text-sm font-medium text-gray-900">
                           {message.authorName || message.authorEmail || 'Unknown'}
                         </span>
+                        {message.recipientEmail && (
+                          <span className="ml-2 text-xs text-gray-600">
+                            → {message.recipientEmail}
+                          </span>
+                        )}
                         {message.isInternal && (
                           <span className="ml-2 text-xs text-yellow-700 font-medium">Internal Note</span>
                         )}

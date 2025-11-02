@@ -863,14 +863,14 @@ async def get_ticket_detail(
     # First, get messages from database (includes Gmail-sent messages and internal notes)
     from sqlalchemy import text
     db_result = db.execute(text("""
-        SELECT id, gmail_message_id, processed_at, subject, from_address, message_body
+        SELECT id, gmail_message_id, processed_at, subject, from_address, to_address, message_body
         FROM processed_emails
         WHERE ticket_id = :ticket_id
         ORDER BY processed_at ASC
     """), {"ticket_id": ticket.id}).fetchall()
 
     for row in db_result:
-        email_id, gmail_message_id, processed_at, subject, from_address, message_body = row
+        email_id, gmail_message_id, processed_at, subject, from_address, to_address, message_body = row
 
         # Determine message type from subject
         subject_lower = (subject or "").lower()
@@ -910,6 +910,7 @@ async def get_ticket_detail(
             "isInternal": is_internal,
             "authorName": None,
             "authorEmail": from_address,
+            "recipientEmail": to_address,  # Add recipient email
             "sourceType": "email"
         }
         messages.append(message)
@@ -2165,6 +2166,7 @@ async def send_email_via_gmail(
             order_number=ticket.order_number,
             subject=formatted_subject,
             from_address=settings.gmail_support_email,  # Our email address
+            to_address=to,  # Recipient email address
             message_body=formatted_body,
             success=True,
             processed_at=datetime.now(timezone.utc)
