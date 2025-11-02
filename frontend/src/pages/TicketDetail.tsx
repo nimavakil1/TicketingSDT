@@ -47,6 +47,9 @@ const TicketDetail: React.FC = () => {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editedMessageBody, setEditedMessageBody] = useState('');
   const [editedMessageSubject, setEditedMessageSubject] = useState('');
+  const [editedMessageTo, setEditedMessageTo] = useState('');
+  const [editedMessageCC, setEditedMessageCC] = useState('');
+  const [editedMessageBCC, setEditedMessageBCC] = useState('');
   const [editedMessageAttachments, setEditedMessageAttachments] = useState<File[]>([]);
   const [processingMessage, setProcessingMessage] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState<number | null>(null);
@@ -634,6 +637,9 @@ const TicketDetail: React.FC = () => {
         updated_data: withEdits ? {
           body: editedMessageBody,
           subject: editedMessageSubject,
+          recipient_email: editedMessageTo || undefined,
+          cc_emails: editedMessageCC ? editedMessageCC.split(',').map(e => e.trim()).filter(e => e) : undefined,
+          bcc_emails: editedMessageBCC ? editedMessageBCC.split(',').map(e => e.trim()).filter(e => e) : undefined,
           attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined,
         } : undefined
       };
@@ -643,6 +649,9 @@ const TicketDetail: React.FC = () => {
       setEditingMessageId(null);
       setEditedMessageBody('');
       setEditedMessageSubject('');
+      setEditedMessageTo('');
+      setEditedMessageCC('');
+      setEditedMessageBCC('');
       setEditedMessageAttachments([]);
 
       // Reload ticket to show updated message history
@@ -1461,6 +1470,45 @@ const TicketDetail: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       />
                     </div>
+
+                    {/* To/CC/BCC Fields in Edit Mode */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        To
+                      </label>
+                      <input
+                        type="email"
+                        value={editedMessageTo}
+                        onChange={(e) => setEditedMessageTo(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="recipient@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        CC (comma-separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={editedMessageCC}
+                        onChange={(e) => setEditedMessageCC(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="email1@example.com, email2@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        BCC (comma-separated)
+                      </label>
+                      <input
+                        type="text"
+                        value={editedMessageBCC}
+                        onChange={(e) => setEditedMessageBCC(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="email1@example.com, email2@example.com"
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Message Body
@@ -1523,6 +1571,9 @@ const TicketDetail: React.FC = () => {
                           setEditingMessageId(null);
                           setEditedMessageBody('');
                           setEditedMessageSubject('');
+                          setEditedMessageTo('');
+                          setEditedMessageCC('');
+                          setEditedMessageBCC('');
                           setEditedMessageAttachments([]);
                         }}
                         disabled={processingMessage}
@@ -1536,6 +1587,27 @@ const TicketDetail: React.FC = () => {
                   // View mode
                   <div>
                     <p className="text-sm font-medium text-gray-900 mb-2">{msg.subject}</p>
+
+                    {/* Email Recipients in View Mode */}
+                    <div className="mb-3 bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
+                      <div>
+                        <span className="text-xs font-semibold text-gray-700">To: </span>
+                        <span className="text-xs text-gray-900">{msg.recipient_email || 'Not specified'}</span>
+                      </div>
+                      {msg.cc_emails && msg.cc_emails.length > 0 && (
+                        <div>
+                          <span className="text-xs font-semibold text-gray-700">CC: </span>
+                          <span className="text-xs text-gray-900">{msg.cc_emails.join(', ')}</span>
+                        </div>
+                      )}
+                      {msg.bcc_emails && msg.bcc_emails.length > 0 && (
+                        <div>
+                          <span className="text-xs font-semibold text-gray-700">BCC: </span>
+                          <span className="text-xs text-gray-900">{msg.bcc_emails.join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-sm text-gray-600 whitespace-pre-wrap mb-3">{msg.body}</p>
 
                     {msg.status === 'pending' && (
@@ -1552,6 +1624,9 @@ const TicketDetail: React.FC = () => {
                             setEditingMessageId(msg.id);
                             setEditedMessageBody(msg.body);
                             setEditedMessageSubject(msg.subject || '');
+                            setEditedMessageTo(msg.recipient_email || '');
+                            setEditedMessageCC(msg.cc_emails ? msg.cc_emails.join(', ') : '');
+                            setEditedMessageBCC(msg.bcc_emails ? msg.bcc_emails.join(', ') : '');
                           }}
                           disabled={processingMessage}
                           className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:bg-gray-400"
