@@ -137,11 +137,8 @@ export const ticketsApi = {
   uploadAttachment: async (ticketNumber: string, file: File): Promise<Attachment> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await client.post(`/api/tickets/${ticketNumber}/attachments/upload`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Don't set Content-Type manually - let axios set it with proper boundary
+    const response = await client.post(`/api/tickets/${ticketNumber}/attachments/upload`, formData);
     return response.data;
   },
 

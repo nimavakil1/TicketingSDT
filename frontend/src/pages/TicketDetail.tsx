@@ -425,11 +425,8 @@ const TicketDetail: React.FC = () => {
           formData.append('attachments', file);
         });
 
-        await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
+        // Don't set Content-Type manually - let axios set it with proper boundary
+        await client.post(`/api/tickets/${ticket.ticket_number}/send-email`, formData);
 
         setReprocessMessage({ type: 'success', text: 'Email sent successfully via Gmail!' });
       }
@@ -451,9 +448,12 @@ const TicketDetail: React.FC = () => {
       }, 2000);
     } catch (err: any) {
       console.error('Failed to send:', err);
+      const errorMessage = err.response?.data?.detail
+        || err.message
+        || 'Failed to send. Please check the console for details.';
       setReprocessMessage({
         type: 'error',
-        text: err.response?.data?.detail || 'Failed to send'
+        text: errorMessage
       });
     } finally {
       setReprocessing(false);
