@@ -511,17 +511,33 @@ class AIEngine:
         """Build the analysis prompt for the AI"""
         import json
 
-        prompt = f"""You are an expert customer support AI assistant for a dropshipping company. Analyze the following customer email and provide a structured response.
+        # Build language header FIRST - most prominent
+        language_header = f"""
+=================================================================
+🚨 CRITICAL: LANGUAGE REQUIREMENTS (READ THIS FIRST!) 🚨
+=================================================================
+Customer communication language: {language}
+Supplier communication language: {supplier_language or settings.supplier_default_language}
+
+YOU MUST WRITE:
+- Customer drafts in: {language}
+- Supplier drafts in: {supplier_language or settings.supplier_default_language}
+
+IF {language} = de-DE → Customer draft must be 100% GERMAN (no English words!)
+IF {language} = en-US → Customer draft must be 100% ENGLISH (no German words!)
+
+VERIFY LANGUAGE BEFORE SUBMITTING YOUR RESPONSE!
+=================================================================
+
+"""
+
+        prompt = language_header + f"""You are an expert customer support AI assistant for a dropshipping company. Analyze the following customer email and provide a structured response.
 
 Email Details:
 - From: {from_address}
 - Subject: {subject}
-- Language: {language}
 - Body:
 {body}
-
-Supplier communication language: {supplier_language or settings.supplier_default_language}
-Customer communication language: {language}
 
         """
 

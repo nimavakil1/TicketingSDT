@@ -82,3 +82,49 @@ class LanguageDetector:
             'pt-PT': 'Portuguese',
         }
         return names.get(culture, 'English')
+
+    @staticmethod
+    def validate_language(text: str, expected_language: str) -> tuple[bool, str]:
+        """
+        Validate that text is in the expected language
+
+        Args:
+            text: Text to validate
+            expected_language: Expected culture code (e.g., 'de-DE', 'en-US')
+
+        Returns:
+            Tuple of (is_valid: bool, detected_language: str)
+            is_valid=True if text matches expected language
+        """
+        if not text or not text.strip():
+            logger.warning("Empty text provided for language validation")
+            return False, 'unknown'
+
+        try:
+            # Skip very short text (e.g., "OK", "Thanks") - unreliable for detection
+            if len(text.strip()) < 20:
+                logger.debug("Text too short for reliable language validation", length=len(text))
+                return True, expected_language  # Assume correct for short text
+
+            # Detect actual language
+            detected = LanguageDetector.detect_language(text)
+
+            # Check if detected matches expected (ignore regional variants)
+            expected_base = expected_language.split('-')[0].lower()  # de-DE → de
+            detected_base = detected.split('-')[0].lower()  # de-DE → de
+
+            is_valid = expected_base == detected_base
+
+            if not is_valid:
+                logger.warning(
+                    "Language mismatch detected",
+                    expected=expected_language,
+                    detected=detected,
+                    text_preview=text[:100]
+                )
+
+            return is_valid, detected
+
+        except Exception as e:
+            logger.error("Language validation failed", error=str(e))
+            return True, expected_language  # Assume correct on error to avoid blocking

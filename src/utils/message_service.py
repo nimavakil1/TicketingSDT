@@ -89,13 +89,28 @@ class MessageService:
                            supplier_email=recipient_email)
 
         elif message_type == "customer":
+            customer_language = ticket_state.customer_language or 'de-DE'
             subject, body = self.formatter.format_customer_message(
                 message_body=message_body,
                 ticket_data=self._enrich_ticket_data(ticket_state, ticket_data),
-                language=ticket_state.customer_language or 'de-DE',
+                language=customer_language,
                 subject=custom_subject
             )
             recipient_email = ticket_state.customer_email
+
+            # WATERPROOF LAYER: Validate language of customer message
+            from src.ai.language_detector import LanguageDetector
+            is_valid, detected_lang = LanguageDetector.validate_language(message_body, customer_language)
+            if not is_valid:
+                logger.error(
+                    "🚨 LANGUAGE MISMATCH IN CUSTOMER MESSAGE!",
+                    ticket_number=ticket_state.ticket_number,
+                    expected=customer_language,
+                    detected=detected_lang,
+                    message_preview=message_body[:200]
+                )
+                # Add warning to message body so humans can see it
+                body = f"⚠️ WARNING: AI used {detected_lang} instead of {customer_language}\n\n{body}"
 
         elif message_type == "internal":
             subject = f"AI Agent Note - Ticket {ticket_state.ticket_number}"
