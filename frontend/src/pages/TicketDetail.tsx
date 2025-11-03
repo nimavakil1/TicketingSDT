@@ -124,28 +124,32 @@ const TicketDetail: React.FC = () => {
     }
   };
 
-  const loadAuditLogCount = async () => {
+  const loadAuditLogs = async (countOnly: boolean = false) => {
     if (!ticketNumber) return;
-    try {
-      const response = await client.get(`/api/tickets/${ticketNumber}/audit-logs?limit=1`);
-      setAuditLogCount(response.data.length > 0 ? response.data[0].total_count || response.data.length : 0);
-    } catch (err) {
-      console.error('Failed to load audit log count:', err);
-      setAuditLogCount(0);
-    }
-  };
 
-  const loadAuditLogs = async () => {
-    if (!ticketNumber) return;
-    setLoadingAuditLogs(true);
+    if (!countOnly) {
+      setLoadingAuditLogs(true);
+    }
+
     try {
       const response = await client.get(`/api/tickets/${ticketNumber}/audit-logs`);
-      setAuditLogs(response.data);
+
+      // Always update count
       setAuditLogCount(response.data.length);
+
+      // Only update full logs if not count-only mode
+      if (!countOnly) {
+        setAuditLogs(response.data);
+      }
     } catch (err) {
       console.error('Failed to load audit logs:', err);
+      if (countOnly) {
+        setAuditLogCount(0);
+      }
     } finally {
-      setLoadingAuditLogs(false);
+      if (!countOnly) {
+        setLoadingAuditLogs(false);
+      }
     }
   };
 
@@ -578,7 +582,7 @@ const TicketDetail: React.FC = () => {
   useEffect(() => {
     if (ticketNumber) {
       loadTicket();
-      loadAuditLogCount();
+      loadAuditLogs(true); // Load count only
       updateCurrentIndex();
     }
   }, [ticketNumber, ticketList]);
@@ -2037,7 +2041,7 @@ const TicketDetail: React.FC = () => {
           onClick={() => {
             setAuditLogsExpanded(!auditLogsExpanded);
             if (!auditLogsExpanded && auditLogs.length === 0) {
-              loadAuditLogs();
+              loadAuditLogs(false); // Load full logs when expanding
             }
           }}
           className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
