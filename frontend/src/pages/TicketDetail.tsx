@@ -44,6 +44,7 @@ const TicketDetail: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLogsExpanded, setAuditLogsExpanded] = useState(false);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+  const [auditLogCount, setAuditLogCount] = useState<number | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editedMessageBody, setEditedMessageBody] = useState('');
   const [editedMessageSubject, setEditedMessageSubject] = useState('');
@@ -123,12 +124,24 @@ const TicketDetail: React.FC = () => {
     }
   };
 
+  const loadAuditLogCount = async () => {
+    if (!ticketNumber) return;
+    try {
+      const response = await client.get(`/api/tickets/${ticketNumber}/audit-logs?limit=1`);
+      setAuditLogCount(response.data.length > 0 ? response.data[0].total_count || response.data.length : 0);
+    } catch (err) {
+      console.error('Failed to load audit log count:', err);
+      setAuditLogCount(0);
+    }
+  };
+
   const loadAuditLogs = async () => {
     if (!ticketNumber) return;
     setLoadingAuditLogs(true);
     try {
       const response = await client.get(`/api/tickets/${ticketNumber}/audit-logs`);
       setAuditLogs(response.data);
+      setAuditLogCount(response.data.length);
     } catch (err) {
       console.error('Failed to load audit logs:', err);
     } finally {
@@ -565,6 +578,7 @@ const TicketDetail: React.FC = () => {
   useEffect(() => {
     if (ticketNumber) {
       loadTicket();
+      loadAuditLogCount();
       updateCurrentIndex();
     }
   }, [ticketNumber, ticketList]);
@@ -2031,7 +2045,9 @@ const TicketDetail: React.FC = () => {
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-gray-500" />
             <h2 className="text-lg font-semibold text-gray-900">Activity Log</h2>
-            <span className="text-sm text-gray-500">({auditLogs.length} entries)</span>
+            <span className="text-sm text-gray-500">
+              ({auditLogCount !== null ? `${auditLogCount} ${auditLogCount === 1 ? 'entry' : 'entries'}` : '...'})
+            </span>
           </div>
           {auditLogsExpanded ? (
             <ChevronUp className="h-5 w-5 text-gray-500" />

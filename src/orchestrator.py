@@ -1675,6 +1675,7 @@ class SupportAgentOrchestrator:
     ) -> None:
         """Mark email as processed in database"""
         gmail_id = email_data['id']
+        from_address = email_data.get('from', '')
 
         # Check if email already exists in database
         existing = session.query(ProcessedEmail).filter_by(
@@ -1697,7 +1698,7 @@ class SupportAgentOrchestrator:
                 ticket_id=ticket_state.id if ticket_state else None,
                 order_number=order_number,
                 subject=email_data.get('subject') or '',
-                from_address=email_data.get('from', ''),
+                from_address=from_address,
                 message_body=email_data.get('body', ''),
                 success=success,
                 error_message=error_message
@@ -1705,6 +1706,26 @@ class SupportAgentOrchestrator:
             session.add(processed_email)
 
         session.commit()
+
+        # Log the incoming message if successfully processed and we have a ticket
+        if success and ticket_state and from_address:
+            from src.utils.audit_logger import log_message_received
+
+            # Determine if sender is supplier
+            is_supplier = False
+            if ticket_state.supplier_email:
+                # Extract email from "Name <email@domain.com>" format
+                import re
+                email_match = re.search(r'<([^>]+)>', from_address)
+                sender_email = email_match.group(1) if email_match else from_address
+                is_supplier = sender_email.lower() == ticket_state.supplier_email.lower()
+
+            log_message_received(
+                db=session,
+                ticket_number=ticket_state.ticket_number,
+                sender=from_address,
+                is_supplier=is_supplier
+            )
 
         # Save attachments if present and ticket_state exists
         if success and ticket_state and email_data.get('attachments'):

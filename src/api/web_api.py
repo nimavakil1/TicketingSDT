@@ -2240,11 +2240,14 @@ async def send_email_via_gmail(
 
             db.commit()
 
-        # Log the email being sent
+        # Log the email being sent - determine if it's to customer or supplier
+        is_supplier_email = ticket.supplier_email and to == ticket.supplier_email
+        message_type = "supplier_email" if is_supplier_email else "customer_email"
+
         log_message_sent(
             db=db,
             ticket_number=ticket_number,
-            message_type="customer_email",
+            message_type=message_type,
             recipient=to,
             user_id=current_user.id
         )

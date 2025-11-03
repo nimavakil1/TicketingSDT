@@ -111,13 +111,17 @@ def log_status_change(
 def log_message_sent(
     db: Session,
     ticket_number: str,
-    message_type: str,  # "customer_email", "old_system", "internal_note"
+    message_type: str,  # "customer_email", "supplier_email", "old_system", "internal_note"
     recipient: Optional[str] = None,
     user_id: Optional[int] = None
 ) -> bool:
     """Log a message being sent"""
     if message_type == "customer_email":
         description = f"sent email to customer"
+        if recipient:
+            description += f" ({recipient})"
+    elif message_type == "supplier_email":
+        description = f"sent email to supplier"
         if recipient:
             description += f" ({recipient})"
     elif message_type == "old_system":
@@ -134,6 +138,30 @@ def log_message_sent(
         action_description=description,
         user_id=user_id,
         extra_data={"recipient": recipient} if recipient else None
+    )
+
+
+def log_message_received(
+    db: Session,
+    ticket_number: str,
+    sender: str,
+    is_supplier: bool = False
+) -> bool:
+    """Log a message being received from customer or supplier"""
+    if is_supplier:
+        description = f"received email from supplier ({sender})"
+        action_type = "message_received_supplier"
+    else:
+        description = f"received email from customer ({sender})"
+        action_type = "message_received_customer"
+
+    return log_ticket_action(
+        db=db,
+        ticket_number=ticket_number,
+        action_type=action_type,
+        action_description=description,
+        user_id=None,  # System action
+        extra_data={"sender": sender, "is_supplier": is_supplier}
     )
 
 
