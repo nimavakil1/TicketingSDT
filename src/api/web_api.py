@@ -252,11 +252,11 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email: Optional[str]
-    password: Optional[str]
-    role: Optional[str]
-    full_name: Optional[str]
-    is_active: Optional[bool]
+    email: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+    full_name: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class AIMessageExampleInfo(BaseModel):
