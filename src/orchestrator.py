@@ -1545,8 +1545,7 @@ class SupportAgentOrchestrator:
             # Create the status if it doesn't exist
             return_auth_status = CustomStatus(
                 name='Return Authorization - Action Required',
-                color='#ff9800',  # Orange color
-                description='Amazon approved customer return - needs manual customer contact'
+                color='#ff9800'  # Orange color
             )
             session.add(return_auth_status)
             session.flush()  # Get the ID
